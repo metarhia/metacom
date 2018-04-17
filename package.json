@@ -1,0 +1,41 @@
+{
+  "name": "metacom",
+  "version": "0.0.0",
+  "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
+  "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
+  "license": "MIT",
+  "keywords": [
+    "metacom",
+    "metarhia",
+    "impress",
+    "server",
+    "client",
+    "socket",
+    "rpc",
+    "events",
+    "sync",
+    "globalstorage",
+    "protocol",
+    "stream"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metarhia/metacom"
+  },
+  "main": "./metacom.js",
+  "readmeFilename": "README.md",
+  "scripts": {
+    "test": "npm run lint",
+    "lint": "eslint ."
+  },
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "dependencies": {
+    "metarhia-common": "^0.0.26"
+  },
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "tap": "^11.1.3"
+  }
+}
