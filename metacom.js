@@ -1,7 +1,8 @@
 'use strict';
 
 const submodules = [
-  'client' // Metacom client
+  'client', // metacom client connection
+  'server' // metacom server
 ].map(path => require('./lib/' + path));
 
 const { client } = submodules[0];
