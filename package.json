@@ -25,7 +25,7 @@
   "main": "./metacom.js",
   "readmeFilename": "README.md",
   "scripts": {
-    "test": "npm run lint",
+    "test": "npm run lint && node ./test/unit.js && node ./test/integration.js ",
     "lint": "eslint ."
   },
   "engines": {
