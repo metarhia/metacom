@@ -12,12 +12,7 @@ server.on('connection', connection => {
   console.log('Connection accepted ' + connection.remoteAddress);
 });
 
-const client = metacom.connect({
-  transport: 'tcp',
-  port: 2000,
-  host: 'localhost',
-  api: 'applicationName'
-});
+const client = metacom.connect('tcp://localhost:2000/applicationName');
 
 client.on('open', () => {
   console.log('Connection initiated');
