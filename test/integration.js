@@ -2,22 +2,28 @@
 
 const metacom = require('..');
 
-const server = metacom.listen({
-  transport: 'tcp',
-  port: 2000,
-  host: 'localhost'
-});
+const server = new metacom.Server({ transport: 'tcp' });
 
-server.on('connection', connection => {
+server.on('connection', (connection) => {
   console.log('Connection accepted ' + connection.remoteAddress);
 });
 
-const client = metacom.connect('tcp://localhost:2000/applicationName');
+server.listen(2000);
 
-client.on('open', () => {
-  console.log('Connection initiated');
-  client.methodName('par1', 'par2', 'par3', (err, data) => {
-    console.dir({ data });
-    process.exit(0);
+server.on('listening', () => {
+
+  const client = metacom.connect('tcp://localhost:2000/applicationName');
+
+  client.on('connect', () => {
+    console.log('Connection initiated');
+    client.rpcCall('methodName', 'par1', 'par2', 'par3', (err, data) => {
+      console.dir({ data });
+      process.exit(0);
+    });
+    //client.methodName('par1', 'par2', 'par3', (err, data) => {
+    //  console.dir({ data });
+    //  process.exit(0);
+    //});
   });
+
 });

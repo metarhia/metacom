@@ -2,4 +2,4 @@
 
 const metacom = require('..');
 
-console.dir({ listen: metacom.listen });
+console.dir({ Server: metacom.Server });
