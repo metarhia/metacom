@@ -32,11 +32,11 @@
     "node": ">=6.0.0"
   },
   "dependencies": {
-    "metarhia-common": "^0.0.26",
+    "metarhia-common": "^0.0.28",
     "websocket": "^1.0.26"
   },
   "devDependencies": {
     "eslint": "^4.19.1",
-    "metatests": "^0.1.9"
+    "metatests": "^0.1.10"
   }
 }
