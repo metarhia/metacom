@@ -37,6 +37,6 @@
   },
   "devDependencies": {
     "eslint": "^4.19.1",
-    "metatests": "^0.1.10"
+    "metatests": "^0.2.0"
   }
 }
