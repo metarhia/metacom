@@ -4,7 +4,7 @@ const metacom = require('..');
 
 const server = new metacom.Server({ transport: 'tcp' });
 
-server.on('connection', (connection) => {
+server.on('connection', connection => {
   console.log('Connection accepted ' + connection.remoteAddress);
 });
 
@@ -26,5 +26,4 @@ server.on('listening', () => {
   //    process.exit(0);
   //   });
   // });
-
 });
