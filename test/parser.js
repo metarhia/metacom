@@ -15,7 +15,7 @@ const fillHandskakeBuffer = (handshake, buf) => {
 };
 
 const fillParcelBuffer = (parcel, buf) => {
-  buf.writeIntLE(parser.constants.STRUCT_PARCEL, 1);
+  buf.writeIntLE(parser.constants.STRUCT_PARCEL, 0, 1);
   buf.writeIntLE(parcel.parcelId, 1, 4);
   buf.writeIntLE(parcel.parcelType, 5, 1);
   buf.writeIntLE(parcel.compression, 6, 1);
@@ -72,7 +72,7 @@ const initChunkTestData = () => {
   const chunk = {
     structType: 1,
     parcelId: 1,
-    chunkId: 1,
+    chunkId: 0,
     flag: 1,
     length: '__PAYLOAD__'.length,
     payload: Buffer.from('__PAYLOAD__')
@@ -81,7 +81,7 @@ const initChunkTestData = () => {
   const emptyChunk = {
     structType: 1,
     parcelId: 1,
-    chunkId: 1,
+    chunkId: 0,
     flag: 1,
     length: 0,
     payload: Buffer.alloc(0)
@@ -276,7 +276,7 @@ metatests.test('parser.partPayload', test => {
 
   const singlePayload = '__SINGLE_CHUNK_PAYLOAD__';
   const singlePayloadChunks = [{
-    chunkId: 1,
+    chunkId: 0,
     payload: Buffer.from(singlePayload),
     length: singlePayload.length
   }];
@@ -288,7 +288,7 @@ metatests.test('parser.partPayload', test => {
   for (let i = 0, offset = 0; i < longPayloadBase.length; ++i, offset += 2048) {
     const part = longPayload.substring(offset, offset + 2048);
     longPayloadChunks.push({
-      chunkId: i + 1,
+      chunkId: i,
       payload: Buffer.from(part),
       length: part.length
     });
