@@ -1,1 +1,6 @@
-{ "extends": ["metarhia", "plugin:prettier/recommended"] }
+{
+  "globals": {
+    "BigInt": false
+  },
+  "extends": ["metarhia", "plugin:prettier/recommended"]
+}

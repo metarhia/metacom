@@ -3,20 +3,20 @@
 const metatests = require('metatests');
 const {
   writeBigIntToBuffer,
-  readBigIntFromBuffer
+  readBigIntFromBuffer,
 } = require('../lib/bigint-buffer');
 
 const BUFFER_SIZE = 8;
 
 const bigints = [
-  0x0an,
-  0xf0f1n,
-  0xffffffn,
-  0x0a1b2c3dn,
-  0xf0f1f2f3f4n,
-  0xffffffffffffn,
-  0x0a1b2c3d4e5f60n,
-  0xffffffffffffffffn,
+  BigInt(0x0a),
+  BigInt(0xf0f1),
+  BigInt(0xffffff),
+  BigInt(0x0a1b2c3d),
+  BigInt(0xf0f1f2f3f4),
+  BigInt(0xffffffffffff),
+  BigInt(0x0a1b2c3d4e5f60),
+  BigInt(0xffffffffffffffff),
 ];
 
 const buffers = [
@@ -34,75 +34,42 @@ metatests.test('write bigint to buffer', test => {
   let buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[0], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[0],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[0], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[1], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[1],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[1], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[2], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[2],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[2], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[3], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[3],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[3], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[4], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[4],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[4], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[5], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[5],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[5], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[6], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[6],
-    'must write correct bytes to buffer'
-  );
+  test.strictSame(buffer, buffers[6], 'must write correct bytes to buffer');
 
   buffer = Buffer.alloc(BUFFER_SIZE);
   writeBigIntToBuffer(bigints[7], buffer);
 
-  test.strictSame(
-    buffer,
-    buffers[7],
-    'must write correct bytes to buffer'
-  );
-
+  test.strictSame(buffer, buffers[7], 'must write correct bytes to buffer');
 
   test.end();
 });

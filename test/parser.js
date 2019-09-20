@@ -37,7 +37,7 @@ const initHandshakeTestData = () => {
     version: parser.constants.PROTOCOL_VERSION,
     status: 0,
     reserved: 0,
-    token: '___METACOM__CONNECTION__TOKEN___'
+    token: '___METACOM__CONNECTION__TOKEN___',
   };
 
   const buffer = Buffer.alloc(36);
@@ -56,7 +56,7 @@ const initParcelTestData = () => {
     parcelType: 0,
     compression: 0,
     encoding: 0,
-    length: BigInt(12345) // eslint-disable-line no-undef, new-cap
+    length: BigInt(12345), // eslint-disable-line no-undef, new-cap
   };
 
   const buffer = Buffer.alloc(parser.constants.PARCEL_LENGTH);
@@ -75,7 +75,7 @@ const initChunkTestData = () => {
     chunkId: 0,
     flag: 1,
     length: '__PAYLOAD__'.length,
-    payload: Buffer.from('__PAYLOAD__')
+    payload: Buffer.from('__PAYLOAD__'),
   };
 
   const emptyChunk = {
@@ -84,7 +84,7 @@ const initChunkTestData = () => {
     chunkId: 0,
     flag: 1,
     length: 0,
-    payload: Buffer.alloc(0)
+    payload: Buffer.alloc(0),
   };
 
   const buffer = Buffer.alloc(parser.constants.CHUNK_LENGTH + chunk.length);
@@ -100,9 +100,12 @@ const initChunkTestData = () => {
   fillChunkBuffer(emptyChunk, emptyPayloadLongBuffer);
 
   testData.chunk = {
-    chunk, emptyChunk,
-    buffer, longBuffer,
-    emptyPayloadBuffer, emptyPayloadLongBuffer
+    chunk,
+    emptyChunk,
+    buffer,
+    longBuffer,
+    emptyPayloadBuffer,
+    emptyPayloadLongBuffer,
   };
 };
 
@@ -170,9 +173,12 @@ metatests.test('parser.readParcel', test => {
 
 metatests.test('parser.readChunk', test => {
   const {
-    chunk, emptyChunk,
-    buffer, longBuffer,
-    emptyPayloadBuffer, emptyPayloadLongBuffer
+    chunk,
+    emptyChunk,
+    buffer,
+    longBuffer,
+    emptyPayloadBuffer,
+    emptyPayloadLongBuffer,
   } = testData.chunk;
 
   test.strictSame(
@@ -227,10 +233,7 @@ metatests.test('parser.parcel', test => {
 });
 
 metatests.test('parser.chunk', test => {
-  const {
-    chunk, emptyChunk,
-    buffer, emptyPayloadBuffer
-  } = testData.chunk;
+  const { chunk, emptyChunk, buffer, emptyPayloadBuffer } = testData.chunk;
 
   test.strictSame(
     parser.chunk(chunk),
@@ -268,18 +271,22 @@ metatests.test('parser.readStruct', test => {
 
 metatests.test('parser.partPayload', test => {
   const emptyPayload = '';
-  const emptyPayloadChunks = [{
-    chunkId: 1,
-    payload: Buffer.from(emptyPayload),
-    length: emptyPayload.length
-  }];
+  const emptyPayloadChunks = [
+    {
+      chunkId: 1,
+      payload: Buffer.from(emptyPayload),
+      length: emptyPayload.length,
+    },
+  ];
 
   const singlePayload = '__SINGLE_CHUNK_PAYLOAD__';
-  const singlePayloadChunks = [{
-    chunkId: 0,
-    payload: Buffer.from(singlePayload),
-    length: singlePayload.length
-  }];
+  const singlePayloadChunks = [
+    {
+      chunkId: 0,
+      payload: Buffer.from(singlePayload),
+      length: singlePayload.length,
+    },
+  ];
 
   const longPayloadBase = '__LONG_PAYLOAD__';
   const longPayload = longPayloadBase.repeat(2048);
@@ -290,7 +297,7 @@ metatests.test('parser.partPayload', test => {
     longPayloadChunks.push({
       chunkId: i,
       payload: Buffer.from(part),
-      length: part.length
+      length: part.length,
     });
   }
 
