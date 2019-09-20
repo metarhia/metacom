@@ -2,5 +2,5 @@
 
 module.exports = {
   connect: require('./lib/client'),
-  Server: require('./lib/server')
+  Server: require('./lib/server'),
 };
