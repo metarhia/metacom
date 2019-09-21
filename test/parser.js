@@ -3,321 +3,178 @@
 const metatests = require('metatests');
 const parser = require('../lib/parser');
 const { writeBigIntToBuffer } = require('../lib/bigint-buffer');
+const {
+  HANDSHAKE_SIZE,
+  PARCEL_HEADER_SIZE,
+  CHUNK_HEADER_SIZE,
+} = require('../lib/constants');
 
-const LONG_BUFFER_SIZE = 16384;
-const testData = {};
+metatests.test('parser.parseHandshake', test => {
+  const status = 1;
+  const reserved = 0;
+  const token = Buffer.from('A'.repeat(32));
 
-const fillHandskakeBuffer = (handshake, buf) => {
-  buf.writeIntLE(parser.constants.PROTOCOL_VERSION, 0, 2);
-  buf.writeIntLE(handshake.status, 2, 1);
-  buf.writeIntLE(handshake.reserved, 3, 1);
-  buf.write(handshake.token, 4);
-};
+  const buffer = Buffer.alloc(HANDSHAKE_SIZE);
 
-const fillParcelBuffer = (parcel, buf) => {
-  buf.writeIntLE(parser.constants.STRUCT_PARCEL, 0, 1);
-  buf.writeIntLE(parcel.parcelId, 1, 4);
-  buf.writeIntLE(parcel.parcelType, 5, 1);
-  buf.writeIntLE(parcel.compression, 6, 1);
-  buf.writeIntLE(parcel.encoding, 7, 1);
-  writeBigIntToBuffer(parcel.length, buf, 8);
-};
+  buffer.writeIntLE(status, 2, 1);
+  buffer.writeIntLE(reserved, 3, 1);
+  token.copy(buffer, 4);
 
-const fillChunkBuffer = (chunk, buf) => {
-  buf.writeIntLE(parser.constants.STRUCT_CHUNK, 0, 1);
-  buf.writeIntLE(chunk.parcelId, 1, 4);
-  buf.writeIntLE(chunk.chunkId, 5, 4);
-  buf.writeIntLE(chunk.flag, 9, 1);
-  buf.writeIntLE(chunk.length, 10, 2);
-  chunk.payload.copy(buf, 12);
-};
+  const handshake = parser.parseHandshake(buffer);
 
-const initHandshakeTestData = () => {
-  const handshake = {
-    version: parser.constants.PROTOCOL_VERSION,
-    status: 0,
-    reserved: 0,
-    token: '___METACOM__CONNECTION__TOKEN___',
-  };
-
-  const buffer = Buffer.alloc(36);
-  fillHandskakeBuffer(handshake, buffer);
-
-  const longBuffer = Buffer.alloc(LONG_BUFFER_SIZE);
-  fillHandskakeBuffer(handshake, longBuffer);
-
-  testData.handshake = { handshake, buffer, longBuffer };
-};
-
-const initParcelTestData = () => {
-  const parcel = {
-    structType: 0,
-    parcelId: 1,
-    parcelType: 0,
-    compression: 0,
-    encoding: 0,
-    length: BigInt(12345), // eslint-disable-line no-undef, new-cap
-  };
-
-  const buffer = Buffer.alloc(parser.constants.PARCEL_LENGTH);
-  fillParcelBuffer(parcel, buffer);
-
-  const longBuffer = Buffer.alloc(LONG_BUFFER_SIZE);
-  fillParcelBuffer(parcel, longBuffer);
-
-  testData.parcel = { parcel, buffer, longBuffer };
-};
-
-const initChunkTestData = () => {
-  const chunk = {
-    structType: 1,
-    parcelId: 1,
-    chunkId: 0,
-    flag: 1,
-    length: '__PAYLOAD__'.length,
-    payload: Buffer.from('__PAYLOAD__'),
-  };
-
-  const emptyChunk = {
-    structType: 1,
-    parcelId: 1,
-    chunkId: 0,
-    flag: 1,
-    length: 0,
-    payload: Buffer.alloc(0),
-  };
-
-  const buffer = Buffer.alloc(parser.constants.CHUNK_LENGTH + chunk.length);
-  fillChunkBuffer(chunk, buffer);
-
-  const longBuffer = Buffer.alloc(LONG_BUFFER_SIZE);
-  fillChunkBuffer(chunk, longBuffer);
-
-  const emptyPayloadBuffer = Buffer.alloc(parser.constants.CHUNK_LENGTH);
-  fillChunkBuffer(emptyChunk, emptyPayloadBuffer);
-
-  const emptyPayloadLongBuffer = Buffer.alloc(LONG_BUFFER_SIZE);
-  fillChunkBuffer(emptyChunk, emptyPayloadLongBuffer);
-
-  testData.chunk = {
-    chunk,
-    emptyChunk,
-    buffer,
-    longBuffer,
-    emptyPayloadBuffer,
-    emptyPayloadLongBuffer,
-  };
-};
-
-initHandshakeTestData();
-initParcelTestData();
-initChunkTestData();
-
-metatests.test('parser.readStructType', test => {
-  const parcel = Buffer.alloc(parser.constants.PARCEL_LENGTH);
-  parcel.writeIntLE(0, 0, 1);
-
-  const chunk = Buffer.alloc(parser.constants.CHUNK_LENGTH);
-  chunk.writeIntLE(1, 0, 1);
-
-  test.strictSame(
-    parser.readStructType(parcel),
-    parser.constants.STRUCT_PARCEL,
-    'must return struct type of parcel'
-  );
-
-  test.strictSame(
-    parser.readStructType(chunk),
-    parser.constants.STRUCT_CHUNK,
-    'must return struct type of chunk'
-  );
+  test.strictSame(handshake.status, status);
+  test.strictSame(handshake.reserved, reserved);
+  test.strictSame(handshake.token, token);
 
   test.end();
 });
 
-metatests.test('parser.readHandshake', test => {
-  const { handshake, buffer, longBuffer } = testData.handshake;
+metatests.test('parser.parseHandshake with longer buffer', test => {
+  const status = 1;
+  const reserved = 0;
+  const token = Buffer.from('A'.repeat(32));
 
-  test.strictSame(
-    parser.readHandshake(buffer),
-    handshake,
-    'must return appropriate handshake object'
-  );
+  const buffer = Buffer.alloc(HANDSHAKE_SIZE + 10);
 
-  test.strictSame(
-    parser.readHandshake(longBuffer),
-    handshake,
-    'must return appropriate handshake object'
-  );
+  buffer.writeIntLE(status, 2, 1);
+  buffer.writeIntLE(reserved, 3, 1);
+  token.copy(buffer, 4);
 
-  test.end();
-});
+  const handshake = parser.parseHandshake(buffer);
 
-metatests.test('parser.readParcel', test => {
-  const { parcel, buffer, longBuffer } = testData.parcel;
-
-  test.strictSame(
-    parser.readParcel(buffer),
-    parcel,
-    'must return appropriate parcel object'
-  );
-
-  test.strictSame(
-    parser.readParcel(longBuffer),
-    parcel,
-    'must return appropriate parcel object'
-  );
+  test.strictSame(handshake.status, status);
+  test.strictSame(handshake.reserved, reserved);
+  test.strictSame(handshake.token, token);
 
   test.end();
 });
 
-metatests.test('parser.readChunk', test => {
-  const {
-    chunk,
-    emptyChunk,
-    buffer,
-    longBuffer,
-    emptyPayloadBuffer,
-    emptyPayloadLongBuffer,
-  } = testData.chunk;
+metatests.test('parser.parseParcelHeader', test => {
+  const parcelId = 1;
+  const parcelType = 3;
+  const compression = 1;
+  const encoding = 1;
+  const length = BigInt(10);
 
-  test.strictSame(
-    parser.readChunk(buffer),
-    chunk,
-    'must return appropriate chunk object'
-  );
+  const buffer = Buffer.alloc(PARCEL_HEADER_SIZE);
 
-  test.strictSame(
-    parser.readChunk(longBuffer),
-    chunk,
-    'must return appropriate chunk object'
-  );
+  buffer.writeIntLE(parcelId, 1, 4);
+  buffer.writeIntLE(parcelType, 5, 1);
+  buffer.writeIntLE(compression, 6, 1);
+  buffer.writeIntLE(encoding, 7, 1);
+  writeBigIntToBuffer(length, buffer, 8);
 
-  test.strictSame(
-    parser.readChunk(emptyPayloadBuffer),
-    emptyChunk,
-    'must return appropriate chunk object'
-  );
+  const parcel = parser.parseParcelHeader(buffer);
 
-  test.strictSame(
-    parser.readChunk(emptyPayloadLongBuffer),
-    emptyChunk,
-    'must return appropriate chunk object'
-  );
+  test.strictSame(parcel.parcelId, parcelId);
+  test.strictSame(parcel.parcelType, parcelType);
+  test.strictSame(parcel.compression, compression);
+  test.strictSame(parcel.encoding, encoding);
+  test.strictSame(parcel.length, length);
 
   test.end();
 });
 
-metatests.test('parser.handshake', test => {
-  const { handshake, buffer } = testData.handshake;
+metatests.test('parser.parseParcelHeader with longer buffer', test => {
+  const parcelId = 1;
+  const parcelType = 3;
+  const compression = 1;
+  const encoding = 1;
+  const length = BigInt(10);
 
-  test.strictSame(
-    parser.handshake(handshake),
-    buffer,
-    'must return appropriate buffer'
-  );
+  const buffer = Buffer.alloc(PARCEL_HEADER_SIZE + 10);
 
-  test.end();
-});
+  buffer.writeIntLE(parcelId, 1, 4);
+  buffer.writeIntLE(parcelType, 5, 1);
+  buffer.writeIntLE(compression, 6, 1);
+  buffer.writeIntLE(encoding, 7, 1);
+  writeBigIntToBuffer(length, buffer, 8);
 
-metatests.test('parser.parcel', test => {
-  const { parcel, buffer } = testData.parcel;
+  const parcel = parser.parseParcelHeader(buffer);
 
-  test.strictSame(
-    parser.parcel(parcel),
-    buffer,
-    'must return appropriate buffer'
-  );
-
-  test.end();
-});
-
-metatests.test('parser.chunk', test => {
-  const { chunk, emptyChunk, buffer, emptyPayloadBuffer } = testData.chunk;
-
-  test.strictSame(
-    parser.chunk(chunk),
-    buffer,
-    'must return appropriate buffer'
-  );
-
-  test.strictSame(
-    parser.chunk(emptyChunk),
-    emptyPayloadBuffer,
-    'must return appropriate buffer'
-  );
+  test.strictSame(parcel.parcelId, parcelId);
+  test.strictSame(parcel.parcelType, parcelType);
+  test.strictSame(parcel.compression, compression);
+  test.strictSame(parcel.encoding, encoding);
+  test.strictSame(parcel.length, length);
 
   test.end();
 });
 
-metatests.test('parser.readStruct', test => {
-  const { chunk, buffer: chunkBuffer } = testData.chunk;
-  const { parcel, buffer: parcelBuffer } = testData.parcel;
+metatests.test('parser.parseChunk', test => {
+  const parcelId = 1;
+  const chunkId = 1;
+  const flag = 1;
+  const length = 10;
+  const payload = Buffer.from('A'.repeat(10));
 
-  test.strictSame(
-    parser.readStruct(chunkBuffer),
-    chunk,
-    'must return appropriate struct object'
-  );
+  const buffer = Buffer.alloc(CHUNK_HEADER_SIZE + length);
 
-  test.strictSame(
-    parser.readStruct(parcelBuffer),
-    parcel,
-    'must return appropriate struct object'
-  );
+  buffer.writeIntLE(parcelId, 1, 4);
+  buffer.writeIntLE(chunkId, 5, 4);
+  buffer.writeIntLE(flag, 9, 1);
+  buffer.writeIntLE(length, 10, 2);
+  payload.copy(buffer, 12);
+
+  const chunk = parser.parseChunk(buffer);
+
+  test.strictSame(chunk.parcelId, parcelId);
+  test.strictSame(chunk.chunkId, chunkId);
+  test.strictSame(chunk.flag, flag);
+  test.strictSame(chunk.length, length);
+  test.strictSame(chunk.payload, payload);
 
   test.end();
 });
 
-metatests.test('parser.partPayload', test => {
-  const emptyPayload = '';
-  const emptyPayloadChunks = [
-    {
-      chunkId: 1,
-      payload: Buffer.from(emptyPayload),
-      length: emptyPayload.length,
-    },
-  ];
+metatests.test('parser.parseChunk with longer buffer', test => {
+  const parcelId = 1;
+  const chunkId = 1;
+  const flag = 1;
+  const length = 10;
+  const payload = Buffer.from('A'.repeat(10));
 
-  const singlePayload = '__SINGLE_CHUNK_PAYLOAD__';
-  const singlePayloadChunks = [
-    {
-      chunkId: 0,
-      payload: Buffer.from(singlePayload),
-      length: singlePayload.length,
-    },
-  ];
+  const buffer = Buffer.alloc(CHUNK_HEADER_SIZE + length + 10);
 
-  const longPayloadBase = '__LONG_PAYLOAD__';
-  const longPayload = longPayloadBase.repeat(2048);
-  const longPayloadChunks = [];
+  buffer.writeIntLE(parcelId, 1, 4);
+  buffer.writeIntLE(chunkId, 5, 4);
+  buffer.writeIntLE(flag, 9, 1);
+  buffer.writeIntLE(length, 10, 2);
+  payload.copy(buffer, 12);
 
-  for (let i = 0, offset = 0; i < longPayloadBase.length; ++i, offset += 2048) {
-    const part = longPayload.substring(offset, offset + 2048);
-    longPayloadChunks.push({
-      chunkId: i,
-      payload: Buffer.from(part),
-      length: part.length,
-    });
-  }
+  const chunk = parser.parseChunk(buffer);
 
-  test.strictSame(
-    parser.partPayload(emptyPayload),
-    emptyPayloadChunks,
-    'must return appropriate chunks array'
-  );
+  test.strictSame(chunk.parcelId, parcelId);
+  test.strictSame(chunk.chunkId, chunkId);
+  test.strictSame(chunk.flag, flag);
+  test.strictSame(chunk.length, length);
+  test.strictSame(chunk.payload, payload);
 
-  test.strictSame(
-    parser.partPayload(singlePayload),
-    singlePayloadChunks,
-    'must return appropriate chunks array'
-  );
+  test.end();
+});
 
-  test.strictSame(
-    parser.partPayload(longPayload),
-    longPayloadChunks,
-    'must return appropriate chunks array'
-  );
+metatests.test('parser.parseChunk with empty payload', test => {
+  const parcelId = 1;
+  const chunkId = 1;
+  const flag = 1;
+  const length = 0;
+  const payload = Buffer.alloc(0);
+
+  const buffer = Buffer.alloc(CHUNK_HEADER_SIZE);
+
+  buffer.writeIntLE(parcelId, 1, 4);
+  buffer.writeIntLE(chunkId, 5, 4);
+  buffer.writeIntLE(flag, 9, 1);
+  buffer.writeIntLE(length, 10, 2);
+  payload.copy(buffer, 12);
+
+  const chunk = parser.parseChunk(buffer);
+
+  test.strictSame(chunk.parcelId, parcelId);
+  test.strictSame(chunk.chunkId, chunkId);
+  test.strictSame(chunk.flag, flag);
+  test.strictSame(chunk.length, length);
+  test.strictSame(chunk.payload, payload);
 
   test.end();
 });
