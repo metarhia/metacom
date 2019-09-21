@@ -2,7 +2,7 @@
 
 const metatests = require('metatests');
 const parser = require('../lib/parser');
-const { writeBigIntToBuffer } = require('../lib/bigint-buffer');
+const { writeBigIntToBuffer } = require('../lib/utils');
 const {
   HANDSHAKE_SIZE,
   PARCEL_HEADER_SIZE,

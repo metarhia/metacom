@@ -2,7 +2,7 @@
 
 const metatests = require('metatests');
 const writer = require('../lib/writer');
-const { readBigIntFromBuffer } = require('../lib/bigint-buffer');
+const { readBigIntFromBuffer } = require('../lib/utils');
 const {
   PROTOCOL_VERSION,
   STRUCT_PARCEL_HEADER,
