@@ -12,7 +12,7 @@ const {
   STRUCT_CHUNK_HEADER,
 } = require('../lib/constants');
 
-metatests.test('readStructType', test => {
+metatests.testSync('readStructType', test => {
   const parcel = Buffer.alloc(10);
   parcel.writeIntLE(0, 0, 1);
 
@@ -21,21 +21,17 @@ metatests.test('readStructType', test => {
 
   test.strictSame(readStructType(parcel), STRUCT_PARCEL_HEADER);
   test.strictSame(readStructType(chunk), STRUCT_CHUNK_HEADER);
-
-  test.end();
 });
 
-metatests.test('readPayloadLength', test => {
+metatests.testSync('readPayloadLength', test => {
   const payloadLength = 123;
   const buffer = Buffer.alloc(12);
   buffer.writeIntLE(payloadLength, 10, 2);
 
   test.strictSame(readPayloadLength(buffer), payloadLength);
-
-  test.end();
 });
 
-metatests.test('writeBigUInt64LEToBuffer', test => {
+metatests.testSync('writeBigUInt64LEToBuffer', test => {
   const buffer = Buffer.alloc(8);
 
   writeBigUInt64LEToBuffer(BigInt(0x0a), buffer);
@@ -100,11 +96,9 @@ metatests.test('writeBigUInt64LEToBuffer', test => {
     buffer,
     Buffer.from([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff])
   );
-
-  test.end();
 });
 
-metatests.test('readBigUInt64LEFromBuffer', test => {
+metatests.testSync('readBigUInt64LEFromBuffer', test => {
   test.strictSame(
     readBigUInt64LEFromBuffer(
       Buffer.from([0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])
@@ -161,6 +155,4 @@ metatests.test('readBigUInt64LEFromBuffer', test => {
     ),
     largestUInt64
   );
-
-  test.end();
 });
