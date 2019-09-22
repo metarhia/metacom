@@ -2,14 +2,14 @@
 
 const metatests = require('metatests');
 const parser = require('../lib/parser');
-const { writeBigIntToBuffer } = require('../lib/utils');
+const { writeBigUInt64LEToBuffer } = require('../lib/utils');
 const {
   HANDSHAKE_SIZE,
   PARCEL_HEADER_SIZE,
   CHUNK_HEADER_SIZE,
 } = require('../lib/constants');
 
-metatests.test('parser.parseHandshake', test => {
+metatests.testSync('parser.parseHandshake', test => {
   const status = 1;
   const reserved = 0;
   const token = Buffer.from('A'.repeat(32));
@@ -25,11 +25,9 @@ metatests.test('parser.parseHandshake', test => {
   test.strictSame(handshake.status, status);
   test.strictSame(handshake.reserved, reserved);
   test.strictSame(handshake.token, token);
-
-  test.end();
 });
 
-metatests.test('parser.parseHandshake with longer buffer', test => {
+metatests.testSync('parser.parseHandshake with longer buffer', test => {
   const status = 1;
   const reserved = 0;
   const token = Buffer.from('A'.repeat(32));
@@ -45,11 +43,9 @@ metatests.test('parser.parseHandshake with longer buffer', test => {
   test.strictSame(handshake.status, status);
   test.strictSame(handshake.reserved, reserved);
   test.strictSame(handshake.token, token);
-
-  test.end();
 });
 
-metatests.test('parser.parseParcelHeader', test => {
+metatests.testSync('parser.parseParcelHeader', test => {
   const parcelId = 1;
   const parcelType = 3;
   const compression = 1;
@@ -62,7 +58,7 @@ metatests.test('parser.parseParcelHeader', test => {
   buffer.writeIntLE(parcelType, 5, 1);
   buffer.writeIntLE(compression, 6, 1);
   buffer.writeIntLE(encoding, 7, 1);
-  writeBigIntToBuffer(length, buffer, 8);
+  writeBigUInt64LEToBuffer(length, buffer, 8);
 
   const parcel = parser.parseParcelHeader(buffer);
 
@@ -71,11 +67,9 @@ metatests.test('parser.parseParcelHeader', test => {
   test.strictSame(parcel.compression, compression);
   test.strictSame(parcel.encoding, encoding);
   test.strictSame(parcel.length, length);
-
-  test.end();
 });
 
-metatests.test('parser.parseParcelHeader with longer buffer', test => {
+metatests.testSync('parser.parseParcelHeader with longer buffer', test => {
   const parcelId = 1;
   const parcelType = 3;
   const compression = 1;
@@ -88,7 +82,7 @@ metatests.test('parser.parseParcelHeader with longer buffer', test => {
   buffer.writeIntLE(parcelType, 5, 1);
   buffer.writeIntLE(compression, 6, 1);
   buffer.writeIntLE(encoding, 7, 1);
-  writeBigIntToBuffer(length, buffer, 8);
+  writeBigUInt64LEToBuffer(length, buffer, 8);
 
   const parcel = parser.parseParcelHeader(buffer);
 
@@ -97,11 +91,9 @@ metatests.test('parser.parseParcelHeader with longer buffer', test => {
   test.strictSame(parcel.compression, compression);
   test.strictSame(parcel.encoding, encoding);
   test.strictSame(parcel.length, length);
-
-  test.end();
 });
 
-metatests.test('parser.parseChunk', test => {
+metatests.testSync('parser.parseChunk', test => {
   const parcelId = 1;
   const chunkId = 1;
   const flag = 1;
@@ -123,11 +115,9 @@ metatests.test('parser.parseChunk', test => {
   test.strictSame(chunk.flag, flag);
   test.strictSame(chunk.length, length);
   test.strictSame(chunk.payload, payload);
-
-  test.end();
 });
 
-metatests.test('parser.parseChunk with longer buffer', test => {
+metatests.testSync('parser.parseChunk with longer buffer', test => {
   const parcelId = 1;
   const chunkId = 1;
   const flag = 1;
@@ -149,11 +139,9 @@ metatests.test('parser.parseChunk with longer buffer', test => {
   test.strictSame(chunk.flag, flag);
   test.strictSame(chunk.length, length);
   test.strictSame(chunk.payload, payload);
-
-  test.end();
 });
 
-metatests.test('parser.parseChunk with empty payload', test => {
+metatests.testSync('parser.parseChunk with empty payload', test => {
   const parcelId = 1;
   const chunkId = 1;
   const flag = 1;
@@ -175,6 +163,4 @@ metatests.test('parser.parseChunk with empty payload', test => {
   test.strictSame(chunk.flag, flag);
   test.strictSame(chunk.length, length);
   test.strictSame(chunk.payload, payload);
-
-  test.end();
 });

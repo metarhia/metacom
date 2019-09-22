@@ -2,7 +2,7 @@
 
 const metatests = require('metatests');
 const writer = require('../lib/writer');
-const { readBigIntFromBuffer } = require('../lib/utils');
+const { readBigUInt64LEFromBuffer } = require('../lib/utils');
 const {
   PROTOCOL_VERSION,
   STRUCT_PARCEL_HEADER,
@@ -58,7 +58,7 @@ metatests.test('writer.writeParcelHeader', test => {
   test.strictSame(parcelHeaderBuffer.readIntLE(5, 1), parcelType);
   test.strictSame(parcelHeaderBuffer.readIntLE(6, 1), compression);
   test.strictSame(parcelHeaderBuffer.readIntLE(7, 1), encoding);
-  test.strictSame(readBigIntFromBuffer(parcelHeaderBuffer, 8), length);
+  test.strictSame(readBigUInt64LEFromBuffer(parcelHeaderBuffer, 8), length);
 
   test.end();
 });
