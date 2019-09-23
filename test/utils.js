@@ -2,34 +2,9 @@
 
 const metatests = require('metatests');
 const {
-  readStructType,
-  readPayloadLength,
   writeBigUInt64LEToBuffer,
   readBigUInt64LEFromBuffer,
 } = require('../lib/utils');
-const {
-  STRUCT_PARCEL_HEADER,
-  STRUCT_CHUNK_HEADER,
-} = require('../lib/constants');
-
-metatests.testSync('readStructType', test => {
-  const parcel = Buffer.alloc(10);
-  parcel.writeIntLE(0, 0, 1);
-
-  const chunk = Buffer.alloc(10);
-  chunk.writeIntLE(1, 0, 1);
-
-  test.strictSame(readStructType(parcel), STRUCT_PARCEL_HEADER);
-  test.strictSame(readStructType(chunk), STRUCT_CHUNK_HEADER);
-});
-
-metatests.testSync('readPayloadLength', test => {
-  const payloadLength = 123;
-  const buffer = Buffer.alloc(12);
-  buffer.writeIntLE(payloadLength, 10, 2);
-
-  test.strictSame(readPayloadLength(buffer), payloadLength);
-});
 
 metatests.testSync('writeBigUInt64LEToBuffer', test => {
   const buffer = Buffer.alloc(8);

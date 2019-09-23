@@ -4,10 +4,31 @@ const metatests = require('metatests');
 const parser = require('../lib/parser');
 const { writeBigUInt64LEToBuffer } = require('../lib/utils');
 const {
+  STRUCT_PARCEL_HEADER,
+  STRUCT_CHUNK_HEADER,
   HANDSHAKE_SIZE,
   PARCEL_HEADER_SIZE,
   CHUNK_HEADER_SIZE,
 } = require('../lib/constants');
+
+metatests.testSync('parser.readStructType', test => {
+  const parcel = Buffer.alloc(10);
+  parcel.writeIntLE(0, 0, 1);
+
+  const chunk = Buffer.alloc(10);
+  chunk.writeIntLE(1, 0, 1);
+
+  test.strictSame(parser.readStructType(parcel), STRUCT_PARCEL_HEADER);
+  test.strictSame(parser.readStructType(chunk), STRUCT_CHUNK_HEADER);
+});
+
+metatests.testSync('parser.readPayloadLength', test => {
+  const payloadLength = 123;
+  const buffer = Buffer.alloc(12);
+  buffer.writeIntLE(payloadLength, 10, 2);
+
+  test.strictSame(parser.readPayloadLength(buffer), payloadLength);
+});
 
 metatests.testSync('parser.parseHandshake', test => {
   const status = 1;
