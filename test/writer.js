@@ -7,6 +7,8 @@ const {
   PROTOCOL_VERSION,
   STRUCT_PARCEL_HEADER,
   STRUCT_CHUNK_HEADER,
+  STRUCT_PING,
+  STRUCT_PONG,
 } = require('../lib/constants');
 
 metatests.testSync('writer.writeHandshake', test => {
@@ -101,4 +103,14 @@ metatests.testSync('writer.writeChunk with empty payload', test => {
   test.strictSame(chunkBuffer.readIntLE(9, 1), flag);
   test.strictSame(chunkBuffer.readIntLE(10, 2), length);
   test.strictSame(chunkBuffer.slice(12), payload);
+});
+
+metatests.testSync('writer.writePing', test => {
+  const pingBuffer = writer.writePing();
+  test.strictSame(pingBuffer.readIntLE(0, 1), STRUCT_PING);
+});
+
+metatests.testSync('writer.writePong', test => {
+  const pongBuffer = writer.writePong();
+  test.strictSame(pongBuffer.readIntLE(0, 1), STRUCT_PONG);
 });
