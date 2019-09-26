@@ -6,7 +6,7 @@ const { writeBigUInt64LEToBuffer } = require('../lib/utils');
 const {
   STRUCT_HANDSHAKE,
   STRUCT_PARCEL_HEADER,
-  STRUCT_CHUNK_HEADER,
+  STRUCT_CHUNK,
   STRUCT_PING,
   STRUCT_PONG,
   HANDSHAKE_SIZE,
@@ -22,7 +22,7 @@ metatests.testSync('parser.readStructType', test => {
   parcel.writeIntLE(STRUCT_PARCEL_HEADER, 0, 1);
 
   const chunk = Buffer.alloc(10);
-  chunk.writeIntLE(STRUCT_CHUNK_HEADER, 0, 1);
+  chunk.writeIntLE(STRUCT_CHUNK, 0, 1);
 
   const ping = Buffer.alloc(10);
   ping.writeIntLE(STRUCT_PING, 0, 1);
@@ -32,7 +32,7 @@ metatests.testSync('parser.readStructType', test => {
 
   test.strictSame(parser.readStructType(handshake), STRUCT_HANDSHAKE);
   test.strictSame(parser.readStructType(parcel), STRUCT_PARCEL_HEADER);
-  test.strictSame(parser.readStructType(chunk), STRUCT_CHUNK_HEADER);
+  test.strictSame(parser.readStructType(chunk), STRUCT_CHUNK);
   test.strictSame(parser.readStructType(ping), STRUCT_PING);
   test.strictSame(parser.readStructType(pong), STRUCT_PONG);
 });
@@ -140,7 +140,7 @@ metatests.testSync('parser.parseChunk', test => {
 
   const buffer = Buffer.alloc(CHUNK_HEADER_SIZE + length);
 
-  buffer.writeIntLE(STRUCT_CHUNK_HEADER, 0, 1);
+  buffer.writeIntLE(STRUCT_CHUNK, 0, 1);
   buffer.writeIntLE(parcelId, 1, 4);
   buffer.writeIntLE(chunkId, 5, 4);
   buffer.writeIntLE(flag, 9, 1);
@@ -149,7 +149,7 @@ metatests.testSync('parser.parseChunk', test => {
 
   const chunk = parser.parseChunk(buffer);
 
-  test.strictSame(chunk.structType, STRUCT_CHUNK_HEADER);
+  test.strictSame(chunk.structType, STRUCT_CHUNK);
   test.strictSame(chunk.parcelId, parcelId);
   test.strictSame(chunk.chunkId, chunkId);
   test.strictSame(chunk.flag, flag);
@@ -166,7 +166,7 @@ metatests.testSync('parser.parseChunk with longer buffer', test => {
 
   const buffer = Buffer.alloc(CHUNK_HEADER_SIZE + length + 10);
 
-  buffer.writeIntLE(STRUCT_CHUNK_HEADER, 0, 1);
+  buffer.writeIntLE(STRUCT_CHUNK, 0, 1);
   buffer.writeIntLE(parcelId, 1, 4);
   buffer.writeIntLE(chunkId, 5, 4);
   buffer.writeIntLE(flag, 9, 1);
@@ -175,7 +175,7 @@ metatests.testSync('parser.parseChunk with longer buffer', test => {
 
   const chunk = parser.parseChunk(buffer);
 
-  test.strictSame(chunk.structType, STRUCT_CHUNK_HEADER);
+  test.strictSame(chunk.structType, STRUCT_CHUNK);
   test.strictSame(chunk.parcelId, parcelId);
   test.strictSame(chunk.chunkId, chunkId);
   test.strictSame(chunk.flag, flag);
@@ -192,7 +192,7 @@ metatests.testSync('parser.parseChunk with empty payload', test => {
 
   const buffer = Buffer.alloc(CHUNK_HEADER_SIZE);
 
-  buffer.writeIntLE(STRUCT_CHUNK_HEADER, 0, 1);
+  buffer.writeIntLE(STRUCT_CHUNK, 0, 1);
   buffer.writeIntLE(parcelId, 1, 4);
   buffer.writeIntLE(chunkId, 5, 4);
   buffer.writeIntLE(flag, 9, 1);
@@ -201,7 +201,7 @@ metatests.testSync('parser.parseChunk with empty payload', test => {
 
   const chunk = parser.parseChunk(buffer);
 
-  test.strictSame(chunk.structType, STRUCT_CHUNK_HEADER);
+  test.strictSame(chunk.structType, STRUCT_CHUNK);
   test.strictSame(chunk.parcelId, parcelId);
   test.strictSame(chunk.chunkId, chunkId);
   test.strictSame(chunk.flag, flag);

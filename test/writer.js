@@ -6,7 +6,7 @@ const { readBigUInt64LEFromBuffer } = require('../lib/utils');
 const {
   PROTOCOL_VERSION,
   STRUCT_PARCEL_HEADER,
-  STRUCT_CHUNK_HEADER,
+  STRUCT_CHUNK,
   STRUCT_PING,
   STRUCT_PONG,
 } = require('../lib/constants');
@@ -74,7 +74,7 @@ metatests.testSync('writer.writeChunk', test => {
     payload,
   });
 
-  test.strictSame(chunkBuffer.readIntLE(0, 1), STRUCT_CHUNK_HEADER);
+  test.strictSame(chunkBuffer.readIntLE(0, 1), STRUCT_CHUNK);
   test.strictSame(chunkBuffer.readIntLE(1, 4), parcelId);
   test.strictSame(chunkBuffer.readIntLE(5, 4), chunkId);
   test.strictSame(chunkBuffer.readIntLE(9, 1), flag);
@@ -97,7 +97,7 @@ metatests.testSync('writer.writeChunk with empty payload', test => {
     payload,
   });
 
-  test.strictSame(chunkBuffer.readIntLE(0, 1), STRUCT_CHUNK_HEADER);
+  test.strictSame(chunkBuffer.readIntLE(0, 1), STRUCT_CHUNK);
   test.strictSame(chunkBuffer.readIntLE(1, 4), parcelId);
   test.strictSame(chunkBuffer.readIntLE(5, 4), chunkId);
   test.strictSame(chunkBuffer.readIntLE(9, 1), flag);
