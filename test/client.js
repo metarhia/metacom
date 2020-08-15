@@ -1,5 +1,3 @@
 'use strict';
 
-const metacom = require('..');
-
-console.dir({ connect: metacom.connect });
+console.log('No client tests implemented');
