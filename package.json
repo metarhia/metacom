@@ -24,6 +24,13 @@
     "url": "https://github.com/metarhia/metacom"
   },
   "main": "./metacom.js",
+  "browser": {
+    "metacom.js": "dist/metacom.js"
+  },
+  "files": [
+    "dist/",
+    "lib/"
+  ],
   "readmeFilename": "README.md",
   "scripts": {
     "test": "npm run lint && node ./test/unit.js && node ./test/integration.js ",
