@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.0",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -11,6 +11,7 @@
     "server",
     "client",
     "socket",
+    "websocket",
     "rpc",
     "events",
     "sync",
@@ -26,23 +27,23 @@
   "readmeFilename": "README.md",
   "scripts": {
     "test": "npm run lint && node ./test/unit.js && node ./test/integration.js ",
-    "lint": "eslint .  && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\" \".*rc\" \"**/*.yml\"",
-    "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \".*rc\" \"**/*.yml\""
+    "lint": "eslint .  && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\"",
+    "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\""
   },
   "engines": {
-    "node": ">=8.0.0"
+    "node": ">=12.9.0"
   },
   "dependencies": {
-    "@metarhia/common": "^2.1.0",
-    "websocket": "^1.0.30"
+    "@metarhia/common": "^2.2.0",
+    "ws": "^7.3.1"
   },
   "devDependencies": {
-    "eslint": "^6.4.0",
-    "eslint-config-metarhia": "^7.0.0",
-    "eslint-config-prettier": "^6.3.0",
-    "eslint-plugin-prettier": "^3.1.1",
-    "eslint-plugin-import": "^2.18.2",
-    "metatests": "^0.7.1",
-    "prettier": "1.18.x"
+    "eslint": "^7.7.0",
+    "eslint-config-metarhia": "^7.0.1",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-prettier": "^3.1.4",
+    "eslint-plugin-import": "^2.22.0",
+    "metatests": "^0.7.2",
+    "prettier": "^2.0.5"
   }
 }

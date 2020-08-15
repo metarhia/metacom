@@ -1,5 +1,3 @@
 'use strict';
 
-const metacom = require('..');
-
-console.dir({ Server: metacom.Server });
+console.log('No server tests implemented');
