@@ -1,5 +1,6 @@
 export class Metacom {
   constructor(host) {
+    this.host = host;
     this.socket = new WebSocket('wss://' + host);
     this.api = {};
     this.callId = 0;
@@ -56,7 +57,8 @@ export class Metacom {
       const interfaceName = ver ? `${iname}.${ver}` : iname;
       const target = interfaceName + '/' + methodName;
       const packet = { call: callId, [target]: args };
-      return fetch('/api', {
+      const url = `https://${this.host}/api`;
+      return fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(packet),
