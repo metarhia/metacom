@@ -57,7 +57,7 @@ export class Metacom {
       const interfaceName = ver ? `${iname}.${ver}` : iname;
       const target = interfaceName + '/' + methodName;
       const packet = { call: callId, [target]: args };
-      const url = `https://{this.host}/api`;
+      const url = `https://${this.host}/api`;
       return fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
