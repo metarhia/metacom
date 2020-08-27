@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -23,7 +23,7 @@
     "type": "git",
     "url": "https://github.com/metarhia/metacom"
   },
-  "main": "./metacom.js",
+  "main": "metacom.js",
   "browser": {
     "./metacom.js": "./dist/metacom.js"
   },
