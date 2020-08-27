@@ -25,7 +25,7 @@
   },
   "main": "./metacom.js",
   "browser": {
-    "metacom.js": "dist/metacom.js"
+    "./metacom.js": "./dist/metacom.js"
   },
   "files": [
     "dist/",
