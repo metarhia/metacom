@@ -24,6 +24,7 @@
     "url": "https://github.com/metarhia/metacom"
   },
   "main": "metacom.js",
+  "types": "./metacom.d.ts",
   "browser": {
     "./metacom.js": "./dist/metacom.js"
   },
