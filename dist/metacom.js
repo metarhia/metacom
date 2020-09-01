@@ -1,3 +1,8 @@
+if (require) {
+  global.WebSocket = require('ws');
+  global.fetch = require('./fetch.js');
+}
+
 class MetacomError extends Error {
   constructor(message, code) {
     super(message);
