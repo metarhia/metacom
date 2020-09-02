@@ -30,7 +30,7 @@ export class Metacom {
   ready() {
     return new Promise(resolve => {
       if (this.socket.readyState === WebSocket.OPEN) resolve();
-      else this.socket.addEventListener('open', resolve);
+      else this.socket.addEventListener('open', () => resolve());
     });
   }
 
