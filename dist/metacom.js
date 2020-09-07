@@ -53,8 +53,7 @@ export class Metacom {
         const [resolve, reject] = promised;
         if (packet.error) {
           const { message, code } = packet.error;
-          const error = new MetacomError(message, code);
-          reject(error);
+          reject(new MetacomError(message, code));
           return;
         }
         resolve(args);
