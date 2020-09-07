@@ -106,7 +106,15 @@ export class Metacom {
         body: JSON.stringify(packet),
       }).then(res => {
         const { status } = res;
-        if (status === 200) return res.json().then(({ result }) => result);
+        if (status === 200) {
+          return res.json().then(packet => {
+            if (packet.error) {
+              const { message, code } = packet.error;
+              throw new MetacomError(message, code);
+            }
+            return packet.result;
+          });
+        }
         throw new Error(`Status Code: ${status}`);
       });
     };
