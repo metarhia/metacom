@@ -1,5 +1,5 @@
 class MetacomError extends Error {
-  constructor(message, code) {
+  constructor({ message, code }) {
     super(message);
     this.code = code;
   }
@@ -52,8 +52,7 @@ export class Metacom {
         if (!promised) return;
         const [resolve, reject] = promised;
         if (packet.error) {
-          const { message, code } = packet.error;
-          reject(new MetacomError(message, code));
+          reject(new MetacomError(packet.error));
           return;
         }
         resolve(args);
@@ -108,10 +107,7 @@ export class Metacom {
         const { status } = res;
         if (status === 200) {
           return res.json().then(packet => {
-            if (packet.error) {
-              const { message, code } = packet.error;
-              throw new MetacomError(message, code);
-            }
+            if (packet.error) throw new MetacomError(packet.error);
             return packet.result;
           });
         }
