@@ -1,7 +1,7 @@
 'use strict';
 
 const { Server } = require('./lib/server.js');
-const client = require('./lib/client.js');
+const { Metacom } = require('./lib/client.js');
 
-module.exports = client;
+module.exports = Metacom;
 module.exports.Server = Server;
