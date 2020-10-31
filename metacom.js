@@ -1,4 +1,7 @@
 'use strict';
 
-module.exports = require('./lib/client.js');
-module.exports.Server = require('./lib/server.js');
+const { Server } = require('./lib/server.js');
+const client = require('./lib/client.js');
+
+module.exports = client;
+module.exports.Server = Server;
