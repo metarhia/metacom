@@ -100,14 +100,14 @@ export class Metacom {
   }
 
   async load(...interfaces) {
-    const introspect = this.socketCall('system')('introspect');
+    const introspect = this.scaffold('system')('introspect');
     const introspection = await introspect(interfaces);
     const available = Object.keys(introspection);
     for (const interfaceName of interfaces) {
       if (!available.includes(interfaceName)) continue;
       const methods = new MetacomInterface();
       const iface = introspection[interfaceName];
-      const request = this.socketCall(interfaceName);
+      const request = this.scaffold(interfaceName);
       const methodNames = Object.keys(iface);
       for (const methodName of methodNames) {
         methods[methodName] = request(methodName);
@@ -116,33 +116,7 @@ export class Metacom {
     }
   }
 
-  httpCall(iname, ver) {
-    return methodName => (args = {}) => {
-      const callId = ++this.callId;
-      const interfaceName = ver ? `${iname}.${ver}` : iname;
-      const target = interfaceName + '/' + methodName;
-      const packet = { call: callId, [target]: args };
-      const dest = new URL(this.url);
-      const protocol = dest.protocol === 'ws:' ? 'http' : 'https';
-      const url = `${protocol}://${dest.host}/api`;
-      return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(packet),
-      }).then(res => {
-        const { status } = res;
-        if (status === 200) {
-          return res.json().then(packet => {
-            if (packet.error) throw new MetacomError(packet.error);
-            return packet.result;
-          });
-        }
-        throw new Error(`Status Code: ${status}`);
-      });
-    };
-  }
-
-  socketCall(iname, ver) {
+  scaffold(iname, ver) {
     return methodName => async (args = {}) => {
       const callId = ++this.callId;
       const interfaceName = ver ? `${iname}.${ver}` : iname;
