@@ -1,3 +1,5 @@
+const RECONNECT_TIMEOUT = 2 * 1000;
+
 class MetacomError extends Error {
   constructor({ message, code }) {
     super(message);
@@ -24,15 +26,46 @@ class MetacomInterface {
 }
 
 export class Metacom {
-  constructor(url) {
+  constructor(url, options = {}) {
     this.url = url;
-    this.socket = new WebSocket(url);
+    this.socket = null;
     this.api = {};
     this.callId = 0;
     this.calls = new Map();
+    this.active = true;
+    this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
+    this.open();
+  }
+
+  async open() {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) return;
+    this.active = true;
+    this.socket = new WebSocket(this.url);
+
     this.socket.addEventListener('message', ({ data }) => {
       this.message(data);
     });
+
+    this.socket.addEventListener('close', () => {
+      setTimeout(() => {
+        if (this.active) this.open();
+      }, this.reconnectTimeout);
+    });
+
+    this.socket.addEventListener('error', () => {
+      this.socket.close();
+    });
+
+    return new Promise(resolve => {
+      this.socket.addEventListener('open', resolve, { once: true });
+    });
+  }
+
+  close() {
+    this.active = false;
+    if (!this.socket) return;
+    this.socket.close();
+    this.socket = null;
   }
 
   message(data) {
@@ -66,15 +99,8 @@ export class Metacom {
     }
   }
 
-  ready() {
-    return new Promise(resolve => {
-      if (this.socket.readyState === WebSocket.OPEN) resolve();
-      else this.socket.addEventListener('open', resolve);
-    });
-  }
-
   async load(...interfaces) {
-    const introspect = this.httpCall('system')('introspect');
+    const introspect = this.socketCall('system')('introspect');
     const introspection = await introspect(interfaces);
     const available = Object.keys(introspection);
     for (const interfaceName of interfaces) {
@@ -121,7 +147,7 @@ export class Metacom {
       const callId = ++this.callId;
       const interfaceName = ver ? `${iname}.${ver}` : iname;
       const target = interfaceName + '/' + methodName;
-      await this.ready();
+      await this.open();
       return new Promise((resolve, reject) => {
         this.calls.set(callId, [resolve, reject]);
         const packet = { call: callId, [target]: args };
