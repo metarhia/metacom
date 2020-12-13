@@ -1,3 +1,4 @@
+const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
 
 class MetacomError extends Error {
@@ -33,6 +34,8 @@ export class Metacom {
     this.callId = 0;
     this.calls = new Map();
     this.active = true;
+    this.lastActivity = new Date().getTime();
+    this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.open();
   }
@@ -56,6 +59,13 @@ export class Metacom {
       this.socket.close();
     });
 
+    setInterval(() => {
+      if (this.active) {
+        const interval = new Date().getTime() - this.lastActivity;
+        if (interval > this.pingInterval) this.send('{}');
+      }
+    }, this.pingInterval);
+
     return new Promise(resolve => {
       this.socket.addEventListener('open', resolve, { once: true });
     });
@@ -69,6 +79,8 @@ export class Metacom {
   }
 
   message(data) {
+    if (data === '{}') return;
+    this.lastActivity = new Date().getTime();
     let packet;
     try {
       packet = JSON.parse(data);
@@ -125,8 +137,13 @@ export class Metacom {
       return new Promise((resolve, reject) => {
         this.calls.set(callId, [resolve, reject]);
         const packet = { call: callId, [target]: args };
-        this.socket.send(JSON.stringify(packet));
+        this.send(JSON.stringify(packet));
       });
     };
+  }
+
+  send(data) {
+    this.lastActivity = new Date().getTime();
+    this.socket.send(data);
   }
 }
