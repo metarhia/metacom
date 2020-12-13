@@ -2,6 +2,8 @@ const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
 
+const connections = new Set();
+
 class MetacomError extends Error {
   constructor({ message, code }) {
     super(message);
@@ -34,7 +36,8 @@ export class Metacom {
     this.api = {};
     this.callId = 0;
     this.calls = new Map();
-    this.active = true;
+    this.active = false;
+    this.connected = false;
     this.lastActivity = new Date().getTime();
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
@@ -43,15 +46,17 @@ export class Metacom {
   }
 
   async open() {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) return;
+    if (this.connected) return;
     this.active = true;
     this.socket = new WebSocket(this.url);
+    connections.add(this);
 
     this.socket.addEventListener('message', ({ data }) => {
       this.message(data);
     });
 
     this.socket.addEventListener('close', () => {
+      this.connected = false;
       setTimeout(() => {
         if (this.active) this.open();
       }, this.reconnectTimeout);
@@ -69,12 +74,20 @@ export class Metacom {
     }, this.pingInterval);
 
     return new Promise(resolve => {
-      this.socket.addEventListener('open', resolve, { once: true });
+      this.socket.addEventListener(
+        'open',
+        () => {
+          this.connected = true;
+          resolve();
+        },
+        { once: true }
+      );
     });
   }
 
   close() {
     this.active = false;
+    connections.delete(this);
     if (!this.socket) return;
     this.socket.close();
     this.socket = null;
@@ -135,7 +148,7 @@ export class Metacom {
       const callId = ++this.callId;
       const interfaceName = ver ? `${iname}.${ver}` : iname;
       const target = interfaceName + '/' + methodName;
-      await this.open();
+      if (!this.connected) await this.open();
       return new Promise((resolve, reject) => {
         setTimeout(() => {
           if (this.calls.has(callId)) {
@@ -151,6 +164,7 @@ export class Metacom {
   }
 
   send(data) {
+    if (!this.connected) return;
     this.lastActivity = new Date().getTime();
     this.socket.send(data);
   }
