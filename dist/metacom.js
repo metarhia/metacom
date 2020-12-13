@@ -1,3 +1,5 @@
+import { EventEmitter } from './events.js';
+
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
@@ -35,8 +37,9 @@ class MetacomInterface {
   }
 }
 
-export class Metacom {
+export class Metacom extends EventEmitter {
   constructor(url, options = {}) {
+    super();
     this.url = url;
     this.socket = null;
     this.api = {};
