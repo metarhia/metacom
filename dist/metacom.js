@@ -4,6 +4,12 @@ const RECONNECT_TIMEOUT = 2 * 1000;
 
 const connections = new Set();
 
+window.addEventListener('online', () => {
+  for (const connection of connections) {
+    connection.open();
+  }
+});
+
 class MetacomError extends Error {
   constructor({ message, code }) {
     super(message);
