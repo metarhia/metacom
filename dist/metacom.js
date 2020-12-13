@@ -47,23 +47,24 @@ export class Metacom {
 
   async open() {
     if (this.connected) return;
+    const socket = new WebSocket(this.url);
     this.active = true;
-    this.socket = new WebSocket(this.url);
+    this.socket = socket;
     connections.add(this);
 
-    this.socket.addEventListener('message', ({ data }) => {
+    socket.addEventListener('message', ({ data }) => {
       this.message(data);
     });
 
-    this.socket.addEventListener('close', () => {
+    socket.addEventListener('close', () => {
       this.connected = false;
       setTimeout(() => {
         if (this.active) this.open();
       }, this.reconnectTimeout);
     });
 
-    this.socket.addEventListener('error', () => {
-      this.socket.close();
+    socket.addEventListener('error', () => {
+      socket.close();
     });
 
     setInterval(() => {
@@ -74,14 +75,10 @@ export class Metacom {
     }, this.pingInterval);
 
     return new Promise(resolve => {
-      this.socket.addEventListener(
-        'open',
-        () => {
-          this.connected = true;
-          resolve();
-        },
-        { once: true }
-      );
+      socket.addEventListener('open', () => {
+        this.connected = true;
+        resolve();
+      });
     });
   }
 
@@ -99,8 +96,7 @@ export class Metacom {
     let packet;
     try {
       packet = JSON.parse(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
       return;
     }
     const [callType, target] = Object.keys(packet);
