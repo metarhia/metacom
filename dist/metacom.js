@@ -6,7 +6,7 @@ const connections = new Set();
 
 window.addEventListener('online', () => {
   for (const connection of connections) {
-    connection.open();
+    if (!connection.connected) connection.open();
   }
 });
 
