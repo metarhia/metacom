@@ -1,3 +1,4 @@
+const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
 
@@ -35,6 +36,7 @@ export class Metacom {
     this.calls = new Map();
     this.active = true;
     this.lastActivity = new Date().getTime();
+    this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.open();
@@ -135,6 +137,12 @@ export class Metacom {
       const target = interfaceName + '/' + methodName;
       await this.open();
       return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          if (this.calls.has(callId)) {
+            this.calls.delete(callId);
+            reject(new Error('Request timeout'));
+          }
+        }, this.callTimeout);
         this.calls.set(callId, [resolve, reject]);
         const packet = { call: callId, [target]: args };
         this.send(JSON.stringify(packet));
