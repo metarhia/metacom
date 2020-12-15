@@ -45,6 +45,7 @@ export class Metacom extends EventEmitter {
     this.api = {};
     this.callId = 0;
     this.calls = new Map();
+    this.streams = new Map();
     this.active = false;
     this.connected = false;
     this.lastActivity = new Date().getTime();
@@ -63,6 +64,10 @@ export class Metacom extends EventEmitter {
   message(data) {
     if (data === '{}') return;
     this.lastActivity = new Date().getTime();
+    if (data.startsWith('{"stream"')) {
+      this.stream(data);
+      return;
+    }
     let packet;
     try {
       packet = JSON.parse(data);
@@ -90,6 +95,36 @@ export class Metacom extends EventEmitter {
         metacomInterface.emit(eventName, args);
       }
     }
+  }
+
+  stream(data) {
+    const chunkStart = data.indexOf('}') + 1;
+    const meta = data.substring(0, chunkStart);
+    const chunk = data.substring(chunkStart);
+    let packet;
+    try {
+      packet = JSON.parse(meta);
+    } catch (err) {
+      this.error(500, new Error('JSON parsing error'));
+      return;
+    }
+    const { stream, name, size, status } = packet.stream;
+    if (typeof stream !== 'number') {
+      this.error(500, new Error('Invalid stream metadata'));
+      return;
+    }
+    if (name) {
+      this.streams.set(stream, { name, size, chunks: [], received: 0 });
+      return;
+    }
+    const record = this.streams.get(stream);
+    if (status) {
+      this.streams.delete(stream);
+      this.application.console.log('end', record);
+      return;
+    }
+    record.chunks.push(chunk);
+    this.application.console.log('chunk', record);
   }
 
   async load(...interfaces) {
