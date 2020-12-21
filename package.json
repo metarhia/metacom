@@ -23,6 +23,15 @@
     "type": "git",
     "url": "https://github.com/metarhia/metacom"
   },
+  "bugs": {
+    "url": "https://github.com/metarhia/metacom/issues",
+    "email": "timur.shemsedinov@gmail.com"
+  },
+  "homepage": "https://metarhia.com",
+  "funding": {
+    "type": "patreon",
+    "url": "https://www.patreon.com/tshemsedinov"
+  },
   "main": "metacom.js",
   "browser": {
     "./metacom.js": "./dist/metacom.js"
