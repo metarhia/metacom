@@ -1,10 +1,11 @@
 # Metacom Communication Protocol for Metarhia
 
-[![CI Status](https://github.com/metarhia/metacom/workflows/Testing%20CI/badge.svg)](https://github.com/metarhia/metacom/actions?query=workflow%3A%22Testing+CI%22+branch%3Amaster)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/80885bfdb4bd411da51f31a7593c1f65)](https://www.codacy.com/app/metarhia/metacom)
-[![NPM Version](https://badge.fury.io/js/metacom.svg)](https://badge.fury.io/js/metacom)
-[![NPM Downloads/Month](https://img.shields.io/npm/dm/metacom.svg)](https://www.npmjs.com/package/metacom)
-[![NPM Downloads](https://img.shields.io/npm/dt/metacom.svg)](https://www.npmjs.com/package/metacom)
+[![ci status](https://github.com/metarhia/metacom/workflows/Testing%20CI/badge.svg)](https://github.com/metarhia/metacom/actions?query=workflow%3A%22Testing+CI%22+branch%3Amaster)
+[![codacy](https://api.codacy.com/project/badge/Grade/80885bfdb4bd411da51f31a7593c1f65)](https://www.codacy.com/app/metarhia/metacom)
+[![snyk](https://snyk.io/test/github/metarhia/metacom/badge.svg)](https://snyk.io/test/github/metarhia/metacom)
+[![npm version](https://badge.fury.io/js/metacom.svg)](https://badge.fury.io/js/metacom)
+[![npm downloads/month](https://img.shields.io/npm/dm/metacom.svg)](https://www.npmjs.com/package/metacom)
+[![npm downloads](https://img.shields.io/npm/dt/metacom.svg)](https://www.npmjs.com/package/metacom)
 
 Metacom protocol specification:
 https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
