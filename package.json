@@ -50,8 +50,8 @@
     "node": "^12.9 || 14 || 15"
   },
   "dependencies": {
-    "@metarhia/common": "^2.2.0",
-    "ws": "^7.4.1"
+    "ws": "^7.4.1",
+    "metautil": "^3.0.0"
   },
   "devDependencies": {
     "eslint": "^7.15.0",
