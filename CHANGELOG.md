@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Move cookies operations from impress/auth
+- Move sessions from impress/auth
+
 ## [1.1.0][] - 2021-01-08
 
 - Use metautil instead of metarhia/common
