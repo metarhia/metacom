@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Revert to lock-file version 1
+- Fix memory leak: remove sessions from collection by token
 
 ## [1.3.0][] - 2021-02-07
 
