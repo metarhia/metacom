@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Revert to lock-file version 1
+
 ## [1.3.0][] - 2021-02-07
 
 - Fix channel collection memory leak and duplication
