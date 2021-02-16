@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Fix error passing to client side
+- Call application.invoke to execute methods with schema validation
 
 ## [1.3.1][] - 2021-02-09
 
