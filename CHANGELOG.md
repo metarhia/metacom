@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix error passing to client side
+
 ## [1.3.1][] - 2021-02-09
 
 - Revert to lock-file version 1
