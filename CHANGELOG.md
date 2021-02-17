@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.4.0][] - 2021-02-17
+
 - Fix error passing to client side
 - Call application.invoke to execute methods with schema validation
 - Don't pass context to `application.getMethod`
@@ -44,7 +46,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.3.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/metarhia/metacom/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/metarhia/metacom/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/metarhia/metacom/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/metarhia/metacom/compare/v1.1.0...v1.2.0
