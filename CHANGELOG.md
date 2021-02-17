@@ -4,6 +4,8 @@
 
 - Fix error passing to client side
 - Call application.invoke to execute methods with schema validation
+- Don't pass context to `application.getMethod`
+- Now proc is a struct, not just method with injected context
 
 ## [1.3.1][] - 2021-02-09
 
