@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Move Semaphore and timeout to metautil
+- Decompose Channel.prototype.rpc
 
 ## [1.4.0][] - 2021-02-17
 
