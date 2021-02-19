@@ -2,8 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+## [1.5.0][] - 2021-02-19
+
 - Move Semaphore and timeout to metautil
 - Decompose Channel.prototype.rpc
+- Use new impress class Procedure
 
 ## [1.4.0][] - 2021-02-17
 
@@ -49,7 +52,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.4.0...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/metarhia/metacom/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/metarhia/metacom/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/metarhia/metacom/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/metarhia/metacom/compare/v1.2.0...v1.3.0
