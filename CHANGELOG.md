@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Move Semaphore and timeout to metautil
+
 ## [1.4.0][] - 2021-02-17
 
 - Fix error passing to client side
