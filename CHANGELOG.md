@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix restore session for Channel
+
 ## [1.5.0][] - 2021-02-19
 
 - Move Semaphore and timeout to metautil
