@@ -50,7 +50,7 @@
     "node": "^12.9 || 14 || 15"
   },
   "dependencies": {
-    "metautil": "^3.3.0",
+    "metautil": "^3.5.0",
     "ws": "^7.4.3"
   },
   "devDependencies": {
