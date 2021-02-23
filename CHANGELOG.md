@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Marshal timeout error to the client side
+
 ## [1.5.2][] - 2021-02-23
 
 - Update metautil to 3.5.0, change `await timeout` to `await delay`
