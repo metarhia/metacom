@@ -149,7 +149,8 @@ class WebsocketTransport extends Metacom {
       }, this.reconnectTimeout);
     });
 
-    socket.addEventListener('error', () => {
+    socket.addEventListener('error', (err) => {
+      this.emit('error', err);
       socket.close();
     });
 
