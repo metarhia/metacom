@@ -5,6 +5,7 @@
 - Update metautil to 3.5.0, change `await timeout` to `await delay`
 - Remove channel from collection on connections close
 - Add Client event: 'close' for http and websockets
+- Delegate server socket on 'error' handler
 
 ## [1.5.1][] - 2021-02-19
 
