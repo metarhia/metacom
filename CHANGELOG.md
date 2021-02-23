@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.5.2][] - 2021-02-23
+
 - Update metautil to 3.5.0, change `await timeout` to `await delay`
 - Remove channel from collection on connections close
 - Add Client event: 'close' for http and websockets
@@ -61,7 +63,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.5.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/metarhia/metacom/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/metarhia/metacom/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/metarhia/metacom/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/metarhia/metacom/compare/v1.3.1...v1.4.0

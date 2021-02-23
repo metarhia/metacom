@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -56,7 +56,7 @@
   "devDependencies": {
     "eslint": "^7.20.0",
     "eslint-config-metarhia": "^7.0.1",
-    "eslint-config-prettier": "^7.2.0",
+    "eslint-config-prettier": "^8.0.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-prettier": "^3.3.1",
     "metatests": "^0.7.2",
