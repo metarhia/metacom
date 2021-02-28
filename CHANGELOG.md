@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.5.3][] - 2021-02-28
+
 - Marshal timeout error to the client side
 - Get user ip from Client class: `context.client.ip`
 - Change queue configuration: https://github.com/metarhia/impress/issues/1484
@@ -67,7 +69,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.5.2...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/metarhia/metacom/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/metarhia/metacom/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/metarhia/metacom/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/metarhia/metacom/compare/v1.4.0...v1.5.0
