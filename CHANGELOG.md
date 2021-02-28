@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Marshal timeout error to the client side
+- Get user ip from Client class: `context.client.ip`
 
 ## [1.5.2][] - 2021-02-23
 
