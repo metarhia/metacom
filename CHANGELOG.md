@@ -4,6 +4,7 @@
 
 - Marshal timeout error to the client side
 - Get user ip from Client class: `context.client.ip`
+- Change queue configuration: https://github.com/metarhia/impress/issues/1484
 
 ## [1.5.2][] - 2021-02-23
 
