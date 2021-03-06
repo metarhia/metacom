@@ -7,7 +7,7 @@ export interface MetacomError extends Error {
 export class Metacom extends EventEmitter {
   url: string;
   socket: WebSocket;
-  api: Object;
+  api: object;
   callId: number;
   calls: Map<number, [Function, Function]>;
   constructor(url: string);
@@ -16,9 +16,9 @@ export class Metacom extends EventEmitter {
   httpCall(
     iname: string,
     ver: string
-  ): (methodName: string) => (args: Object) => Promise<void>;
+  ): (methodName: string) => (args: object) => Promise<void>;
   socketCall(
     iname: string,
     ver: string
-  ): (methodName: string) => (args: Object) => Promise<void>;
+  ): (methodName: string) => (args: object) => Promise<void>;
 }
