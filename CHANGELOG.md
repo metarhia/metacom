@@ -2,6 +2,12 @@
 
 ## [Unreleased][unreleased]
 
+## [1.6.0][] - 2021-03-15
+
+- Implmenetn port re-bind
+- Disable Nagle's algorithm if configured
+- Read timeouts from config (remove hardcoded constants)
+- Refactor and improve code style
 - Add typing for Metacom class
 
 ## [1.5.3][] - 2021-02-28
@@ -71,7 +77,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.5.3...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/metarhia/metacom/compare/v1.5.3...v1.6.0
 [1.5.3]: https://github.com/metarhia/metacom/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/metarhia/metacom/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/metarhia/metacom/compare/v1.5.0...v1.5.1
