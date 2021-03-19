@@ -4,7 +4,7 @@
 
 ## [1.6.0][] - 2021-03-15
 
-- Implmenetn port re-bind
+- Implement port re-bind
 - Disable Nagle's algorithm if configured
 - Read timeouts from config (remove hardcoded constants)
 - Refactor and improve code style
