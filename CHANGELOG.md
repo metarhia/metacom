@@ -2,6 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+## [1.6.1][] - 2021-04-13
+
+- Fix and improve typings
+- Publish typings to npm package
+
 ## [1.6.0][] - 2021-03-15
 
 - Implement port re-bind
@@ -77,7 +82,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.6.0...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/metarhia/metacom/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/metarhia/metacom/compare/v1.5.3...v1.6.0
 [1.5.3]: https://github.com/metarhia/metacom/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/metarhia/metacom/compare/v1.5.1...v1.5.2
