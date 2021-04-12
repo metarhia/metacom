@@ -39,7 +39,8 @@
   },
   "files": [
     "dist/",
-    "lib/"
+    "lib/",
+    "types/"
   ],
   "readmeFilename": "README.md",
   "scripts": {
