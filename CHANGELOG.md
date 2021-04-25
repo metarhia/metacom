@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix method access check
+
 ## [1.6.1][] - 2021-04-13
 
 - Fix and improve typings
