@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Fix method access check
+- Rename id field to support new auth
 
 ## [1.6.1][] - 2021-04-13
 
