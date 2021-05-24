@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.7.0][] - 2021-05-24
+
 - Fix method access check
 - Rename id field to support new auth
 
@@ -85,7 +87,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.6.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/metarhia/metacom/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/metarhia/metacom/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/metarhia/metacom/compare/v1.5.3...v1.6.0
 [1.5.3]: https://github.com/metarhia/metacom/compare/v1.5.2...v1.5.3
