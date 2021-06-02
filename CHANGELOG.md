@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Update dependencies for security reasons
+
 ## [1.7.0][] - 2021-05-24
 
 - Fix method access check
