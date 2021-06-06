@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.7.2][] - 2021-06-06
+
 - Move @types/ws to dev dependencies to reduce prod module size
 
 ## [1.7.1][] - 2021-06-03
@@ -93,7 +95,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/metarhia/metacom/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/metarhia/metacom/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/metarhia/metacom/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/metarhia/metacom/compare/v1.6.0...v1.6.1
