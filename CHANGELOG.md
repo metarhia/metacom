@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Move @types/ws to dev dependencies to reduce prod module size
+
 ## [1.7.1][] - 2021-06-03
 
 - Update dependencies for security reasons

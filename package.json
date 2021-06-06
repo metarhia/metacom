@@ -53,11 +53,11 @@
     "node": "^12.9 || 14 || 16"
   },
   "dependencies": {
-    "@types/ws": "^7.4.4",
     "metautil": "^3.5.4",
     "ws": "^7.4.6"
   },
   "devDependencies": {
+    "@types/ws": "^7.4.4",
     "@types/node": "^15.6.2",
     "eslint": "^7.27.0",
     "eslint-config-metarhia": "^7.0.1",
