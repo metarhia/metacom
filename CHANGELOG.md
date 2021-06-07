@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix passing validation error to the client
+
 ## [1.7.2][] - 2021-06-06
 
 - Move @types/ws to dev dependencies to reduce prod module size
