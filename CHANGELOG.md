@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Update Metacom exports
+- Add support for `http ` protocol requests
 
 ## [1.7.3][] - 2021-06-08
 
