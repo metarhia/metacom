@@ -43,9 +43,8 @@ metatests.test('Start Server in a single process', async (test) => {
     console: new Console(),
   };
 
-  const server = await new Server(config, application);
+  await new Server(config, application);
 
-  test.strictSame(typeof server, 'object');
   test.strictSame(application.console.infoData, 'Listen port 8000 in worker 0');
 
   test.end();
