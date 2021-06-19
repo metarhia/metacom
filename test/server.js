@@ -21,9 +21,8 @@ class Console {
 metatests.test('Start Server in a single process', async (test) => {
   const config = {
     host: '::',
-    balancer: 8000,
     protocol: 'http',
-    ports: [8001],
+    ports: [8000],
     timeouts: {
       bind: 2000,
       start: 30000,
@@ -47,7 +46,7 @@ metatests.test('Start Server in a single process', async (test) => {
   const server = await new Server(config, application);
 
   test.strictSame(typeof server, 'object');
-  test.strictSame(application.console.infoData, 'Listen port 8001 in worker 0');
+  test.strictSame(application.console.infoData, 'Listen port 8000 in worker 0');
 
   test.end();
 });
