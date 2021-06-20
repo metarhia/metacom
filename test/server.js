@@ -39,6 +39,7 @@ metatests.test('Start Server in a single process', async (test) => {
       pool: 2,
     },
   };
+
   const application = {
     console: new Console(),
   };

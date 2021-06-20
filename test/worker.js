@@ -2,6 +2,7 @@
 
 const { parentPort } = require('worker_threads');
 const { Server } = require('../lib/server');
+
 class Console {
   constructor() {
     this.infoData = [];
@@ -43,13 +44,14 @@ const config = {
     pool: 2,
   },
 };
+
 const application = {
   console: new Console(),
 };
 
 (async () => {
   await new Server(config, application);
-  application.console.infoData.forEach((data) => {
+  for (const data of application.console.infoData) {
     parentPort.postMessage(data);
-  });
+  }
 })();

@@ -7,7 +7,7 @@ metatests.test(
   (test) => {
     const workersNum = 3;
 
-    for (let i = 0; i < workersNum; i++) {
+    for (let i = 1; i < workersNum; i++) {
       const worker = new Worker('./test/worker.js');
       worker.on('message', (message) => {
         if (message.includes('port undefined')) {
