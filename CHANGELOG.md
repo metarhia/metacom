@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Throw errors on wrong configs
+
 ## [1.7.3][] - 2021-06-08
 
 - Fix passing validation error to the client
