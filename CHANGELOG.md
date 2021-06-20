@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Update Metacom exports
+- Throw errors on wrong configs
 
 ## [1.7.3][] - 2021-06-08
 
