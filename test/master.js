@@ -1,9 +1,10 @@
 'use strict';
+
 const metatests = require('metatests');
 const { Worker } = require('worker_threads');
 
 metatests.test(
-  'Start server without balancer with 3 workers 2 ports',
+  'Start server without balancer with 2 workers (2 ports)',
   (test) => {
     const workersNum = 3;
 
