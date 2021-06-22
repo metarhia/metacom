@@ -4,6 +4,7 @@
 
 - Update Metacom exports
 - Throw errors on wrong configs
+- Update Client implementation in /distr
 
 ## [1.7.3][] - 2021-06-08
 
