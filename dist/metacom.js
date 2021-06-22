@@ -45,6 +45,7 @@ export class Metacom extends EventEmitter {
     this.api = {};
     this.callId = 0;
     this.calls = new Map();
+    this.streams = new Map();
     this.active = false;
     this.connected = false;
     this.lastActivity = new Date().getTime();
@@ -88,6 +89,23 @@ export class Metacom extends EventEmitter {
         const [interfaceName, eventName] = target.split('/');
         const metacomInterface = this.api[interfaceName];
         metacomInterface.emit(eventName, args);
+      }
+      if (callType === 'stream') {
+        const { name, size, status } = packet;
+        if (name) {
+          const stream = { name, size, chunks: [], received: 0 };
+          this.streams.set(callId, stream);
+          return;
+        }
+        const stream = this.streams.get(callId);
+        if (status) {
+          this.streams.delete(callId);
+          const blob = new Blob(stream.chunks);
+          blob.text().then((text) => {
+            console.log({ text });
+          });
+          return;
+        }
       }
     }
   }
@@ -140,7 +158,10 @@ class WebsocketTransport extends Metacom {
     connections.add(this);
 
     socket.addEventListener('message', ({ data }) => {
-      this.message(data);
+      if (typeof data === 'string') {
+        this.message(data);
+        return;
+      }
     });
 
     socket.addEventListener('close', () => {
