@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.7.4][] - 2021-06-26
+
 - Update Metacom exports
 - Throw errors on wrong configs
 - Update Client implementation in /distr
@@ -103,7 +105,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.3...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.4...HEAD
+[1.7.4]: https://github.com/metarhia/metacom/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/metarhia/metacom/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/metarhia/metacom/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/metarhia/metacom/compare/v1.7.0...v1.7.1
