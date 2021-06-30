@@ -18,8 +18,9 @@ import { Metacom } from './metacom.js';
 const { Metacom } = require('metacom');
 
 // Open connection (both platforms) and make calls
-const metacom = new Metacom('https://domainname.com:8000');
+const metacom = Metacom.create('https://domainname.com:8000');
 (async () => {
+  const { api } = metacom;
   try {
     await metacom.load('auth'); // Load `auth` interface
     await api.auth.status(); // Check session status
