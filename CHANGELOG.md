@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Update typings
+
 ## [1.7.4][] - 2021-06-26
 
 - Update Metacom exports
