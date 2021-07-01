@@ -2,7 +2,10 @@
 
 ## [Unreleased][unreleased]
 
-- Update typings
+## [1.7.5][] - 2021-07-01
+
+- Fix Metacom typings
+- Update dependencies
 
 ## [1.7.4][] - 2021-06-26
 
@@ -107,7 +110,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.4...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.5...HEAD
+[1.7.5]: https://github.com/metarhia/metacom/compare/v1.7.4...v1.7.5
 [1.7.4]: https://github.com/metarhia/metacom/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/metarhia/metacom/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/metarhia/metacom/compare/v1.7.1...v1.7.2
