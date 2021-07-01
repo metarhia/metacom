@@ -11,6 +11,7 @@ export class Metacom extends EventEmitter {
   callId: number;
   calls: Map<number, [Function, Function]>;
   constructor(url: string);
+  static create(url: string, options?: unknown): Metacom;
   ready(): Promise<void>;
   load(interfaces: Array<string>): Promise<void>;
   httpCall(
