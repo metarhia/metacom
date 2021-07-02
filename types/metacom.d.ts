@@ -13,7 +13,7 @@ export class Metacom extends EventEmitter {
   constructor(url: string);
   static create(url: string, options?: unknown): Metacom;
   ready(): Promise<void>;
-  load(interfaces: Array<string>): Promise<void>;
+  load(...interfaces: Array<string>): Promise<void>;
   httpCall(
     iname: string,
     ver: string

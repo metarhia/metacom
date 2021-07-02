@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix Metacom typings
+
 ## [1.7.5][] - 2021-07-01
 
 - Fix Metacom typings
