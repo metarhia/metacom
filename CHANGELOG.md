@@ -4,6 +4,7 @@
 
 - Add http hooks with custom method names
 - Fix Metacom typings
+- Improve url parsing
 
 ## [1.7.5][] - 2021-07-01
 
