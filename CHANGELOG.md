@@ -2,6 +2,7 @@
 
 ## [Unreleased][unreleased]
 
+- Add http hooks with custom method names
 - Fix Metacom typings
 
 ## [1.7.5][] - 2021-07-01
