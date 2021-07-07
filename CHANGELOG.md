@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.8.0][] - 2021-07-07
+
 - Add http hooks with custom method names
 - Fix Metacom typings
 - Improve url parsing
@@ -114,7 +116,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.5...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/metarhia/metacom/compare/v1.7.5...v1.8.0
 [1.7.5]: https://github.com/metarhia/metacom/compare/v1.7.4...v1.7.5
 [1.7.4]: https://github.com/metarhia/metacom/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/metarhia/metacom/compare/v1.7.2...v1.7.3
