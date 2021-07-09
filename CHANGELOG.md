@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Move split and parseParams to metautil
+
 ## [1.8.0][] - 2021-07-07
 
 - Add http hooks with custom method names
