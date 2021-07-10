@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Move split and parseParams to metautil
+- Fix custom errors over http transport
 
 ## [1.8.0][] - 2021-07-07
 
