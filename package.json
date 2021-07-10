@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -54,10 +54,10 @@
   },
   "dependencies": {
     "metautil": "^3.5.5",
-    "ws": "^7.5.2"
+    "ws": "^7.5.3"
   },
   "devDependencies": {
-    "@types/node": "^16.0.1",
+    "@types/node": "^16.3.1",
     "@types/ws": "^7.4.6",
     "eslint": "^7.30.0",
     "eslint-config-metarhia": "^7.0.1",
