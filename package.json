@@ -33,19 +33,19 @@
     "url": "https://www.patreon.com/tshemsedinov"
   },
   "main": "metacom.js",
-  "types": "types/metacom.d.ts",
+  "types": "metacom.d.ts",
   "browser": {
     "./metacom.js": "./dist/metacom.js"
   },
   "files": [
     "dist/",
     "lib/",
-    "types/"
+    "metacom.d.ts"
   ],
   "readmeFilename": "README.md",
   "scripts": {
     "test": "npm run lint && npm run types && node ./test/unit.js && node ./test/integration.js",
-    "types": "tsc -p types/tsconfig.json",
+    "types": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\" \"**/*.ts\"",
     "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\" \"**/*.ts\""
   },
