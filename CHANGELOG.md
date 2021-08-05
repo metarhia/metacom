@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Rewrite `Client` method `startSession` and `restoreSession` to remove access
+  to `auth.provider` and work with database structure, move this to application
+  leyer where we `know` auth specific DB structure
 - Move types to package root
 
 ## [1.8.1][] - 2021-07-10
