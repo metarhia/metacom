@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Move types to package root
+
 ## [1.8.1][] - 2021-07-10
 
 - Move split and parseParams to metautil
