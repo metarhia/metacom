@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [1.8.2][] - 2021-08-06
+
 - Rewrite `Client` method `startSession` and `restoreSession` to remove access
   to `auth.provider` and work with database structure, move this to application
   leyer where we `know` auth specific DB structure
@@ -127,7 +129,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.8.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v1.8.2...HEAD
+[1.8.2]: https://github.com/metarhia/metacom/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/metarhia/metacom/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/metarhia/metacom/compare/v1.7.5...v1.8.0
 [1.7.5]: https://github.com/metarhia/metacom/compare/v1.7.4...v1.7.5
