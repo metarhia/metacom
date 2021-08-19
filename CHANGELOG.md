@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Support GET requests and change calls: `hook` and `invoke`
+
 ## [1.8.2][] - 2021-08-06
 
 - Rewrite `Client` method `startSession` and `restoreSession` to remove access
