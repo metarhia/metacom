@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Support GET requests and change calls: `hook` and `invoke`
+- Add `redirect` method to `Client` with delegation to `Channel`
 
 ## [1.8.2][] - 2021-08-06
 
