@@ -2,8 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+## [2.0.0][] - 2021-08-19
+
 - Support GET requests and change calls: `hook` and `invoke`
 - Add `redirect` method to `Client` with delegation to `Channel`
+- Update dependencies
 
 ## [1.8.2][] - 2021-08-06
 
@@ -132,7 +135,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.8.2...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/metarhia/metacom/compare/v1.8.1...v2.0.0
 [1.8.2]: https://github.com/metarhia/metacom/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/metarhia/metacom/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/metarhia/metacom/compare/v1.7.5...v1.8.0
