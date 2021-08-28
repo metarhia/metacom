@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Simplify Channel/Session machinery
+  - Collections: sessions, channels
+
 ## [2.0.0][] - 2021-08-19
 
 - Support GET requests and change calls: `hook` and `invoke`
