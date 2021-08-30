@@ -4,6 +4,7 @@
 
 - Simplify Channel/Session machinery
   - Collections: sessions, channels
+  - Decompose: extract transport and static modules
 
 ## [2.0.0][] - 2021-08-19
 
