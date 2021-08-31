@@ -8,6 +8,7 @@
 - Rework Channel and Server
   - Decompose Channel to WsChannel and HttpChannel
   - Move event handlers from Server to WsChannel and HttpChannel
+  - Return after error to avoid double reply and logging
 
 ## [2.0.0][] - 2021-08-19
 
