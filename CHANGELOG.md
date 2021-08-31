@@ -5,6 +5,9 @@
 - Simplify Channel/Session machinery
   - Collections: sessions, channels
   - Decompose: extract transport and static modules
+- Rework Channel and Server
+  - Decompose Channel to WsChannel and HttpChannel
+  - Move event handlers from Server to WsChannel and HttpChannel
 
 ## [2.0.0][] - 2021-08-19
 
