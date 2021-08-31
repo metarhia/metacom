@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+- Rework Channel and Server
+  - Decompose Channel to WsChannel and HttpChannel
+  - Move event handlers from Server to WsChannel and HttpChannel
+
 ## [2.0.1][] - 2021-09-03
 
 - Simplify Channel/Session machinery
