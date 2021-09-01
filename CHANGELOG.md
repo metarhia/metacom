@@ -2,6 +2,23 @@
 
 ## [Unreleased][unreleased]
 
+- Add metacom binary streams
+  - Websocket bidirectional streaming
+  - Multiple streams
+  - File streaming
+  - Interaction with native streams
+  - Event emitter based
+- Implement metacom stream protocol
+  - Stream initialization
+  - Stream closing
+  - Stream termination
+  - Chunk identification with metadata header
+- Integrate api interfaces
+  - Stream consumers
+  - Stream producers
+- Create file streams usage example
+- Add stream types
+
 ## [2.0.0][] - 2021-08-19
 
 - Support GET requests and change calls: `hook` and `invoke`

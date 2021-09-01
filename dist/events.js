@@ -9,6 +9,14 @@ export class EventEmitter {
     else this.events.set(name, new Set([fn]));
   }
 
+  once(name, fn) {
+    const wrapper = (...args) => {
+      this.remove(name, wrapper);
+      return fn(...args);
+    };
+    this.on(name, wrapper);
+  }
+
   emit(name, ...args) {
     const event = this.events.get(name);
     if (!event) return;
@@ -22,7 +30,6 @@ export class EventEmitter {
     if (!event) return;
     if (event.has(fn)) {
       event.delete(fn);
-      return;
     }
   }
 

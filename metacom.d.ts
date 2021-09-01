@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { Writable } from 'stream';
 
 export interface MetacomError extends Error {
   code: string;
@@ -22,4 +23,24 @@ export class Metacom extends EventEmitter {
     iname: string,
     ver: string
   ): (methodName: string) => (args: object) => Promise<void>;
+}
+
+export class MetacomReadable extends EventEmitter {
+  streamId: number;
+  name: string;
+  size: number;
+  push(data: ArrayBufferView): Promise<ArrayBufferView>;
+  pipe(writable: Writable): Promise<void>;
+  toBlob(type?: string): Promise<Blob>;
+  close(): Promise<void>;
+  terminate(): Promise<void>;
+}
+
+export class MetacomWritable extends EventEmitter {
+  streamId: number;
+  name: string;
+  size: number;
+  write(data: ArrayBufferView): void;
+  end(): void;
+  terminate(): void;
 }
