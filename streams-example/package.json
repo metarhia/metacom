@@ -11,7 +11,7 @@
   "author": "Roman",
   "license": "ISC",
   "resolutions": {
-    "metacom": "git://github.com/metarhia/metacom.git#metastream"
+    "metacom": "file:../"
   },
   "dependencies": {
     "impress": "^2.5.3"
