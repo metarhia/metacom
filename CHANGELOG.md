@@ -4,7 +4,7 @@
 
 - Add metacom binary streams
   - Websocket bidirectional streaming
-  - Multiple streams
+  - Multiple simultaneous streams
   - File streaming
   - Interaction with native streams
   - Event emitter based
@@ -18,6 +18,11 @@
   - Stream producers
 - Create file streams usage example
 - Add stream types
+
+
+- Simplify Channel/Session machinery
+  - Collections: sessions, channels
+  - Decompose: extract transport and static modules
 
 ## [2.0.0][] - 2021-08-19
 
