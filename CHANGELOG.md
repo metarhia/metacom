@@ -19,7 +19,6 @@
 - Create file streams usage example
 - Add stream types
 
-
 - Simplify Channel/Session machinery
   - Collections: sessions, channels
   - Decompose: extract transport and static modules

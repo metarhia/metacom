@@ -8,6 +8,6 @@
   persistent: true,
   limits: {
     ip: 20,
-    user: 5
-  }
+    user: 5,
+  },
 });

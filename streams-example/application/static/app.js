@@ -2,10 +2,11 @@ import { Metacom } from './metacom.js';
 import { runStreams } from './streamsUsage.js';
 
 class Application {
-
   constructor() {
     const protocol = location.protocol === 'http:' ? 'ws' : 'wss';
-    this.metacom = Metacom.create(`${protocol}://${location.host}/api`, { callTimeout: 5 * 60000 });
+    this.metacom = Metacom.create(`${protocol}://${location.host}/api`, {
+      callTimeout: 5 * 60000,
+    });
   }
 }
 

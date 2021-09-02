@@ -1,14 +1,17 @@
 # Metacom streams example
 
 ### Installation
+
 `npm install`
 
-*Make sure you're installing metacom test version from `metastream` branch as it's resolved by npm-force-resolutions*
+_Make sure you're installing metacom test version from `metastream` branch as it's resolved by npm-force-resolutions_
 
 ### Start
+
 `node server.js`
 
 ### Investigate results
+
 1. Go to http://localost:8000
 2. You will a picture and text
 3. Open devtools console
@@ -18,6 +21,7 @@
 5. Play with client interfaces in `application/static/streamsUsage.js`
 
 ### How to use streams
+
 1. If you want to upload a big binary:
    1. On server:
       - Create an `apiConsumerInterface` like `api/streams.1/fileStreamConsumer.js`, **important: make sure you pass `streamId` to the consumer, so that it can identify stream**

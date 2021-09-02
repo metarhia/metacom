@@ -60,7 +60,7 @@ class MetacomChunk {
         const payload = byteView.subarray(payloadStart);
         return {
           streamId,
-          payload
+          payload,
         };
       }
     }
@@ -107,7 +107,7 @@ class MetacomReadable extends EventEmitter {
     await this.close();
     return {
       status: this.status,
-      bytesRead: this.bytesRead
+      bytesRead: this.bytesRead,
     };
   }
 
@@ -155,7 +155,8 @@ class MetacomReadable extends EventEmitter {
 
   checkQueueOverflow() {
     const currentSize = this.queue.reduce(
-      (total, data) => (total += data.length), 0
+      (total, data) => (total += data.length),
+      0
     );
     return currentSize > this.highWaterMark;
   }
@@ -164,7 +165,7 @@ class MetacomReadable extends EventEmitter {
     return new Promise((resolve) => this.once(event, resolve));
   }
 
-  async* [Symbol.asyncIterator]() {
+  async *[Symbol.asyncIterator]() {
     while (this.streaming) {
       const chunk = await this.read();
       if (chunk) yield chunk;
@@ -187,7 +188,7 @@ class MetacomWritable extends EventEmitter {
     const packet = {
       stream: this.streamId,
       name: this.name,
-      size: this.size
+      size: this.size,
     };
     this.transport.send(JSON.stringify(packet));
   }
@@ -209,8 +210,7 @@ class MetacomWritable extends EventEmitter {
 }
 
 class MetacomStreams {
-  constructor() {
-  }
+  constructor() {}
 }
 
 export class Metacom extends EventEmitter {
@@ -250,7 +250,7 @@ export class Metacom extends EventEmitter {
       transport: this,
       streamId,
       name,
-      size
+      size,
     };
     const consumer = new MetacomWritable(initData);
     const result = streamConsumerApi({ ...args, streamId: this.streamId });
@@ -261,7 +261,10 @@ export class Metacom extends EventEmitter {
     const name = blob.name || 'blob';
     const size = blob.size;
     const { consumer, result } = this.createStreamConsumer(
-      name, size, blobConsumerApi, args
+      name,
+      size,
+      blobConsumerApi,
+      args
     );
     const reader = blob.stream().getReader();
     let chunk;

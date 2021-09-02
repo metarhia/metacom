@@ -7,5 +7,5 @@
     const writable = context.client.createStream(name, size);
     readable.pipe(writable);
     return { streamId: writable.streamId, type };
-  }
+  },
 });

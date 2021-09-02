@@ -19,15 +19,17 @@ const showText = async (blob) => {
 
 const downloadFile = async (name, type) => {
   const { producer, result } = await application.metacom.getStreamProducer(
-    api.streams.fileStreamProducer, { name, type }
+    api.streams.fileStreamProducer,
+    { name, type }
   );
   const blob = await producer.toBlob(result.type);
   return new File([blob], name);
 };
 
-const uploadFile = (file, name) => application.metacom.uploadBlob(
-  file, api.streams.fileStreamConsumer, { name }
-);
+const uploadFile = (file, name) =>
+  application.metacom.uploadBlob(file, api.streams.fileStreamConsumer, {
+    name,
+  });
 
 export const runStreams = async () => {
   prepareContentContainers();
@@ -53,7 +55,7 @@ export const runStreams = async () => {
         console.timeEnd('Text uploaded');
         return result;
       });
-    })
+    }),
   ]);
   console.log(results);
 };
