@@ -5,7 +5,8 @@
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",
-    "preserveWatchOutput": true
+    "preserveWatchOutput": true,
+    "esModuleInterop": true
   },
   "include": ["*.d.ts"]
 }
