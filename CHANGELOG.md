@@ -16,7 +16,6 @@
 - Integrate api interfaces
   - Stream consumers
   - Stream producers
-- Create file streams usage example
 - Add stream types
 
 - Simplify Channel/Session machinery
