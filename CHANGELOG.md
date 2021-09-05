@@ -2,13 +2,17 @@
 
 ## [Unreleased][unreleased]
 
-- Simplify Channel/Session machinery
-  - Collections: sessions, channels
-  - Decompose: extract transport and static modules
 - Rework Channel and Server
   - Decompose Channel to WsChannel and HttpChannel
   - Move event handlers from Server to WsChannel and HttpChannel
   - Return after error to avoid double reply and logging
+
+## [2.0.1][] - 2021-09-03
+
+- Simplify Channel/Session machinery
+  - Collections: sessions, channels
+  - Decompose: extract transport and static modules
+- Fix: empty packet structure error
 
 ## [2.0.0][] - 2021-08-19
 
@@ -143,7 +147,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.0...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/metarhia/metacom/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/metarhia/metacom/compare/v1.8.1...v2.0.0
 [1.8.2]: https://github.com/metarhia/metacom/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/metarhia/metacom/compare/v1.8.0...v1.8.1
