@@ -1,6 +1,17 @@
 export class EventEmitter {
   constructor() {
     this.events = new Map();
+    this.maxListenersCount = 10;
+  }
+
+  getMaxListeners() {
+    return this.maxListenersCount;
+  }
+
+  listenerCount(name) {
+    const event = this.events.get(name);
+    if (event) return event.size;
+    return 0;
   }
 
   on(name, fn) {

@@ -1,4 +1,5 @@
 import { EventEmitter } from './events.js';
+import { MetacomChunk, MetacomReadable, MetacomWritable } from './streams.js';
 
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
@@ -37,178 +38,6 @@ class MetacomInterface {
   }
 }
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-const metadataPattern = /^mc:-?\d+;$/;
-const finisherByte = 59; // ;
-
-class MetacomChunk {
-  static encode(streamId, payload) {
-    const metadata = encoder.encode(`mc:${streamId};`);
-    return new Uint8Array([...metadata, ...payload]);
-  }
-
-  static decode(byteView) {
-    const finisherIndex = byteView.findIndex((byte) => byte === finisherByte);
-    let metadata = null;
-    if (finisherIndex > -1) {
-      const payloadStart = finisherIndex + 1;
-      const metadataView = byteView.subarray(0, payloadStart);
-      metadata = decoder.decode(metadataView);
-      if (metadataPattern.test(metadata)) {
-        const streamId = parseInt(metadata.slice(3, -1), 10);
-        const payload = byteView.subarray(payloadStart);
-        return {
-          streamId,
-          payload,
-        };
-      }
-    }
-    throw new Error('Invalid chunk metadata: ' + metadata);
-  }
-}
-
-const PUSH_EVENT = Symbol();
-const PULL_EVENT = Symbol();
-const DEFAULT_HIGH_WATER_MARK = 256 * 1024;
-
-class MetacomReadable extends EventEmitter {
-  constructor(initData, options = {}) {
-    super();
-    this.streamId = initData.streamId;
-    this.name = initData.name;
-    this.size = initData.size;
-    this.highWaterMark = options.highWaterMark || DEFAULT_HIGH_WATER_MARK;
-    this.queue = [];
-    this.streaming = true;
-    this.status = null;
-    this.bytesRead = 0;
-  }
-
-  async push(data) {
-    if (this.checkQueueOverflow()) {
-      await this.waitEvent(PULL_EVENT);
-      return this.push(data);
-    }
-    this.queue.push(data);
-    if (this.queue.length === 1) this.emit(PUSH_EVENT);
-    return data;
-  }
-
-  async pipe(writable) {
-    const waitEvent = this.waitEvent.bind(writable);
-    writable.once('error', () => this.terminate());
-    for await (const chunk of this) {
-      const needDrain = !writable.write(chunk);
-      if (needDrain) await waitEvent('drain');
-    }
-    writable.end();
-    await waitEvent('close');
-    await this.close();
-    return {
-      status: this.status,
-      bytesRead: this.bytesRead,
-    };
-  }
-
-  async toBlob(type = '') {
-    const chunks = [];
-    for await (const chunk of this) {
-      chunks.push(chunk);
-    }
-    return new Blob(chunks, { type });
-  }
-
-  async close() {
-    await this.stop();
-    this.status = 'closed';
-  }
-
-  async terminate() {
-    await this.stop();
-    this.status = 'terminated';
-  }
-
-  async stop() {
-    if (this.bytesRead === this.size) {
-      this.streaming = false;
-      this.emit(PUSH_EVENT, null);
-    } else {
-      await this.waitEvent(PULL_EVENT);
-      return this.stop();
-    }
-  }
-
-  async read() {
-    if (this.queue.length > 0) return this.pull();
-    const finisher = await this.waitEvent(PUSH_EVENT);
-    if (finisher === null) return null;
-    return this.pull();
-  }
-
-  pull() {
-    const data = this.queue.shift();
-    this.bytesRead += data.length;
-    this.emit(PULL_EVENT);
-    return data;
-  }
-
-  checkQueueOverflow() {
-    const currentSize = this.queue.reduce(
-      (total, data) => (total += data.length),
-      0
-    );
-    return currentSize > this.highWaterMark;
-  }
-
-  waitEvent(event) {
-    return new Promise((resolve) => this.once(event, resolve));
-  }
-
-  async *[Symbol.asyncIterator]() {
-    while (this.streaming) {
-      const chunk = await this.read();
-      if (chunk) yield chunk;
-      else return;
-    }
-  }
-}
-
-class MetacomWritable extends EventEmitter {
-  constructor(initData) {
-    super();
-    this.transport = initData.transport;
-    this.streamId = initData.streamId;
-    this.name = initData.name;
-    this.size = initData.size;
-    this.init();
-  }
-
-  init() {
-    const packet = {
-      stream: this.streamId,
-      name: this.name,
-      size: this.size,
-    };
-    this.transport.send(JSON.stringify(packet));
-  }
-
-  write(data) {
-    const chunk = MetacomChunk.encode(this.streamId, data);
-    this.transport.send(chunk);
-  }
-
-  end() {
-    const packet = { stream: this.streamId, status: 'end' };
-    this.transport.send(JSON.stringify(packet));
-  }
-
-  terminate() {
-    const packet = { stream: this.streamId, status: 'terminate' };
-    this.transport.send(JSON.stringify(packet));
-  }
-}
-
 export class Metacom extends EventEmitter {
   constructor(url, options = {}) {
     super();
@@ -234,41 +63,34 @@ export class Metacom extends EventEmitter {
     return new Transport(url, options);
   }
 
-  async getStreamProducer(streamProducerApi, args = {}) {
-    const result = await streamProducerApi(args);
-    const producer = this.streams.get(result.streamId);
-    return { producer, result };
+  getStream(streamId) {
+    const stream = this.streams.get(streamId);
+    if (stream) return stream;
+    throw new Error(`Stream ${streamId} is not initialized`);
   }
 
-  createStreamConsumer(name, size, streamConsumerApi, args = {}) {
+  createStream(name, size) {
     const streamId = ++this.streamId;
-    const initData = {
-      transport: this,
-      streamId,
-      name,
-      size,
-    };
-    const consumer = new MetacomWritable(initData);
-    const result = streamConsumerApi({ ...args, streamId: this.streamId });
-    return { consumer, result };
+    const initData = { streamId, name, size };
+    const transport = this;
+    return new MetacomWritable(transport, initData);
   }
 
-  async uploadBlob(blob, blobConsumerApi, args = {}) {
+  createBlobUploader(blob) {
     const name = blob.name || 'blob';
     const size = blob.size;
-    const { consumer, result } = this.createStreamConsumer(
-      name,
-      size,
-      blobConsumerApi,
-      args
-    );
-    const reader = blob.stream().getReader();
-    let chunk;
-    while (!(chunk = await reader.read()).done) {
-      consumer.write(chunk.value);
-    }
-    consumer.end();
-    return result;
+    const consumer = this.createStream(name, size);
+    return {
+      streamId: consumer.streamId,
+      upload: async () => {
+        const reader = blob.stream().getReader();
+        let chunk;
+        while (!(chunk = await reader.read()).done) {
+          consumer.write(chunk.value);
+        }
+        consumer.end();
+      },
+    };
   }
 
   async message(data) {
@@ -293,17 +115,14 @@ export class Metacom extends EventEmitter {
           return;
         }
         resolve(args);
-        return;
-      }
-      if (callType === 'event') {
+      } else if (callType === 'event') {
         const [interfaceName, eventName] = target.split('/');
         const metacomInterface = this.api[interfaceName];
         metacomInterface.emit(eventName, args);
-      }
-      if (callType === 'stream') {
+      } else if (callType === 'stream') {
         const { stream: streamId, name, size, status } = packet;
         const stream = this.streams.get(streamId);
-        if (typeof name === 'string' && typeof size === 'number') {
+        if (name && typeof name === 'string' && Number.isSafeInteger(size)) {
           if (stream) {
             console.error(new Error(`Stream ${name} is already initialized`));
           } else {

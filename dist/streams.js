@@ -1,13 +1,4 @@
-'use strict';
-
-const { EventEmitter } = require('events');
-const { Blob } = require('buffer');
-
-// todo add timeouts
-// todo add stream reconnection
-// todo add promise async queue or semaphore
-// todo implement remote backpressure: send msg to client to pause stream
-// todo try TypedArrays for performance improvement
+import { EventEmitter } from './events.js';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -167,13 +158,11 @@ class MetacomWritable extends EventEmitter {
     this.transport.send(JSON.stringify(packet));
   }
 
-  // implements nodejs writable write method
   write(data) {
     const chunk = MetacomChunk.encode(this.streamId, data);
     this.transport.send(chunk);
   }
 
-  // implements nodejs writable end method
   end() {
     const packet = { stream: this.streamId, status: 'end' };
     this.transport.send(JSON.stringify(packet));
@@ -185,8 +174,4 @@ class MetacomWritable extends EventEmitter {
   }
 }
 
-module.exports = {
-  MetacomChunk,
-  MetacomReadable,
-  MetacomWritable,
-};
+export { MetacomChunk, MetacomReadable, MetacomWritable };
