@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [2.0.2][] - 2021-09-11
+
 - Rework Channel and Server
   - Decompose Channel to WsChannel and HttpChannel
   - Move event handlers from Server to WsChannel and HttpChannel
@@ -148,7 +150,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.2...HEAD
+[2.0.2]: https://github.com/metarhia/metacom/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/metarhia/metacom/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/metarhia/metacom/compare/v1.8.1...v2.0.0
 [1.8.2]: https://github.com/metarhia/metacom/compare/v1.8.1...v1.8.2
