@@ -30,7 +30,8 @@ export class MetacomReadable extends EventEmitter {
   name: string;
   size: number;
   push(data: ArrayBufferView): Promise<ArrayBufferView>;
-  pipe(writable: Writable): Promise<void>;
+  finalize(writable: Writable): Promise<void>;
+  pipe(writable: Writable): Writable;
   toBlob(type?: string): Promise<Blob>;
   close(): Promise<void>;
   terminate(): Promise<void>;

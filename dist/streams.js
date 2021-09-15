@@ -61,16 +61,22 @@ class MetacomReadable extends EventEmitter {
     return data;
   }
 
-  async pipe(writable) {
-    const waitEvent = this.waitEvent.bind(writable);
+  async finalize(writable) {
+    const waitWritableEvent = this.waitEvent.bind(writable);
     writable.once('error', () => this.terminate());
     for await (const chunk of this) {
       const needDrain = !writable.write(chunk);
-      if (needDrain) await waitEvent('drain');
+      if (needDrain) await waitWritableEvent('drain');
     }
+    this.emit('end');
     writable.end();
-    await waitEvent('close');
+    await waitWritableEvent('close');
     await this.close();
+  }
+
+  pipe(writable) {
+    void this.finalize(writable);
+    return writable;
   }
 
   async toBlob(type = '') {
