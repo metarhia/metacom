@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Remove `toString` in `receiveBody` to be compatible with ws
+
 ## [2.0.2][] - 2021-09-11
 
 - Rework Channel and Server
