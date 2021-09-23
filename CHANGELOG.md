@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [2.0.3][] - 2021-09-23
+
 - Remove `toString` in `receiveBody` to be compatible with ws
 
 ## [2.0.2][] - 2021-09-11
@@ -152,7 +154,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.2...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.3...HEAD
+[2.0.3]: https://github.com/metarhia/metacom/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/metarhia/metacom/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/metarhia/metacom/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/metarhia/metacom/compare/v1.8.1...v2.0.0
