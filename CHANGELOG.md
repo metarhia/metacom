@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Add support of returning index.html as default not only from the root folder
+- Add custom 404-page support
+
 ## [2.0.3][] - 2021-09-23
 
 - Remove `toString` in `receiveBody` to be compatible with ws
