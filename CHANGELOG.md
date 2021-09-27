@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Return index.html not only from the root folder
+
 ## [2.0.3][] - 2021-09-23
 
 - Remove `toString` in `receiveBody` to be compatible with ws
