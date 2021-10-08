@@ -2,7 +2,7 @@
 
 ## [Unreleased][unreleased]
 
-- Add support of returning index.html as default not only from the root folder
+- Return index.html not only from the root folder
 
 ## [2.0.3][] - 2021-09-23
 
