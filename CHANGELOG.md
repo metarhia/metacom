@@ -6,6 +6,7 @@
 
 - Remove `toString` in `receiveBody` to be compatible with ws
 - Fix parse broken JSON packets
+- Fix detecting ping packets (empty objects)
 
 ## [2.0.2][] - 2021-09-11
 
