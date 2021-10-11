@@ -5,6 +5,7 @@
 ## [2.0.3][] - 2021-09-23
 
 - Remove `toString` in `receiveBody` to be compatible with ws
+- Fix parse broken JSON packets
 
 ## [2.0.2][] - 2021-09-11
 
