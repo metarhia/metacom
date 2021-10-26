@@ -78,6 +78,7 @@ export class Metacom extends EventEmitter {
         const promised = this.calls.get(callId);
         if (!promised) return;
         const [resolve, reject] = promised;
+        this.calls.delete(callId);
         if (packet.error) {
           reject(new MetacomError(packet.error));
           return;
