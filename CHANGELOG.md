@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix clients Map memory leak
+
 ## [2.0.4][] - 2021-10-12
 
 - Return index.html not only from the root folder
