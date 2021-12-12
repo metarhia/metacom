@@ -4,6 +4,7 @@
 
 - Fix clients Map memory leak
 - Add static create method for server-side Client
+- Add interface events for server-side Client
 
 ## [2.0.4][] - 2021-10-12
 
