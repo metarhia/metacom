@@ -165,8 +165,9 @@ class WebsocketTransport extends Metacom {
       }
     });
 
-    socket.addEventListener('close', () => {
+    socket.addEventListener('close', (event) => {
       this.connected = false;
+      this.emit('close', event);
       setTimeout(() => {
         if (this.active) this.open();
       }, this.reconnectTimeout);
@@ -185,8 +186,9 @@ class WebsocketTransport extends Metacom {
     }, this.pingInterval);
 
     return new Promise((resolve) => {
-      socket.addEventListener('open', () => {
+      socket.addEventListener('open', (event) => {
         this.connected = true;
+        this.emit('ready', event);
         resolve();
       });
     });
