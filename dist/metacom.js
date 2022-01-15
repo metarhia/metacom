@@ -226,9 +226,8 @@ class HttpTransport extends Metacom {
       body: data,
     }).then((res) => {
       const { status } = res;
-      if (status === 200) {
+      if (status === 200 || status === 500) {
         return res.text().then((packet) => {
-          if (packet.error) throw new MetacomError(packet.error);
           this.message(packet);
         });
       }
