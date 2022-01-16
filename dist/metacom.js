@@ -23,6 +23,10 @@ class MetacomInterface extends EventEmitter {
   constructor() {
     super();
   }
+
+  addMethod(name, func) {
+    this[name] = func;
+  }
 }
 
 export class Metacom extends EventEmitter {
@@ -110,7 +114,8 @@ export class Metacom extends EventEmitter {
       const request = this.scaffold(interfaceName);
       const methodNames = Object.keys(iface);
       for (const methodName of methodNames) {
-        methods[methodName] = request(methodName);
+        const method = request(methodName);
+        methods.addMethod(methodName, method);
       }
       this.api[interfaceName] = methods;
     }
@@ -212,15 +217,11 @@ class HttpTransport extends Metacom {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: data,
-    }).then((res) => {
-      const { status } = res;
-      if (status === 200 || status === 500) {
-        return res.text().then((packet) => {
-          this.message(packet);
-        });
-      }
-      throw new Error(`Status Code: ${status}`);
-    });
+    }).then((res) =>
+      res.text().then((packet) => {
+        this.message(packet);
+      })
+    );
   }
 }
 
