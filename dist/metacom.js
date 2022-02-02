@@ -167,6 +167,7 @@ class WebsocketTransport extends Metacom {
 
     socket.addEventListener('close', () => {
       this.connected = false;
+      this.emit('close');
       setTimeout(() => {
         if (this.active) this.open();
       }, this.reconnectTimeout);
@@ -187,6 +188,7 @@ class WebsocketTransport extends Metacom {
     return new Promise((resolve) => {
       socket.addEventListener('open', () => {
         this.connected = true;
+        this.emit('open');
         resolve();
       });
     });
@@ -211,6 +213,7 @@ class HttpTransport extends Metacom {
   async open() {
     this.active = true;
     this.connected = true;
+    this.emit('open');
   }
 
   close() {
