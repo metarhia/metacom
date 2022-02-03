@@ -171,6 +171,7 @@ class WebsocketTransport extends Metacom {
     socket.addEventListener('close', () => {
       this.opening = null;
       this.connected = false;
+      this.emit('close');
       setTimeout(() => {
         if (this.active) this.open();
       }, this.reconnectTimeout);
