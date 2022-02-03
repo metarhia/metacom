@@ -4,8 +4,8 @@
 
 - Fix clients Map memory leak
 - Add static create method for server-side Client
-- Add open and close event
-- Fix multiple opening websockets
+- Add open and close event to the browser implementation
+- Fix multiple simultaneous `open`'s for the browsers WebSocket implementation
 
 ## [2.0.4][] - 2021-10-12
 
