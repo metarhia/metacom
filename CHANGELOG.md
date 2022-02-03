@@ -4,6 +4,8 @@
 
 - Fix clients Map memory leak
 - Add static create method for server-side Client
+- Add open event
+- Fix multiple opening webqsockets
 
 ## [2.0.4][] - 2021-10-12
 
