@@ -41,6 +41,12 @@ export class Session {
   constructor(token: string, channel: Channel, data: any);
 }
 
+export interface ErrorOptions {
+  callId?: number;
+  error?: Error;
+  pass?: boolean;
+}
+
 export class Channel {
   application: object;
   req: ClientRequest;
@@ -58,7 +64,7 @@ export class Channel {
   ): Promise<void>;
   restoreSession(): Promise<Session | null>;
   destroy(): void;
-  error(code: number, err?: Error, callId?: number): void;
+  error(code: number, errorOptions?: ErrorOptions): void;
 }
 
 export class HttpChannel extends Channel {

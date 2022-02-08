@@ -8,7 +8,10 @@ const finisherByte = 59; // ;
 class MetacomChunk {
   static encode(streamId, payload) {
     const metadata = encoder.encode(`mc:${streamId};`);
-    return new Uint8Array([...metadata, ...payload]);
+    const buffer = new Uint8Array(metadata.length + payload.length);
+    buffer.set(metadata);
+    buffer.set(payload, metadata.length);
+    return buffer;
   }
 
   static decode(byteView) {
