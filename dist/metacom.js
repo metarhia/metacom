@@ -1,4 +1,4 @@
-import { EventEmitter } from './events.js';
+import EventEmitter from './events.js';
 import { MetacomChunk, MetacomReadable, MetacomWritable } from './streams.js';
 
 const CALL_TIMEOUT = 7 * 1000;
