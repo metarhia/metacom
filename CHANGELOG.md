@@ -5,6 +5,7 @@
 - Fix clients Map memory leak
 - Add static create method for server-side Client
 - Add open and close events in browser-side Client
+- Add common content types (MIME) to collection
 
 ## [2.0.4][] - 2021-10-12
 
