@@ -1,7 +1,6 @@
 # Metacom Communication Protocol for Metarhia
 
 [![ci status](https://github.com/metarhia/metacom/workflows/Testing%20CI/badge.svg)](https://github.com/metarhia/metacom/actions?query=workflow%3A%22Testing+CI%22+branch%3Amaster)
-[![codacy](https://api.codacy.com/project/badge/Grade/80885bfdb4bd411da51f31a7593c1f65)](https://www.codacy.com/app/metarhia/metacom)
 [![snyk](https://snyk.io/test/github/metarhia/metacom/badge.svg)](https://snyk.io/test/github/metarhia/metacom)
 [![npm version](https://badge.fury.io/js/metacom.svg)](https://badge.fury.io/js/metacom)
 [![npm downloads/month](https://img.shields.io/npm/dm/metacom.svg)](https://www.npmjs.com/package/metacom)
