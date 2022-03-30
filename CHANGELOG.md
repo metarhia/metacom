@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix missing channel handling in Client
+
 ## [2.0.5][] - 2022-03-18
 
 - Fix clients Map memory leak
