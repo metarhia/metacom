@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Fix missing channel handling in Client
+- Fix default `httpCode` in `Channel#error()` calls
 
 ## [2.0.5][] - 2022-03-18
 
