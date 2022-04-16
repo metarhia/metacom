@@ -2,8 +2,17 @@
 
 ## [Unreleased][unreleased]
 
+- Fix missing channel handling in Client
+- Fix default `httpCode` in `Channel#error()` calls
+
+## [2.0.5][] - 2022-03-18
+
 - Fix clients Map memory leak
 - Add static create method for server-side Client
+- Add open and close events in browser-side Client
+- Add common content types (MIME) to collection
+- Pass custom errors with `code` thrown or returned from handlers
+- Update dependencies
 
 ## [2.0.4][] - 2021-10-12
 
@@ -165,7 +174,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.4...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.5...HEAD
+[2.0.5]: https://github.com/metarhia/metacom/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/metarhia/metacom/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/metarhia/metacom/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/metarhia/metacom/compare/v2.0.1...v2.0.2

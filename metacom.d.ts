@@ -46,12 +46,21 @@ export interface ErrorOptions {
   pass?: boolean;
 }
 
+export class Client extends EventEmitter {
+  events: { close: Array<Function> };
+  callId: number;
+  ip: string | undefined;
+  redirect(location: string): void;
+  startSession(token: string, data: object): boolean;
+  restoreSession(token: string): boolean;
+}
+
 export class Channel {
   application: object;
   req: ClientRequest;
   res: ServerResponse;
   ip: string;
-  client: Metacom;
+  client: Client;
   session?: Session;
   constructor(application: object, req: ClientRequest, res: ServerResponse);
   message(data: string): void;
