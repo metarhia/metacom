@@ -233,16 +233,11 @@ class HttpTransport extends Metacom {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: data,
-    }).then((res) => {
-      const { status } = res;
-      if (status === 200) {
-        return res.text().then((packet) => {
-          if (packet.error) throw new MetacomError(packet.error);
-          this.message(packet);
-        });
-      }
-      throw new Error(`Status Code: ${status}`);
-    });
+    }).then((res) =>
+      res.text().then((packet) => {
+        this.message(packet);
+      })
+    );
   }
 }
 

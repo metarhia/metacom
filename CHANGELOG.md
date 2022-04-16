@@ -4,6 +4,7 @@
 
 - Fix client to support falsy results parsing
 - Add reading cors.origin from server config in impress
+- Removed duplicated error handling
 
 ## [2.0.6][] - 2022-04-26
 
