@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [2.0.6][] - 2022-04-26
+
 - Fix missing channel handling in Client
 - Fix default `httpCode` in `Channel#error()` calls
 - Add custom http headers for rpc hooks
@@ -176,7 +178,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.5...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v2.0.6...HEAD
+[2.0.6]: https://github.com/metarhia/metacom/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/metarhia/metacom/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/metarhia/metacom/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/metarhia/metacom/compare/v2.0.2...v2.0.3
