@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix client to support falsy results parsing
+
 ## [2.0.6][] - 2022-04-26
 
 - Fix missing channel handling in Client

@@ -74,7 +74,7 @@ export class Metacom extends EventEmitter {
     const [callType, target] = Object.keys(packet);
     const callId = packet[callType];
     const args = packet[target];
-    if (callId && args) {
+    if (callId) {
       if (callType === 'callback') {
         const promised = this.calls.get(callId);
         if (!promised) return;
