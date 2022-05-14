@@ -27,10 +27,11 @@ export class Metacom extends EventEmitter {
   ): (methodName: string) => (args: object) => Promise<void>;
 }
 
-export interface ServerConfig {
+export interface Options {
   concurrency: number;
   host: string;
-  balancer: boolean;
+  port: number;
+  kind: 'server' | 'balancer';
   protocol: string;
   ports: Array<number>;
   queue: object;
@@ -108,16 +109,12 @@ export class WsChannel extends Channel {
 }
 
 export class Server {
-  config: ServerConfig;
+  options: Options;
   application: object;
   semaphore: Semaphore;
-  balancer: boolean;
-  port: number;
   server?: any;
   ws?: any;
-  protocol: string;
-  host: string;
-  constructor(config: ServerConfig, application: object);
+  constructor(options: Options, application: object);
   bind(): void;
   listener(req: ClientRequest, res: ServerResponse): void;
   request(channel: Channel): void;
