@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Pass certain port for `Server` in `options`
+
 ## [2.0.7][] - 2022-05-09
 
 - Fix client to support falsy results parsing
