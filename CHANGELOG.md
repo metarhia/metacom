@@ -2,7 +2,7 @@
 
 ## [Unreleased][unreleased]
 
-- Pass certain port for `Server` in `options`
+- Pass certain port for `Server` in `options`, do not pass `threadId`
 
 ## [2.0.7][] - 2022-05-09
 
