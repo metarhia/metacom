@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Pass http verb to the hook
+
 ## [3.0.0-alpha.1][] - 2022-05-16
 
 - Pass certain port for `Server` in `options`, do not pass `threadId`
