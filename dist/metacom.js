@@ -143,7 +143,7 @@ export class Metacom extends EventEmitter {
 class WebsocketTransport extends Metacom {
   async open() {
     if (this.opening) return this.opening;
-    if (this.connected) return;
+    if (this.connected) return Promise.reslve();
     const socket = new WebSocket(this.url);
     this.active = true;
     this.socket = socket;
@@ -224,7 +224,7 @@ class HttpTransport extends Metacom {
     }).then((res) =>
       res.text().then((packet) => {
         this.message(packet);
-      })
+      }),
     );
   }
 }
