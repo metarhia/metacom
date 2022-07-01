@@ -19,11 +19,11 @@ export class Metacom extends EventEmitter {
   load(...interfaces: Array<string>): Promise<void>;
   httpCall(
     iname: string,
-    ver: string
+    ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
   socketCall(
     iname: string,
-    ver: string
+    ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
 }
 
@@ -69,7 +69,7 @@ export class Channel {
     callId: number,
     interfaceName: string,
     methodName: string,
-    args: []
+    args: [],
   ): Promise<void>;
   restoreSession(): Promise<Session | null>;
   destroy(): void;
@@ -85,7 +85,7 @@ export class HttpChannel extends Channel {
     proc: object,
     interfaceName: string,
     methodName: string,
-    args: Array<any>
+    args: Array<any>,
   ): Promise<void>;
   startSession(): Session;
   deleteSession(): void;
@@ -102,7 +102,7 @@ export class WsChannel extends Channel {
     proc: object,
     interfaceName: string,
     methodName: string,
-    args: Array<any>
+    args: Array<any>,
   ): Promise<void>;
   startSession(): Session;
   deleteSession(): void;
@@ -114,6 +114,7 @@ export class Server {
   semaphore: Semaphore;
   server?: any;
   ws?: any;
+  channels?: Map<Client, Channel>;
   constructor(options: Options, application: object);
   bind(): void;
   listener(req: ClientRequest, res: ServerResponse): void;
