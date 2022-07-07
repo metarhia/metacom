@@ -30,3 +30,9 @@ const metacom = Metacom.create('https://domainname.com:8000');
   const result = api.example.methodName({ arg1, arg2 });
 })();
 ```
+
+## License & Contributors
+
+Copyright (c) 2018-2022 [Metarhia contributors](https://github.com/metarhia/metacom/graphs/contributors).
+Metacom is [MIT licensed](./LICENSE).\
+Metacom is a part of [Metarhia](https://github.com/metarhia) technology stack.
