@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { ClientRequest, ServerResponse } from 'http';
 import WebSocket from 'ws';
 import { Semaphore } from 'metautil';
+import { Writable } from 'stream';
 
 export interface MetacomError extends Error {
   code: string;
@@ -121,4 +122,25 @@ export class Server {
   request(channel: Channel): void;
   closeChannels(): void;
   close(): Promise<void>;
+}
+
+export class MetacomReadable extends EventEmitter {
+  streamId: number;
+  name: string;
+  size: number;
+  push(data: ArrayBufferView): Promise<ArrayBufferView>;
+  finalize(writable: Writable): Promise<void>;
+  pipe(writable: Writable): Writable;
+  toBlob(type?: string): Promise<Blob>;
+  close(): Promise<void>;
+  terminate(): Promise<void>;
+}
+
+export class MetacomWritable extends EventEmitter {
+  streamId: number;
+  name: string;
+  size: number;
+  write(data: ArrayBufferView): void;
+  end(): void;
+  terminate(): void;
 }
