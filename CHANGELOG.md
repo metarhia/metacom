@@ -3,6 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Fix browser client WebsocketTransport open
+- Add method for a possibility to delete session token from the application routes
 
 ## [3.0.0-alpha.2][] - 2022-07-07
 
