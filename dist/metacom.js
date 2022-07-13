@@ -19,21 +19,9 @@ class MetacomError extends Error {
   }
 }
 
-class MetacomInterface {
+class MetacomInterface extends EventEmitter {
   constructor() {
-    this._events = new Map();
-  }
-
-  on(name, fn) {
-    const event = this._events.get(name);
-    if (event) event.add(fn);
-    else this._events.set(name, new Set([fn]));
-  }
-
-  emit(name, ...args) {
-    const event = this._events.get(name);
-    if (!event) return;
-    for (const fn of event.values()) fn(...args);
+    super();
   }
 }
 
@@ -48,6 +36,7 @@ export class Metacom extends EventEmitter {
     this.streams = new Map();
     this.active = false;
     this.connected = false;
+    this.opening = null;
     this.lastActivity = new Date().getTime();
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
@@ -73,7 +62,7 @@ export class Metacom extends EventEmitter {
     const [callType, target] = Object.keys(packet);
     const callId = packet[callType];
     const args = packet[target];
-    if (callId && args) {
+    if (callId) {
       if (callType === 'callback') {
         const promised = this.calls.get(callId);
         if (!promised) return;
@@ -134,6 +123,7 @@ export class Metacom extends EventEmitter {
         const callId = ++this.callId;
         const interfaceName = ver ? `${iname}.${ver}` : iname;
         const target = interfaceName + '/' + methodName;
+        if (this.opening) await this.opening;
         if (!this.connected) await this.open();
         return new Promise((resolve, reject) => {
           setTimeout(() => {
@@ -152,7 +142,8 @@ export class Metacom extends EventEmitter {
 
 class WebsocketTransport extends Metacom {
   async open() {
-    if (this.connected) return;
+    if (this.opening) return this.opening;
+    if (this.connected) return Promise.resolve();
     const socket = new WebSocket(this.url);
     this.active = true;
     this.socket = socket;
@@ -166,7 +157,9 @@ class WebsocketTransport extends Metacom {
     });
 
     socket.addEventListener('close', () => {
+      this.opening = null;
       this.connected = false;
+      this.emit('close');
       setTimeout(() => {
         if (this.active) this.open();
       }, this.reconnectTimeout);
@@ -184,12 +177,15 @@ class WebsocketTransport extends Metacom {
       }
     }, this.pingInterval);
 
-    return new Promise((resolve) => {
+    this.opening = new Promise((resolve) => {
       socket.addEventListener('open', () => {
+        this.opening = null;
         this.connected = true;
+        this.emit('open');
         resolve();
       });
     });
+    return this.opening;
   }
 
   close() {
@@ -211,6 +207,7 @@ class HttpTransport extends Metacom {
   async open() {
     this.active = true;
     this.connected = true;
+    this.emit('open');
   }
 
   close() {
@@ -224,16 +221,11 @@ class HttpTransport extends Metacom {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: data,
-    }).then((res) => {
-      const { status } = res;
-      if (status === 200) {
-        return res.text().then((packet) => {
-          if (packet.error) throw new MetacomError(packet.error);
-          this.message(packet);
-        });
-      }
-      throw new Error(`Status Code: ${status}`);
-    });
+    }).then((res) =>
+      res.text().then((packet) => {
+        this.message(packet);
+      }),
+    );
   }
 }
 

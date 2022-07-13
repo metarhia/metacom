@@ -19,18 +19,19 @@ export class Metacom extends EventEmitter {
   load(...interfaces: Array<string>): Promise<void>;
   httpCall(
     iname: string,
-    ver: string
+    ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
   socketCall(
     iname: string,
-    ver: string
+    ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
 }
 
-export interface ServerConfig {
+export interface Options {
   concurrency: number;
   host: string;
-  balancer: boolean;
+  port: number;
+  kind: 'server' | 'balancer';
   protocol: string;
   ports: Array<number>;
   queue: object;
@@ -46,12 +47,21 @@ export interface ErrorOptions {
   pass?: boolean;
 }
 
+export class Client extends EventEmitter {
+  events: { close: Array<Function> };
+  callId: number;
+  ip: string | undefined;
+  redirect(location: string): void;
+  startSession(token: string, data: object): boolean;
+  restoreSession(token: string): boolean;
+}
+
 export class Channel {
   application: object;
   req: ClientRequest;
   res: ServerResponse;
   ip: string;
-  client: Metacom;
+  client: Client;
   session?: Session;
   constructor(application: object, req: ClientRequest, res: ServerResponse);
   message(data: string): void;
@@ -59,7 +69,7 @@ export class Channel {
     callId: number,
     interfaceName: string,
     methodName: string,
-    args: []
+    args: [],
   ): Promise<void>;
   restoreSession(): Promise<Session | null>;
   destroy(): void;
@@ -75,7 +85,7 @@ export class HttpChannel extends Channel {
     proc: object,
     interfaceName: string,
     methodName: string,
-    args: Array<any>
+    args: Array<any>,
   ): Promise<void>;
   startSession(): Session;
   deleteSession(): void;
@@ -92,23 +102,20 @@ export class WsChannel extends Channel {
     proc: object,
     interfaceName: string,
     methodName: string,
-    args: Array<any>
+    args: Array<any>,
   ): Promise<void>;
   startSession(): Session;
   deleteSession(): void;
 }
 
 export class Server {
-  config: ServerConfig;
+  options: Options;
   application: object;
   semaphore: Semaphore;
-  balancer: boolean;
-  port: number;
   server?: any;
   ws?: any;
-  protocol: string;
-  host: string;
-  constructor(config: ServerConfig, application: object);
+  channels?: Map<Client, Channel>;
+  constructor(options: Options, application: object);
   bind(): void;
   listener(req: ClientRequest, res: ServerResponse): void;
   request(channel: Channel): void;
