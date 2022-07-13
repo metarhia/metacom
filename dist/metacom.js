@@ -143,7 +143,7 @@ export class Metacom extends EventEmitter {
 class WebsocketTransport extends Metacom {
   async open() {
     if (this.opening) return this.opening;
-    if (this.connected) return Promise.reslve();
+    if (this.connected) return Promise.resolve();
     const socket = new WebSocket(this.url);
     this.active = true;
     this.socket = socket;

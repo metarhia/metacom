@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix browser client WebsocketTransport open
+
 ## [3.0.0-alpha.2][] - 2022-07-07
 
 - Pass http verb to the hook
