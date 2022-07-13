@@ -2,6 +2,21 @@
 
 ## [Unreleased][unreleased]
 
+- Add metacom binary streams
+  - Event emitter based
+  - Websocket bidirectional streaming
+  - Multiple simultaneous streams
+  - Interaction with nodejs streams
+  - File streaming
+- Implement metacom stream protocol
+  - Stream initialization
+  - Stream closing
+  - Stream termination
+  - Chunk identification with metadata header
+- Api interfaces
+  - Stream consumers
+  - Stream producers
+- Add stream types
 - Fix browser client WebsocketTransport open
 - Add method for a possibility to delete session token from the application routes
 
