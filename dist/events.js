@@ -3,7 +3,7 @@ const warnAboutMemoryLeak = (eventName, count) =>
     `Possible EventEmitter memory leak detected.
   ${count} listeners added.
   You have to decrease the number of listeners for '${eventName}' event.
-  Hint: avoid adding listeners in loops.`
+  Hint: avoid adding listeners in loops.`,
   );
 
 export default class EventEmitter {
