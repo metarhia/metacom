@@ -61,7 +61,7 @@ export class Metacom extends EventEmitter {
   createStream(name, size) {
     const streamId = ++this.streamId;
     const initData = { streamId, name, size };
-    const transport = this;
+    const transport = this.socket;
     return new MetacomWritable(transport, initData);
   }
 
