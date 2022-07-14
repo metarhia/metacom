@@ -106,7 +106,7 @@ class MetacomReadable extends EventEmitter {
       this.emit(PUSH_EVENT, null);
     } else {
       await this.waitEvent(PULL_EVENT);
-      return this.stop();
+      this.stop();
     }
   }
 
