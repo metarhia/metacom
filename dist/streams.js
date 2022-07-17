@@ -1,36 +1,39 @@
 import EventEmitter from './events.js';
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-const metadataPattern = /^mc:-?\d+;$/;
-const finisherByte = 59; // ;
+const numToBytesInt32 = (num) => {
+  const numBytes = new ArrayBuffer(4);
+  const numView = new DataView(numBytes);
+  numView.setInt32(0, num);
+  return numBytes;
+};
+
+const numFromBytesInt32 = (buffer) => {
+  const numView = new DataView(buffer);
+  return numView.getInt32(buffer.length);
+};
+
+const metadataCreator = (streamId) => numToBytesInt32(streamId);
+const getStreamId = (metadata) => numFromBytesInt32(metadata);
 
 class MetacomChunk {
   static encode(streamId, payload) {
-    const metadata = encoder.encode(`mc:${streamId};`);
-    const byteView = new Uint8Array(metadata.length + payload.length);
+    const metadata = new Uint8Array(metadataCreator(streamId));
+    const byteView = new Uint8Array(4 + payload.length);
+
     byteView.set(metadata);
-    byteView.set(payload, metadata.length);
+    byteView.set(payload, 4);
     return byteView;
   }
 
   static decode(byteView) {
-    const finisherIndex = byteView.findIndex((byte) => byte === finisherByte);
-    let metadata = null;
-    if (finisherIndex > -1) {
-      const payloadStart = finisherIndex + 1;
-      const metadataView = byteView.subarray(0, payloadStart);
-      metadata = decoder.decode(metadataView);
-      if (metadataPattern.test(metadata)) {
-        const streamId = parseInt(metadata.slice(3, -1), 10);
-        const payload = byteView.subarray(payloadStart);
-        return {
-          streamId,
-          payload,
-        };
-      }
-    }
-    throw new Error('Invalid chunk metadata: ' + metadata);
+    const metadata = byteView.subarray(0, 4);
+    const streamId = getStreamId(metadata.buffer);
+    const payload = byteView.subarray(4);
+
+    return {
+      streamId,
+      payload,
+    };
   }
 }
 
