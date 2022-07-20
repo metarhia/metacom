@@ -1,34 +1,32 @@
 import EventEmitter from './events.js';
 
-const numToBytesInt32 = (num) => {
-  const numBytes = new ArrayBuffer(4);
-  const numView = new DataView(numBytes);
-  numView.setInt32(0, num);
-  return numBytes;
+const STREAM_ID_LENGTH = 4;
+
+const createStreamIdBuffer = (num) => {
+  const buffer = new ArrayBuffer(STREAM_ID_LENGTH);
+  const view = new DataView(buffer);
+  view.setInt32(0, num);
+  return buffer;
 };
 
-const numFromBytesInt32 = (buffer) => {
-  const numView = new DataView(buffer);
-  return numView.getInt32(buffer.length);
+const getStreamId = (buffer) => {
+  const view = new DataView(buffer);
+  return view.getInt32(0);
 };
-
-const metadataCreator = (streamId) => numToBytesInt32(streamId);
-const getStreamId = (metadata) => numFromBytesInt32(metadata);
 
 class MetacomChunk {
   static encode(streamId, payload) {
-    const metadata = new Uint8Array(metadataCreator(streamId));
-    const byteView = new Uint8Array(4 + payload.length);
+    const streamIdView = new Uint8Array(createStreamIdBuffer(streamId));
+    const chunkView = new Uint8Array(STREAM_ID_LENGTH + payload.length);
 
-    byteView.set(metadata);
-    byteView.set(payload, 4);
-    return byteView;
+    chunkView.set(streamIdView);
+    chunkView.set(payload, STREAM_ID_LENGTH);
+    return chunkView;
   }
 
-  static decode(byteView) {
-    const metadata = byteView.subarray(0, 4);
-    const streamId = getStreamId(metadata.buffer);
-    const payload = byteView.subarray(4);
+  static decode(chunkView) {
+    const streamId = getStreamId(chunkView.buffer);
+    const payload = chunkView.subarray(STREAM_ID_LENGTH);
 
     return {
       streamId,
