@@ -5,10 +5,25 @@ const decoder = new TextDecoder();
 const metadataPattern = /^mc:-?\d+;$/;
 const finisherByte = 59; // ;
 
+const concatUint8Arrays = (arrays, size) => {
+  const result = new Uint8Array(size);
+  let offset = 0;
+
+  for (const array of arrays) {
+    result.set(array, offset);
+    offset += array.length;
+  }
+
+  return result;
+};
+
 class MetacomChunk {
   static encode(streamId, payload) {
     const metadata = encoder.encode(`mc:${streamId};`);
-    return this.merge(metadata, payload);
+    const byteView = new Uint8Array(metadata.length + payload.length);
+    byteView.set(metadata);
+    byteView.set(payload, metadata.length);
+    return byteView;
   }
 
   static decode(byteView) {
@@ -28,13 +43,6 @@ class MetacomChunk {
       }
     }
     throw new Error('Invalid chunk metadata: ' + metadata);
-  }
-
-  static merge(ch1, ch2) {
-    const result = new Uint8Array(ch1.length + ch2.length);
-    result.set(ch1);
-    result.set(ch2, ch1.length);
-    return result;
   }
 }
 
@@ -160,7 +168,8 @@ class MetacomWritable extends EventEmitter {
     this.streamId = initData.streamId;
     this.name = initData.name;
     this.size = initData.size;
-    this.chunk = null;
+    this.chunks = [];
+    this.chunkSize = 0;
     this.init();
   }
 
@@ -174,18 +183,21 @@ class MetacomWritable extends EventEmitter {
   }
 
   write(data) {
-    this.chunk = this.chunk ? MetacomChunk.merge(this.chunk, data) : data;
-    if (this.chunk.length >= MIN_CHUNK_SIZE) this.drain();
+    this.chunks.push(data);
+    this.chunkSize += data.length;
+    if (this.chunkSize >= MIN_CHUNK_SIZE) this.drain();
   }
 
   drain() {
-    const chunk = MetacomChunk.encode(this.streamId, this.chunk);
+    const payload = concatUint8Arrays(this.chunks, this.chunkSize);
+    const chunk = MetacomChunk.encode(this.streamId, payload);
     this.transport.send(chunk);
-    this.chunk = null;
+    this.chunks = [];
+    this.chunkSize = 0;
   }
 
   end() {
-    if (this.chunk) this.drain();
+    if (this.chunkSize) this.drain();
     const packet = { stream: this.streamId, status: 'end' };
     this.transport.send(JSON.stringify(packet));
   }
