@@ -18,7 +18,6 @@ class MetacomChunk {
   static encode(streamId, payload) {
     const streamIdView = new Uint8Array(createStreamIdBuffer(streamId));
     const chunkView = new Uint8Array(STREAM_ID_LENGTH + payload.length);
-
     chunkView.set(streamIdView);
     chunkView.set(payload, STREAM_ID_LENGTH);
     return chunkView;
@@ -27,11 +26,7 @@ class MetacomChunk {
   static decode(chunkView) {
     const streamId = getStreamId(chunkView.buffer);
     const payload = chunkView.subarray(STREAM_ID_LENGTH);
-
-    return {
-      streamId,
-      payload,
-    };
+    return { streamId, payload };
   }
 }
 
