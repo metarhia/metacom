@@ -51,7 +51,7 @@ const uploadFile = async (file) => {
   // Start uploading stream and wait for its end
   await uploader.upload();
   return { uploadedFile: file };
-}
+};
 ```
 
 Create API method to init file destination:
@@ -103,7 +103,7 @@ async ({ name, type }) => {
   // Pipe nodejs readable to metacom writable
   readable.pipe(writable);
   return { streamId: writable.streamId, type };
-}
+};
 ```
 
 ## License & Contributors
