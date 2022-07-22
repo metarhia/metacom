@@ -151,7 +151,6 @@ class MetacomWritable extends EventEmitter {
     this.streamId = initData.streamId;
     this.name = initData.name;
     this.size = initData.size;
-    this.timeoutTimer = null;
     this.init();
   }
 
@@ -166,22 +165,10 @@ class MetacomWritable extends EventEmitter {
 
   write(data) {
     const chunk = MetacomChunk.encode(this.streamId, data);
-    this.transport.send(chunk, (err) => {
-      if (err) {
-        this.emit('error', err);
-        return;
-      }
-      this.timeoutTimer = clearTimeout(this.timeoutTimer);
-      this.timeoutTimer = setTimeout(() => {
-        this.terminate();
-        throw new Error('Stream timeout error');
-      }, 60000);
-    });
-    return true;
+    this.transport.send(chunk);
   }
 
   end() {
-    clearTimeout(this.timeoutTimer);
     const packet = { stream: this.streamId, status: 'end' };
     this.transport.send(JSON.stringify(packet));
   }
