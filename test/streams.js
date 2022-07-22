@@ -1,30 +1,28 @@
 'use strict';
 
+const { Readable } = require('stream');
 const metatests = require('metatests');
 const metautil = require('metautil');
-
-const { Readable } = require('node:stream');
-
 const {
   MetacomReadable,
   MetacomWritable,
   MetacomChunk,
 } = require('../lib/streams');
 
-const UINT_8_MIN = 0;
 const UINT_8_MAX = 255;
 
 const generateInitData = () => ({
-  streamId: metautil.random(UINT_8_MIN, UINT_8_MAX),
-  name: metautil.random(UINT_8_MIN).toString(),
-  size: metautil.random(UINT_8_MIN),
+  streamId: metautil.random(UINT_8_MAX),
+  name: metautil.random(UINT_8_MAX).toString(),
+  size: metautil.random(UINT_8_MAX),
 });
 
 const generateDataView = () => {
   const encoder = new TextEncoder();
-  const randomString = Array(metautil.random(UINT_8_MIN, UINT_8_MAX))
-    .map(() => metautil.random(UINT_8_MIN))
-    .join();
+  const randomString = [...new Array(metautil.random(UINT_8_MAX))]
+    .map(() => metautil.random(UINT_8_MAX))
+    .map((num) => String.fromCharCode(num))
+    .join('');
   return encoder.encode(randomString);
 };
 
@@ -35,7 +33,7 @@ const createWritable = (initData) => {
   return [stream, writeBuffer];
 };
 
-const populate = (stream) => ({
+const populateStream = (stream) => ({
   with: (buffer) =>
     Readable.from(buffer)
       .on('data', (chunk) => stream.push(chunk))
@@ -125,7 +123,7 @@ metatests.test('MetacomReadable', async (test) => {
   Object.assign(initData, { size: dataView.buffer.byteLength });
   const stream = new MetacomReadable(initData);
   const buffer = Buffer.from(dataView.buffer);
-  populate(stream).with(buffer);
+  populateStream(stream).with(buffer);
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
   const received = Buffer.concat(chunks);
@@ -139,7 +137,7 @@ metatests.test('MetacomReadable / toBlob', async (test) => {
   Object.assign(initData, { size: dataView.buffer.byteLength });
   const stream = new MetacomReadable(initData);
   const buffer = Buffer.from(dataView.buffer);
-  populate(stream).with(buffer);
+  populateStream(stream).with(buffer);
   const blob = await stream.toBlob();
   const arrayBuffer = await blob.arrayBuffer();
   const received = new Uint8Array(arrayBuffer);
