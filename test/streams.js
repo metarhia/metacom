@@ -37,7 +37,7 @@ const populateStream = (stream) => ({
   with: (buffer) =>
     Readable.from(buffer)
       .on('data', (chunk) => stream.push(chunk))
-      .on('data', () => stream.stop()),
+      .on('end', () => stream.stop()),
 });
 
 metatests.test('MetacomChunk / encode / decode', (test) => {
