@@ -31,6 +31,81 @@ const metacom = Metacom.create('https://domainname.com:8000');
 })();
 ```
 
+## Streams over Websocket
+
+### Example: big file upload
+
+Create `uploadFile` function on the client:
+
+```js
+const metacom = Metacom.create('https://example.com/api');
+
+const uploadFile = async (file) => {
+  // createBlobUploader creates streamId and inits file reader for convenience
+  const uploader = metacom.createBlobUploader(file);
+  // Prepare backend file consumer
+  await metacom.api.files.upload({
+    streamId: uploader.streamId,
+    name: file.name,
+  });
+  // Start uploading stream and wait for its end
+  await uploader.upload();
+  return { uploadedFile: file };
+}
+```
+
+Create API method to init file destination:
+
+```js
+// api/files/upload.js
+async ({ streamId, name }) => {
+  const filePath = `./application/resources/${name}`;
+  // Get incoming stream by streamId sent from client
+  const readable = context.client.getStream(streamId);
+  // Create nodejs stream to write file on server
+  const writable = node.fs.createWriteStream(filePath);
+  // Pipe metacom readable to nodejs writable
+  readable.pipe(writable);
+  return { result: 'Stream initialized' };
+};
+```
+
+### Example: big file download
+
+Create `downloadFile` function on the client:
+
+```js
+const metacom = Metacom.create('https://example.com/api');
+
+const downloadFile = async (name, type) => {
+  // Init backend file producer to get streamId
+  const { streamId, type } = await metacom.api.files.download({ name, type });
+  // Get metacom readable stream
+  const readable = await metacom.getStream(streamId);
+  // Convert stream to blob to make a file on the client
+  const blob = await readable.toBlob(type);
+  return new File([blob], name);
+};
+```
+
+Create API method to init file source:
+
+```js
+// api/files/download.js
+async ({ name, type }) => {
+  const filePath = `./application/resources/${name}`;
+  // Create nodejs readable stream to read a file
+  const readable = node.fs.createReadStream(filePath);
+  // Get file size
+  const { size } = await node.fsp.stat(filePath);
+  // Create metacom writable stream
+  const writable = context.client.createStream(name, size);
+  // Pipe nodejs readable to metacom writable
+  readable.pipe(writable);
+  return { streamId: writable.streamId, type };
+}
+```
+
 ## License & Contributors
 
 Copyright (c) 2018-2022 [Metarhia contributors](https://github.com/metarhia/metacom/graphs/contributors).
