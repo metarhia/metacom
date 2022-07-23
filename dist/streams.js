@@ -1,6 +1,9 @@
 import EventEmitter from './events.js';
 
 const STREAM_ID_LENGTH = 4;
+const DELIVERY_STATUS_LENGTH = 1;
+const DELIVERY_STATUS_IN_PROCESS = 1;
+const DELIVERY_STATUS_END = 0;
 
 const createStreamIdBuffer = (num) => {
   const buffer = new ArrayBuffer(STREAM_ID_LENGTH);
@@ -14,22 +17,41 @@ const getStreamId = (buffer) => {
   return view.getInt32(0);
 };
 
+const createDeliveryStatus = (num) => {
+  const buffer = new ArrayBuffer(DELIVERY_STATUS_LENGTH);
+  const view = new DataView(buffer);
+  view.setInt8(0, num);
+  return buffer;
+};
+
+const getDeliveryStatus = (buffer) => {
+  const view = new DataView(buffer);
+  return view.getInt8(STREAM_ID_LENGTH);
+};
+
 class MetacomChunk {
-  static encode(streamId, payload) {
+  static encode(streamId, payload, deliverySt = DELIVERY_STATUS_IN_PROCESS) {
     const streamIdView = new Uint8Array(createStreamIdBuffer(streamId));
-    const chunkView = new Uint8Array(STREAM_ID_LENGTH + payload.length);
+    const deliveryStatus = new Uint8Array(createDeliveryStatus(deliverySt));
+    const chunkView = new Uint8Array(
+      STREAM_ID_LENGTH + DELIVERY_STATUS_LENGTH + payload.length,
+    );
+
     chunkView.set(streamIdView);
-    chunkView.set(payload, STREAM_ID_LENGTH);
+    chunkView.set(deliveryStatus, STREAM_ID_LENGTH);
+    chunkView.set(payload, STREAM_ID_LENGTH + DELIVERY_STATUS_LENGTH);
     return chunkView;
   }
 
   static decode(chunkView) {
     const streamId = getStreamId(chunkView.buffer);
-    const payload = chunkView.subarray(STREAM_ID_LENGTH);
-    return { streamId, payload };
+    const deliveryStatus = getDeliveryStatus(chunkView.buffer);
+    const payload = chunkView.subarray(
+      STREAM_ID_LENGTH + DELIVERY_STATUS_LENGTH,
+    );
+    return { streamId, deliveryStatus, payload };
   }
 }
-
 const PUSH_EVENT = Symbol();
 const PULL_EVENT = Symbol();
 const DEFAULT_HIGH_WATER_MARK = 32;
@@ -97,13 +119,8 @@ class MetacomReadable extends EventEmitter {
   }
 
   async stop() {
-    if (this.bytesRead === this.size) {
-      this.streaming = false;
-      this.emit(PUSH_EVENT, null);
-    } else {
-      await this.waitEvent(PULL_EVENT);
-      await this.stop();
-    }
+    this.streaming = false;
+    this.emit(PUSH_EVENT, null);
   }
 
   async read() {
@@ -169,8 +186,9 @@ class MetacomWritable extends EventEmitter {
   }
 
   end() {
-    const packet = { stream: this.streamId, status: 'end' };
-    this.transport.send(JSON.stringify(packet));
+    const data = [];
+    const chunk = MetacomChunk.encode(this.streamId, data, DELIVERY_STATUS_END);
+    this.transport.send(chunk);
   }
 
   terminate() {

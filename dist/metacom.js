@@ -4,6 +4,8 @@ import { MetacomChunk, MetacomReadable, MetacomWritable } from './streams.js';
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
+const DELIVERY_STATUS_IN_PROCESS = 1;
+const DELIVERY_STATUS_END = 0;
 
 const connections = new Set();
 
@@ -58,7 +60,7 @@ export class Metacom extends EventEmitter {
     throw new Error(`Stream ${streamId} is not initialized`);
   }
 
-  createStream(name, size) {
+  createStream(name, size = 1) {
     const streamId = ++this.streamId;
     const initData = { streamId, name, size };
     const transport = this;
@@ -123,6 +125,7 @@ export class Metacom extends EventEmitter {
         } else if (!stream) {
           console.error(new Error(`Stream ${streamId} is not initialized`));
         } else if (status === 'end') {
+          // Potentially dead code
           await stream.close();
           this.streams.delete(streamId);
         } else if (status === 'terminate') {
@@ -138,10 +141,15 @@ export class Metacom extends EventEmitter {
   async binary(blob) {
     const buffer = await blob.arrayBuffer();
     const byteView = new Uint8Array(buffer);
-    const { streamId, payload } = MetacomChunk.decode(byteView);
+    const { streamId, deliveryStatus, payload } = MetacomChunk.decode(byteView);
     const stream = this.streams.get(streamId);
-    if (stream) await stream.push(payload);
-    else console.warn(`Stream ${streamId} is not initialized`);
+    if (deliveryStatus === DELIVERY_STATUS_END) {
+      await stream.close();
+      this.streams.delete(streamId);
+    } else if (deliveryStatus === DELIVERY_STATUS_IN_PROCESS) {
+      if (stream) await stream.push(payload);
+      else console.warn(`Stream ${streamId} is not initialized`);
+    }
   }
 
   async load(...interfaces) {
