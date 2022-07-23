@@ -44,6 +44,8 @@ class MetacomChunk {
   }
 
   static decode(chunkView) {
+    // For consistency with lib
+    chunkView = new Uint8Array(chunkView);
     const streamId = getStreamId(chunkView.buffer);
     const deliveryStatus = getDeliveryStatus(chunkView.buffer);
     const payload = chunkView.subarray(
