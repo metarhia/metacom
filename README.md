@@ -77,13 +77,13 @@ Create `downloadFile` function on the client:
 ```js
 const metacom = Metacom.create('https://example.com/api');
 
-const downloadFile = async (name, type) => {
+const downloadFile = async (name) => {
   // Init backend file producer to get streamId
-  const { streamId, type } = await metacom.api.files.download({ name, type });
+  const { streamId } = await metacom.api.files.download({ name });
   // Get metacom readable stream
   const readable = await metacom.getStream(streamId);
   // Convert stream to blob to make a file on the client
-  const blob = await readable.toBlob(type);
+  const blob = await readable.toBlob();
   return new File([blob], name);
 };
 ```
@@ -92,7 +92,7 @@ Create API method to init file source:
 
 ```js
 // api/files/download.js
-async ({ name, type }) => {
+async ({ name }) => {
   const filePath = `./application/resources/${name}`;
   // Create nodejs readable stream to read a file
   const readable = node.fs.createReadStream(filePath);
@@ -102,7 +102,7 @@ async ({ name, type }) => {
   const writable = context.client.createStream(name, size);
   // Pipe nodejs readable to metacom writable
   readable.pipe(writable);
-  return { streamId: writable.streamId, type };
+  return { streamId: writable.streamId };
 };
 ```
 
