@@ -1,3 +1,3 @@
 'use strict';
 
-['client', 'server'].map((test) => require('./' + test));
+['client', 'server', 'streams'].map((test) => require('./' + test));
