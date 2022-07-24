@@ -4,8 +4,6 @@ import { MetacomChunk, MetacomReadable, MetacomWritable } from './streams.js';
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
-const DELIVERY_STATUS_IN_PROCESS = 1;
-const DELIVERY_STATUS_END = 0;
 
 const connections = new Set();
 
@@ -141,15 +139,15 @@ export class Metacom extends EventEmitter {
   async binary(blob) {
     const buffer = await blob.arrayBuffer();
     const byteView = new Uint8Array(buffer);
-    const { streamId, deliveryStatus, payload } = MetacomChunk.decode(byteView);
-    const stream = this.streams.get(streamId);
-    if (deliveryStatus === DELIVERY_STATUS_END) {
-      await stream.close();
-      this.streams.delete(streamId);
-    } else if (deliveryStatus === DELIVERY_STATUS_IN_PROCESS) {
-      if (stream) await stream.push(payload);
-      else console.warn(`Stream ${streamId} is not initialized`);
+    const { streamId, payload } = MetacomChunk.decode(byteView);
+    if (blob.size === 4) {
+      const packet = { stream: streamId, status: 'end' };
+      this.message(JSON.stringify(packet));
+      return;
     }
+    const stream = this.streams.get(streamId);
+    if (stream) await stream.push(payload);
+    else console.warn(`Stream ${streamId} is not initialized`);
   }
 
   async load(...interfaces) {
