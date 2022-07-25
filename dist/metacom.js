@@ -20,9 +20,21 @@ class MetacomError extends Error {
   }
 }
 
-class MetacomInterface extends EventEmitter {
+class MetacomInterface {
   constructor() {
-    super();
+    this._events = new Map();
+  }
+
+  on(name, fn) {
+    const event = this._events.get(name);
+    if (event) event.add(fn);
+    else this._events.set(name, new Set([fn]));
+  }
+
+  emit(name, ...args) {
+    const event = this._events.get(name);
+    if (!event) return;
+    for (const fn of event.values()) fn(...args);
   }
 }
 
@@ -58,7 +70,7 @@ export class Metacom extends EventEmitter {
     throw new Error(`Stream ${streamId} is not initialized`);
   }
 
-  createStream(name, size = 1) {
+  createStream(name, size = 0) {
     const streamId = ++this.streamId;
     const initData = { streamId, name, size };
     const transport = this;
@@ -94,7 +106,7 @@ export class Metacom extends EventEmitter {
     const [callType, target] = Object.keys(packet);
     const callId = packet[callType];
     const args = packet[target];
-    if (callId) {
+    if (callId && args) {
       if (callType === 'callback') {
         const promised = this.calls.get(callId);
         if (!promised) return;
@@ -112,7 +124,11 @@ export class Metacom extends EventEmitter {
       } else if (callType === 'stream') {
         const { stream: streamId, name, size, status } = packet;
         const stream = this.streams.get(streamId);
-        if (name && typeof name === 'string' && Number.isSafeInteger(size)) {
+        if (
+          name &&
+          typeof name === 'string' &&
+          (size === 0 || Number.isSafeInteger(size))
+        ) {
           if (stream) {
             console.error(new Error(`Stream ${name} is already initialized`));
           } else {
@@ -123,7 +139,7 @@ export class Metacom extends EventEmitter {
         } else if (!stream) {
           console.error(new Error(`Stream ${streamId} is not initialized`));
         } else if (status === 'end') {
-          // Potentially dead code
+          stream.packetsNeedToRead = packet.totalSent;
           await stream.close();
           this.streams.delete(streamId);
         } else if (status === 'terminate') {
@@ -140,11 +156,6 @@ export class Metacom extends EventEmitter {
     const buffer = await blob.arrayBuffer();
     const byteView = new Uint8Array(buffer);
     const { streamId, payload } = MetacomChunk.decode(byteView);
-    if (blob.size === 4) {
-      const packet = { stream: streamId, status: 'end' };
-      this.message(JSON.stringify(packet));
-      return;
-    }
     const stream = this.streams.get(streamId);
     if (stream) await stream.push(payload);
     else console.warn(`Stream ${streamId} is not initialized`);
@@ -269,11 +280,16 @@ class HttpTransport extends Metacom {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: data,
-    }).then((res) =>
-      res.text().then((packet) => {
-        this.message(packet);
-      }),
-    );
+    }).then((res) => {
+      const { status } = res;
+      if (status === 200) {
+        return res.text().then((packet) => {
+          if (packet.error) throw new MetacomError(packet.error);
+          this.message(packet);
+        });
+      }
+      throw new Error(`Status Code: ${status}`);
+    });
   }
 }
 
