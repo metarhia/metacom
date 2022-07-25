@@ -72,7 +72,6 @@ class MetacomReadable extends EventEmitter {
     this.emit('end');
     writable.end();
     await waitWritableEvent('close');
-    await this.close();
   }
 
   pipe(writable) {
