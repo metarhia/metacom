@@ -4,6 +4,7 @@ import { MetacomChunk, MetacomReadable, MetacomWritable } from './streams.js';
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
+const DEFAULT_STREAM_SIZE = 0;
 
 const connections = new Set();
 
@@ -70,7 +71,7 @@ export class Metacom extends EventEmitter {
     throw new Error(`Stream ${streamId} is not initialized`);
   }
 
-  createStream(name, size = 0) {
+  createStream(name, size = DEFAULT_STREAM_SIZE) {
     const streamId = ++this.streamId;
     const initData = { streamId, name, size };
     const transport = this;
@@ -127,7 +128,7 @@ export class Metacom extends EventEmitter {
         if (
           name &&
           typeof name === 'string' &&
-          (size === 0 || Number.isSafeInteger(size))
+          (size === DEFAULT_STREAM_SIZE || Number.isSafeInteger(size))
         ) {
           if (stream) {
             console.error(new Error(`Stream ${name} is already initialized`));
