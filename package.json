@@ -44,7 +44,7 @@
   ],
   "readmeFilename": "README.md",
   "scripts": {
-    "test": "npm run lint && npm run types && node ./test/unit.js && node ./test/integration.js",
+    "test": "npm run lint && npm run types && metatests test/",
     "types": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\" \"**/*.ts\"",
     "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\" \"**/*.ts\""
