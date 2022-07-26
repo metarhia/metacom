@@ -19,6 +19,7 @@
 - Add stream types
 - Fix browser client WebsocketTransport open
 - Add method for a possibility to delete session token from the application routes
+- Fix serve static files with query in URL
 
 ## [3.0.0-alpha.2][] - 2022-07-07
 
