@@ -40,7 +40,7 @@ class MetacomReadable extends EventEmitter {
     super();
     this.streamId = initData.streamId;
     this.name = initData.name;
-    this.size = initData.size;
+    this.size = initData.size ? initData.size : Infinity;
     this.highWaterMark = options.highWaterMark || DEFAULT_HIGH_WATER_MARK;
     this.queue = [];
     this.streaming = true;
@@ -156,7 +156,7 @@ class MetacomWritable extends EventEmitter {
     this.transport = transport;
     this.streamId = initData.streamId;
     this.name = initData.name;
-    this.size = initData.size;
+    this.size = initData.size ? initData.size : Infinity;
     this.totalSent = 0;
     this.init();
   }
