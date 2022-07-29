@@ -141,8 +141,21 @@ export class Metacom extends EventEmitter {
     const byteView = new Uint8Array(buffer);
     const { streamId, payload } = MetacomChunk.decode(byteView);
     const stream = this.streams.get(streamId);
-    if (stream) await stream.push(payload);
-    else console.warn(`Stream ${streamId} is not initialized`);
+    if (!stream) {
+      console.warn(`Stream ${streamId} is not initialized`);
+      return;
+    }
+    if (stream.size < stream.bytesRead + payload.length) {
+      console.warn(`
+      Stream ${streamId} overflow occurred. 
+      Stream size: ${stream.size},
+      Required size: ${stream.bytesRead + payload.length}`);
+      // Because we can't call stream.close(isForced=true);
+      stream.close({ isForced: true });
+      return;
+    }
+
+    await stream.push(payload);
   }
 
   async load(...interfaces) {
