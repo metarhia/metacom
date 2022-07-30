@@ -102,10 +102,8 @@ class MetacomReadable extends EventEmitter {
       this.#stop();
       return;
     }
-    if (
-      this.bytesRead === this.size ||
-      this.packetsRead === this.packetsNeedToRead
-    ) {
+    const { bytesRead, size, packetsRead, packetsNeedToRead } = this;
+    if (bytesRead === size || packetsRead === packetsNeedToRead) {
       this.size = this.bytesRead;
       this.#stop();
     } else {
