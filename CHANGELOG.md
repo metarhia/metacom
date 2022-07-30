@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.4][] - 2022-07-30
+
+- Package maintenance
+
 ## [3.0.0-alpha.3][] - 2022-07-26
 
 - Add metacom binary streams
@@ -215,7 +219,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.3...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.4...HEAD
+[3.0.0-alpha.4]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.3...v3.0.0-alpha.4
 [3.0.0-alpha.3]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.2...v3.0.0-alpha.3
 [3.0.0-alpha.2]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.1...v3.0.0-alpha.2
 [3.0.0-alpha.1]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0-alpha.1
