@@ -98,6 +98,10 @@ class MetacomReadable extends EventEmitter {
   }
 
   async stop() {
+    if (this.packetsRead === this.packetsNeedToRead) {
+      this.#stop();
+      return;
+    }
     await this.waitEvent(PULL_EVENT);
     await this.stop();
   }
