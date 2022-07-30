@@ -151,7 +151,7 @@ export class Metacom extends EventEmitter {
         Stream size: ${stream.size},
         Required size: ${stream.bytesRead + payload.length}`);
       // Stream.close(isForced=true);
-      stream.close(true);
+      stream.addPacket();
       return;
     }
 
