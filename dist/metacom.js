@@ -146,11 +146,10 @@ export class Metacom extends EventEmitter {
       return;
     }
     if (stream.size < stream.bytesRead + payload.length) {
-      console.warn([
-        `Stream ${streamId} overflow occurred.`
-        `Stream size: ${stream.size},`
-        `Required size: ${stream.bytesRead + payload.length}`
-      ].join('\n'));
+      console.warn(`
+        Stream ${streamId} overflow occurred. 
+        Stream size: ${stream.size},
+        Required size: ${stream.bytesRead + payload.length}`);
       // Stream.close(isForced=true);
       stream.close(true);
       return;
