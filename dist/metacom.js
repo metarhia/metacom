@@ -150,7 +150,6 @@ export class Metacom extends EventEmitter {
         Stream ${streamId} overflow occurred. 
         Stream size: ${stream.size},
         Required size: ${stream.bytesRead + payload.length}`);
-      // Stream.close(isForced=true);
       stream.addPacket();
       return;
     }
