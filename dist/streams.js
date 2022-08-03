@@ -47,7 +47,7 @@ class MetacomReadable extends EventEmitter {
     this.status = null;
     this.bytesRead = 0;
     this.packetsRead = 0;
-    this.packetsNeedToRead = 0;
+    this.expectedPackets = 0;
     this.maxListenersCount = this.getMaxListeners() - 1;
   }
 
@@ -98,7 +98,7 @@ class MetacomReadable extends EventEmitter {
   }
 
   async stop() {
-    if (this.packetsRead === this.packetsNeedToRead) {
+    if (this.packetsRead === this.expectedPackets) {
       this.streaming = false;
       this.emit(PUSH_EVENT, null);
       return;
