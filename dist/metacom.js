@@ -112,7 +112,7 @@ export class Metacom extends EventEmitter {
       } else if (callType === 'stream') {
         const { stream: streamId, name, size, status } = packet;
         const stream = this.streams.get(streamId);
-        if (name && typeof name === 'string') {
+        if (typeof name === 'string' && name !== '') {
           if (stream) {
             console.error(new Error(`Stream ${name} is already initialized`));
           } else {
