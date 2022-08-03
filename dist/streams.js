@@ -114,10 +114,6 @@ class MetacomReadable extends EventEmitter {
     return this.pull();
   }
 
-  addPacket() {
-    this.packetsRead += 1;
-  }
-
   pull() {
     const data = this.queue.shift();
     this.bytesRead += data?.length ? data.length : 0;
