@@ -9,6 +9,7 @@ const warnAboutMemoryLeak = (eventName, count) =>
 export default class EventEmitter {
   constructor() {
     this.events = new Map();
+    this.globalListeners = new Set();
     this.maxListenersCount = 10;
   }
 
@@ -33,6 +34,16 @@ export default class EventEmitter {
     }
   }
 
+  onAny(fn) {
+    const tooManyListeners = this.globalListeners.size > this.maxListenersCount;
+    if (tooManyListeners) warnAboutMemoryLeak('*', this.globalListeners.size);
+    this.globalListeners.add(fn);
+  }
+
+  clearGlobalListeners() {
+    this.globalListeners.clear();
+  }
+
   once(name, fn) {
     const dispose = (...args) => {
       this.remove(name, dispose);
@@ -43,9 +54,12 @@ export default class EventEmitter {
 
   emit(name, ...args) {
     const event = this.events.get(name);
-    if (!event) return;
+    if (!event && !this.globalListeners.size) return;
     for (const fn of event.values()) {
       fn(...args);
+    }
+    for (const fn of this.globalListeners.values()) {
+      fn(name, ...args);
     }
   }
 
