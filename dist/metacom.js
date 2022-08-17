@@ -158,7 +158,7 @@ export class Metacom extends EventEmitter {
       for (const methodName of methodNames) {
         methods[methodName] = request(methodName);
       }
-      methods.onAny((eventName, data) => {
+      methods.on('*', (eventName, data) => {
         const target = `${interfaceName}/${eventName}`;
         const packet = { event: ++this.eventId, [target]: data };
         this.send(JSON.stringify(packet));

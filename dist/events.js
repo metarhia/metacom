@@ -7,10 +7,16 @@ const warnAboutMemoryLeak = (eventName, count) =>
   );
 
 export default class EventEmitter {
+  globalEventName = '*';
+
   constructor() {
     this.events = new Map();
-    this.globalListeners = new Set();
+    this.events.set(this.globalEventName, new Set());
     this.maxListenersCount = 10;
+  }
+
+  isGlobalEvent(name) {
+    return name === this.globalEventName;
   }
 
   getMaxListeners() {
@@ -34,16 +40,6 @@ export default class EventEmitter {
     }
   }
 
-  onAny(fn) {
-    const tooManyListeners = this.globalListeners.size > this.maxListenersCount;
-    if (tooManyListeners) warnAboutMemoryLeak('*', this.globalListeners.size);
-    this.globalListeners.add(fn);
-  }
-
-  clearGlobalListeners() {
-    this.globalListeners.clear();
-  }
-
   once(name, fn) {
     const dispose = (...args) => {
       this.remove(name, dispose);
@@ -53,13 +49,21 @@ export default class EventEmitter {
   }
 
   emit(name, ...args) {
+    if (this.isGlobalEvent(name))
+      throw new Error(
+        `Cannot emit '${this.globalEventName}'. It is reserved for global listeners.`,
+      );
     const event = this.events.get(name);
-    if (!event && !this.globalListeners.size) return;
-    for (const fn of event.values()) {
-      fn(...args);
+    if (event) {
+      for (const fn of event.values()) {
+        fn(...args);
+      }
     }
-    for (const fn of this.globalListeners.values()) {
-      fn(name, ...args);
+    const globalListeners = this.events.get(this.globalEventName);
+    if (globalListeners.size) {
+      for (const fn of globalListeners.values()) {
+        fn(name, ...args);
+      }
     }
   }
 
@@ -72,7 +76,13 @@ export default class EventEmitter {
   }
 
   clear(name) {
-    if (name) this.events.delete(name);
-    else this.events.clear();
+    const globalListeners = this.events.get(this.globalEventName);
+    if (!name) {
+      this.events.clear();
+      globalListeners.clear();
+      return;
+    }
+    if (this.isGlobalEvent(name)) globalListeners.clear();
+    else this.events.delete(name);
   }
 }
