@@ -28,8 +28,8 @@ const generateDataView = () => {
 
 const createWritable = (initData) => {
   const writeBuffer = [];
-  const transport = { send: (packet) => writeBuffer.push(packet) };
-  const stream = new MetacomWritable(transport, initData);
+  const channel = { write: (packet) => writeBuffer.push(packet) };
+  const stream = new MetacomWritable(channel, initData);
   return [stream, writeBuffer];
 };
 
