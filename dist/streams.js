@@ -57,8 +57,8 @@ class MetacomReadable extends EventEmitter {
       await this.waitEvent(PULL_EVENT);
       return this.push(data);
     }
-    if (data) this.queue.push(data);
-    this.emit(PUSH_EVENT);
+    this.queue.push(data);
+    if (this.queue.length === 1) this.emit(PUSH_EVENT);
     return data;
   }
 
@@ -72,6 +72,7 @@ class MetacomReadable extends EventEmitter {
     this.emit('end');
     writable.end();
     await waitWritableEvent('close');
+    await this.close();
   }
 
   pipe(writable) {
@@ -101,10 +102,10 @@ class MetacomReadable extends EventEmitter {
     if (this.packetsRead === this.expectedPackets) {
       this.streaming = false;
       this.emit(PUSH_EVENT, null);
-      return;
+    } else {
+      await this.waitEvent(PULL_EVENT);
+      await this.stop();
     }
-    await this.waitEvent(PULL_EVENT);
-    await this.stop();
   }
 
   async read() {
@@ -116,7 +117,7 @@ class MetacomReadable extends EventEmitter {
 
   pull() {
     const data = this.queue.shift();
-    this.bytesRead += data?.length || 0;
+    this.bytesRead += data.length;
     this.packetsRead += 1;
     this.emit(PULL_EVENT);
     return data;
