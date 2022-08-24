@@ -7,18 +7,11 @@ const warnAboutMemoryLeak = (eventName, count) =>
   );
 
 export default class EventEmitter {
-  globalEventName = '*';
-
   constructor() {
     this.events = new Map();
-    this.events.set(this.globalEventName, new Set());
+    this.events.set('*', new Set());
     this.maxListenersCount = 10;
   }
-
-  isGlobalEvent(name) {
-    return name === this.globalEventName;
-  }
-
   getMaxListeners() {
     return this.maxListenersCount;
   }
@@ -49,9 +42,9 @@ export default class EventEmitter {
   }
 
   emit(name, ...args) {
-    if (this.isGlobalEvent(name))
+    if (name === '*')
       throw new Error(
-        `Cannot emit '${this.globalEventName}'. It is reserved for global listeners.`,
+        'Cannot emit "*"; it is reserved for global listeners.',
       );
     const event = this.events.get(name);
     if (event) {
@@ -59,7 +52,7 @@ export default class EventEmitter {
         fn(...args);
       }
     }
-    const globalListeners = this.events.get(this.globalEventName);
+    const globalListeners = this.events.get('*');
     if (globalListeners.size) {
       for (const fn of globalListeners.values()) {
         fn(name, ...args);
@@ -82,7 +75,7 @@ export default class EventEmitter {
       globalListeners.clear();
       return;
     }
-    if (this.isGlobalEvent(name)) globalListeners.clear();
+    if (name === '*') globalListeners.clear();
     else this.events.delete(name);
   }
 }
