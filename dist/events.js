@@ -42,10 +42,9 @@ export default class EventEmitter {
   }
 
   emit(name, ...args) {
-    if (name === '*')
-      throw new Error(
-        'Cannot emit "*"; it is reserved for global listeners.',
-      );
+    if (name === '*') {
+      throw new Error('Cannot emit reserved "*" global listeners.');
+    }
     const event = this.events.get(name);
     if (event) {
       for (const fn of event.values()) {
