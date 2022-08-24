@@ -68,7 +68,7 @@ export default class EventEmitter {
   }
 
   clear(name) {
-    const globalListeners = this.events.get(this.globalEventName);
+    const globalListeners = this.events.get('*');
     if (!name) {
       this.events.clear();
       globalListeners.clear();
