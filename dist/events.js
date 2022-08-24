@@ -11,7 +11,6 @@ export default class EventEmitter {
     this.events = new Map();
     this.maxListenersCount = 10;
   }
-
   getMaxListeners() {
     return this.maxListenersCount;
   }
@@ -42,10 +41,19 @@ export default class EventEmitter {
   }
 
   emit(name, ...args) {
+    if (name === '*') {
+      throw new Error('Cannot emit reserved "*" global listeners.');
+    }
     const event = this.events.get(name);
-    if (!event) return;
-    for (const fn of event.values()) {
-      fn(...args);
+    if (event) {
+      for (const fn of event.values()) {
+        fn(...args);
+      }
+    }
+    const globalListeners = this.events.get('*');
+    if (!globalListeners) return;
+    for (const fn of globalListeners.values()) {
+      fn(name, ...args);
     }
   }
 
@@ -58,7 +66,13 @@ export default class EventEmitter {
   }
 
   clear(name) {
-    if (name) this.events.delete(name);
-    else this.events.clear();
+    const globalListeners = this.events.get('*');
+    if (!name) {
+      this.events.clear();
+      globalListeners.clear();
+      return;
+    }
+    if (name === '*') globalListeners.clear();
+    else this.events.delete(name);
   }
 }
