@@ -9,7 +9,6 @@ const warnAboutMemoryLeak = (eventName, count) =>
 export default class EventEmitter {
   constructor() {
     this.events = new Map();
-    this.events.set('*', new Set());
     this.maxListenersCount = 10;
   }
   getMaxListeners() {
@@ -52,10 +51,9 @@ export default class EventEmitter {
       }
     }
     const globalListeners = this.events.get('*');
-    if (globalListeners.size) {
-      for (const fn of globalListeners.values()) {
-        fn(name, ...args);
-      }
+    if (!globalListeners) return;
+    for (const fn of globalListeners.values()) {
+      fn(name, ...args);
     }
   }
 
