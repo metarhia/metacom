@@ -1,4 +1,5 @@
 import EventEmitter from './events.js';
+import { Timer } from './timer.js';
 
 const STREAM_ID_LENGTH = 4;
 
@@ -47,6 +48,7 @@ class MetacomReadable extends EventEmitter {
     this.status = null;
     this.bytesRead = 0;
     this.maxListenersCount = this.getMaxListeners() - 1;
+    this.timer = new Timer();
   }
 
   async push(data) {
@@ -100,6 +102,7 @@ class MetacomReadable extends EventEmitter {
     if (this.bytesRead === this.size) {
       this.streaming = false;
       this.emit(PUSH_EVENT, null);
+      this.timer.stop();
     } else {
       await this.waitEvent(PULL_EVENT);
       await this.stop();
@@ -107,6 +110,11 @@ class MetacomReadable extends EventEmitter {
   }
 
   async read() {
+    this.timer.restart(() => {
+      this.streaming = false;
+      this.terminate();
+      throw new Error('Timeout');
+    });
     if (this.queue.length > 0) return this.pull();
     const finisher = await this.waitEvent(PUSH_EVENT);
     if (finisher === null) return null;
@@ -151,6 +159,7 @@ class MetacomWritable extends EventEmitter {
     this.streamId = initData.streamId;
     this.name = initData.name;
     this.size = initData.size;
+    this.timer = new Timer();
     this.init();
   }
 
@@ -164,16 +173,26 @@ class MetacomWritable extends EventEmitter {
   }
 
   write(data) {
+    this.timer.restart(() => {
+      this.terminate();
+      throw new Error('Timeout');
+    });
     const chunk = MetacomChunk.encode(this.streamId, data);
     this.transport.send(chunk);
   }
 
+  stop() {
+    this.timer.stop();
+  }
+
   end() {
+    this.stop();
     const packet = { stream: this.streamId, status: 'end' };
     this.transport.send(JSON.stringify(packet));
   }
 
   terminate() {
+    this.stop();
     const packet = { stream: this.streamId, status: 'terminate' };
     this.transport.send(JSON.stringify(packet));
   }

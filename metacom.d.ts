@@ -8,30 +8,6 @@ export interface MetacomError extends Error {
   code: string;
 }
 
-export class MetacomReadable extends EventEmitter {
-  streamId: number;
-  name: string;
-  size: number;
-  push(data: ArrayBufferView): Promise<ArrayBufferView>;
-  finalize(writable: Writable): Promise<void>;
-  pipe(writable: Writable): Writable;
-  toBlob(type?: string): Promise<Blob>;
-}
-
-export class MetacomWritable extends EventEmitter {
-  streamId: number;
-  name: string;
-  size: number;
-  write(data: ArrayBufferView): void;
-  end(): void;
-  terminate(): void;
-}
-
-export interface BlobUploader {
-  streamId: number;
-  upload(): Promise<void>;
-}
-
 export class Metacom extends EventEmitter {
   url: string;
   socket: WebSocket;
@@ -50,9 +26,6 @@ export class Metacom extends EventEmitter {
     iname: string,
     ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
-  getStream(streamId: number): MetacomReadable;
-  createStream(name: string, size: number): MetacomWritable;
-  createBlobUploader(blob: Blob): BlobUploader;
 }
 
 export interface Options {
@@ -76,16 +49,12 @@ export interface ErrorOptions {
 }
 
 export class Client extends EventEmitter {
-  ip: string | undefined;
-  eventId: number;
-  streamId: number;
   events: { close: Array<Function> };
-  streams: Map<number, MetacomReadable>;
+  callId: number;
+  ip: string | undefined;
   redirect(location: string): void;
   startSession(token: string, data: object): boolean;
   restoreSession(token: string): boolean;
-  getStream(streamId: number): MetacomReadable;
-  createStream(name: string, size: number): MetacomWritable;
 }
 
 export class Channel {
@@ -153,4 +122,25 @@ export class Server {
   request(channel: Channel): void;
   closeChannels(): void;
   close(): Promise<void>;
+}
+
+export class MetacomReadable extends EventEmitter {
+  streamId: number;
+  name: string;
+  size: number;
+  push(data: ArrayBufferView): Promise<ArrayBufferView>;
+  finalize(writable: Writable): Promise<void>;
+  pipe(writable: Writable): Writable;
+  toBlob(type?: string): Promise<Blob>;
+  close(): Promise<void>;
+  terminate(): Promise<void>;
+}
+
+export class MetacomWritable extends EventEmitter {
+  streamId: number;
+  name: string;
+  size: number;
+  write(data: ArrayBufferView): void;
+  end(): void;
+  terminate(): void;
 }
