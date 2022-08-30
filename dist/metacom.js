@@ -146,7 +146,9 @@ export class Metacom extends EventEmitter {
         throw new Error('Stream size exceeded');
       }
       await stream.push(payload);
-    } else console.warn(`Stream ${streamId} is not initialized`);
+    } else {
+      console.warn(`Stream ${streamId} is not initialized`);
+    }
   }
 
   async load(...interfaces) {
