@@ -124,7 +124,7 @@ export class Metacom extends EventEmitter {
         } else if (!stream) {
           console.error(new Error(`Stream ${streamId} is not initialized`));
         } else if (status === 'end') {
-          stream.expectedPackets = packet.totalSent;
+          stream.totalBytes = packet.bytes;
           await stream.close();
           this.streams.delete(streamId);
         } else if (status === 'terminate') {

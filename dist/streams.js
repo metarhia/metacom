@@ -46,8 +46,7 @@ class MetacomReadable extends EventEmitter {
     this.streaming = true;
     this.status = null;
     this.bytesRead = 0;
-    this.packetsRead = 0;
-    this.expectedPackets = 0;
+    this.totalBytes = 0;
     this.maxListenersCount = this.getMaxListeners() - 1;
   }
 
@@ -99,7 +98,7 @@ class MetacomReadable extends EventEmitter {
   }
 
   async stop() {
-    if (this.packetsRead === this.expectedPackets) {
+    if (this.bytesRead === this.totalBytes) {
       this.streaming = false;
       this.emit(PUSH_EVENT, null);
     } else {
@@ -118,7 +117,6 @@ class MetacomReadable extends EventEmitter {
   pull() {
     const data = this.queue.shift();
     this.bytesRead += data.length;
-    this.packetsRead += 1;
     this.emit(PULL_EVENT);
     return data;
   }
@@ -154,7 +152,7 @@ class MetacomWritable extends EventEmitter {
     this.streamId = initData.streamId;
     this.name = initData.name;
     this.size = Number.isSafeInteger(initData.size) ? initData.size : Infinity;
-    this.totalSent = 0;
+    this.totalBytes = 0;
     this.init();
   }
 
@@ -170,7 +168,7 @@ class MetacomWritable extends EventEmitter {
   write(data) {
     const chunk = MetacomChunk.encode(this.streamId, data);
     this.transport.send(chunk);
-    this.totalSent += 1;
+    this.totalBytes += data.length;
     return true;
   }
 
@@ -178,7 +176,7 @@ class MetacomWritable extends EventEmitter {
     const packet = {
       stream: this.streamId,
       status: 'end',
-      totalSent: this.totalSent,
+      bytes: this.totalBytes,
     };
     this.transport.send(JSON.stringify(packet));
   }
