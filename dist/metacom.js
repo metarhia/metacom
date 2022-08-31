@@ -36,6 +36,7 @@ export class Metacom extends EventEmitter {
     this.calls = new Map();
     this.streams = new Map();
     this.streamId = 0;
+    this.eventId = 0;
     this.active = false;
     this.connected = false;
     this.opening = null;
@@ -164,6 +165,11 @@ export class Metacom extends EventEmitter {
       for (const methodName of methodNames) {
         methods[methodName] = request(methodName);
       }
+      methods.on('*', (eventName, data) => {
+        const target = `${interfaceName}/${eventName}`;
+        const packet = { event: ++this.eventId, [target]: data };
+        this.send(JSON.stringify(packet));
+      });
       this.api[interfaceName] = methods;
     }
   }
