@@ -54,7 +54,7 @@
   },
   "dependencies": {
     "metautil": "^3.5.24",
-    "ws": "^8.10.0"
+    "ws": "^8.11.0"
   },
   "devDependencies": {
     "@types/node": "^18.11.9",
