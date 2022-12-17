@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Fix path separaton in url for windows
+- Fix serving static files
+
 ## [3.0.0-alpha.4][] - 2022-07-30
 
 - Package maintenance
