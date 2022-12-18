@@ -2,6 +2,7 @@
 
 ## [Unreleased][unreleased]
 
+- Move `serveStatic` to impress
 - Fix path separaton in url for windows
 - Fix serving static files
 
