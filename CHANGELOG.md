@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix serving static files
+
 ## [3.0.0-alpha.4][] - 2022-07-30
 
 - Package maintenance
