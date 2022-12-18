@@ -3,7 +3,7 @@
 const { Readable } = require('stream');
 const metatests = require('metatests');
 const metautil = require('metautil');
-const { MetaReadable, MetaWritable, Chunk } = require('../lib/streams');
+const { MetaReadable, MetaWritable, Chunk } = require('../lib/streams.js');
 
 const UINT_8_MAX = 255;
 
