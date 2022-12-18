@@ -3,11 +3,7 @@
 const { Readable } = require('stream');
 const metatests = require('metatests');
 const metautil = require('metautil');
-const {
-  MetacomReadable,
-  MetacomWritable,
-  MetacomChunk,
-} = require('../lib/streams');
+const { MetaReadable, MetaWritable, Chunk } = require('../lib/streams');
 
 const UINT_8_MAX = 255;
 
@@ -29,7 +25,7 @@ const generateDataView = () => {
 const createWritable = (initData) => {
   const writeBuffer = [];
   const transport = { send: (packet) => writeBuffer.push(packet) };
-  const stream = new MetacomWritable(transport, initData);
+  const stream = new MetaWritable(transport, initData);
   return [stream, writeBuffer];
 };
 
@@ -40,18 +36,18 @@ const populateStream = (stream) => ({
       .on('end', () => stream.stop()),
 });
 
-metatests.test('MetacomChunk / encode / decode', (test) => {
+metatests.test('Chunk / encode / decode', (test) => {
   const initData = generateInitData();
   const dataView = generateDataView();
-  const chunkView = MetacomChunk.encode(initData.streamId, dataView);
+  const chunkView = Chunk.encode(initData.streamId, dataView);
   test.type(chunkView, 'Uint8Array');
-  const decoded = MetacomChunk.decode(chunkView);
+  const decoded = Chunk.decode(chunkView);
   test.strictEqual(decoded.streamId, initData.streamId);
   test.strictEqual(decoded.payload, dataView);
   test.end();
 });
 
-metatests.test('MetacomWritable / constructor', (test) => {
+metatests.test('MetaWritable / constructor', (test) => {
   const initData = generateInitData();
   const [, writeBuffer] = createWritable(initData);
   test.strictEqual(writeBuffer.length, 1);
@@ -65,7 +61,7 @@ metatests.test('MetacomWritable / constructor', (test) => {
 });
 
 metatests.test(
-  'MetacomWritable / end: should send packet with "end" status',
+  'MetaWritable / end: should send packet with "end" status',
   (test) => {
     const initData = generateInitData();
     const [writable, writeBuffer] = createWritable(initData);
@@ -82,7 +78,7 @@ metatests.test(
 );
 
 metatests.test(
-  'MetacomWritable / terminate: should send packet with "terminate" status',
+  'MetaWritable / terminate: should send packet with "terminate" status',
   (test) => {
     const initData = generateInitData();
     const [writable, writeBuffer] = createWritable(initData);
@@ -98,30 +94,27 @@ metatests.test(
   },
 );
 
-metatests.test(
-  'MetacomWritable / write: should send encoded packet',
-  (test) => {
-    const initData = generateInitData();
-    const [writable, writeBuffer] = createWritable(initData);
-    const dataView = generateDataView();
-    test.strictEqual(writeBuffer.length, 1);
-    const result = writable.write(dataView);
-    test.strictEqual(result, true);
-    test.strictEqual(writeBuffer.length, 2);
-    const packet = writeBuffer.pop();
-    test.type(packet, 'Uint8Array');
-    const decoded = MetacomChunk.decode(packet);
-    test.strictEqual(decoded.streamId, initData.streamId);
-    test.strictEqual(decoded.payload, dataView);
-    test.end();
-  },
-);
+metatests.test('MetaWritable / write: should send encoded packet', (test) => {
+  const initData = generateInitData();
+  const [writable, writeBuffer] = createWritable(initData);
+  const dataView = generateDataView();
+  test.strictEqual(writeBuffer.length, 1);
+  const result = writable.write(dataView);
+  test.strictEqual(result, true);
+  test.strictEqual(writeBuffer.length, 2);
+  const packet = writeBuffer.pop();
+  test.type(packet, 'Uint8Array');
+  const decoded = Chunk.decode(packet);
+  test.strictEqual(decoded.streamId, initData.streamId);
+  test.strictEqual(decoded.payload, dataView);
+  test.end();
+});
 
-metatests.test('MetacomReadable', async (test) => {
+metatests.test('MetaReadable', async (test) => {
   const dataView = generateDataView();
   const initData = generateInitData();
   Object.assign(initData, { size: dataView.buffer.byteLength });
-  const stream = new MetacomReadable(initData);
+  const stream = new MetaReadable(initData);
   const buffer = Buffer.from(dataView.buffer);
   populateStream(stream).with(buffer);
   const chunks = [];
@@ -131,11 +124,11 @@ metatests.test('MetacomReadable', async (test) => {
   test.end();
 });
 
-metatests.test('MetacomReadable / toBlob', async (test) => {
+metatests.test('MetaReadable / toBlob', async (test) => {
   const dataView = generateDataView();
   const initData = generateInitData();
   Object.assign(initData, { size: dataView.buffer.byteLength });
-  const stream = new MetacomReadable(initData);
+  const stream = new MetaReadable(initData);
   const buffer = Buffer.from(dataView.buffer);
   populateStream(stream).with(buffer);
   const blob = await stream.toBlob();
