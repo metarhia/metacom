@@ -8,7 +8,7 @@ export interface MetacomError extends Error {
   code: string;
 }
 
-export class MetacomReadable extends EventEmitter {
+export class MetaReadable extends EventEmitter {
   streamId: number;
   name: string;
   size: number;
@@ -18,7 +18,7 @@ export class MetacomReadable extends EventEmitter {
   toBlob(type?: string): Promise<Blob>;
 }
 
-export class MetacomWritable extends EventEmitter {
+export class MetaWritable extends EventEmitter {
   streamId: number;
   name: string;
   size: number;
@@ -50,8 +50,8 @@ export class Metacom extends EventEmitter {
     iname: string,
     ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
-  getStream(streamId: number): MetacomReadable;
-  createStream(name: string, size: number): MetacomWritable;
+  getStream(streamId: number): MetaReadable;
+  createStream(name: string, size: number): MetaWritable;
   createBlobUploader(blob: Blob): BlobUploader;
 }
 
@@ -80,12 +80,12 @@ export class Client extends EventEmitter {
   eventId: number;
   streamId: number;
   events: { close: Array<Function> };
-  streams: Map<number, MetacomReadable>;
+  streams: Map<number, MetaReadable>;
   redirect(location: string): void;
   startSession(token: string, data: object): boolean;
   restoreSession(token: string): boolean;
-  getStream(streamId: number): MetacomReadable;
-  createStream(name: string, size: number): MetacomWritable;
+  getStream(streamId: number): MetaReadable;
+  createStream(name: string, size: number): MetaWritable;
 }
 
 export class Channel {

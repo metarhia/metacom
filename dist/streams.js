@@ -14,7 +14,7 @@ const getStreamId = (buffer) => {
   return view.getInt32(0);
 };
 
-class MetacomChunk {
+class Chunk {
   static encode(streamId, payload) {
     const streamIdView = new Uint8Array(createStreamIdBuffer(streamId));
     const chunkView = new Uint8Array(STREAM_ID_LENGTH + payload.length);
@@ -35,7 +35,7 @@ const PULL_EVENT = Symbol();
 const DEFAULT_HIGH_WATER_MARK = 32;
 const MAX_HIGH_WATER_MARK = 1000;
 
-class MetacomReadable extends EventEmitter {
+class MetaReadable extends EventEmitter {
   constructor(initData, options = {}) {
     super();
     this.streamId = initData.streamId;
@@ -144,7 +144,7 @@ class MetacomReadable extends EventEmitter {
   }
 }
 
-class MetacomWritable extends EventEmitter {
+class MetaWritable extends EventEmitter {
   constructor(transport, initData) {
     super();
     this.transport = transport;
@@ -164,7 +164,7 @@ class MetacomWritable extends EventEmitter {
   }
 
   write(data) {
-    const chunk = MetacomChunk.encode(this.streamId, data);
+    const chunk = Chunk.encode(this.streamId, data);
     this.transport.send(chunk);
   }
 
@@ -179,4 +179,4 @@ class MetacomWritable extends EventEmitter {
   }
 }
 
-export { MetacomChunk, MetacomReadable, MetacomWritable };
+export { Chunk, MetaReadable, MetaWritable };
