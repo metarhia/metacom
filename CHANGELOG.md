@@ -5,6 +5,7 @@
 - Move `serveStatic` to impress
 - Fix path separaton in url for windows
 - Fix serving static files
+- Use `fetch` polyfill from metautil
 
 ## [3.0.0-alpha.4][] - 2022-07-30
 
