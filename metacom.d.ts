@@ -75,6 +75,16 @@ export interface ErrorOptions {
   pass?: boolean;
 }
 
+export interface Auth {
+  generateToken(): string;
+  saveSession(token: string, data: object): void;
+  startSession(token: string, data: object, fields?: object): void;
+  restoreSession(token: string): Promise<object | null>;
+  deleteSession(token: string): void;
+  registerUser(login: string, password: string): Promise<object>;
+  getUser(login: string): Promise<object>;
+}
+
 export class Client extends EventEmitter {
   ip: string | undefined;
   eventId: number;
@@ -88,8 +98,10 @@ export class Client extends EventEmitter {
   createStream(name: string, size: number): MetaWritable;
 }
 
-export class Channel {
+export class Channel extends EventEmitter {
   application: object;
+  console: Console;
+  auth: Auth;
   req: ClientRequest;
   res: ServerResponse;
   ip: string;
@@ -143,6 +155,7 @@ export class WsChannel extends Channel {
 export class Server {
   options: Options;
   application: object;
+  console: Console;
   semaphore: Semaphore;
   server?: any;
   ws?: any;
