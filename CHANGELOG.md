@@ -2,10 +2,14 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.5][] - 2022-12-23
+
 - Move `serveStatic` to impress
 - Fix path separaton in url for windows
 - Fix serving static files
 - Use `fetch` polyfill from metautil
+- Optimize abstractions
+- Update dependencies
 
 ## [3.0.0-alpha.4][] - 2022-07-30
 
@@ -224,7 +228,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.4...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.5...HEAD
+[3.0.0-alpha.5]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.4...v3.0.0-alpha.5
 [3.0.0-alpha.4]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.3...v3.0.0-alpha.4
 [3.0.0-alpha.3]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.2...v3.0.0-alpha.3
 [3.0.0-alpha.2]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.1...v3.0.0-alpha.2
