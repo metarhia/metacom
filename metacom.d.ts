@@ -98,7 +98,7 @@ export class Client extends EventEmitter {
   createStream(name: string, size: number): MetaWritable;
 }
 
-export class Channel extends EventEmitter {
+export class Channel {
   application: object;
   console: Console;
   auth: Auth;
