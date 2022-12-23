@@ -7,6 +7,13 @@ const { MetaReadable, MetaWritable, Chunk } = require('../lib/streams.js');
 
 const UINT_8_MAX = 255;
 
+const { emitWarning } = process;
+process.emitWarning = (warning, type, ...args) => {
+  if (type === 'ExperimentalWarning') return;
+  emitWarning(warning, type, ...args);
+  return;
+};
+
 const generateInitData = () => ({
   streamId: metautil.random(UINT_8_MAX),
   name: metautil.random(UINT_8_MAX).toString(),
