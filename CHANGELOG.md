@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix `close` event call for `Client` instance on `Channel` destroy
+
 ## [3.0.0-alpha.5][] - 2022-12-23
 
 - Move `serveStatic` to impress
