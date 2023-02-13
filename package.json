@@ -54,18 +54,18 @@
   },
   "dependencies": {
     "metautil": "^3.6.0",
-    "ws": "^8.11.0"
+    "ws": "^8.12.0"
   },
   "devDependencies": {
-    "@types/node": "^18.11.17",
-    "@types/ws": "^8.5.3",
-    "eslint": "^8.30.0",
+    "@types/node": "^18.13.0",
+    "@types/ws": "^8.5.4",
+    "eslint": "^8.34.0",
     "eslint-config-metarhia": "^8.1.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-import": "^2.26.0",
+    "eslint-config-prettier": "^8.6.0",
+    "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prettier": "^4.0.0",
     "metatests": "^0.8.2",
-    "prettier": "^2.8.1",
-    "typescript": "^4.9.4"
+    "prettier": "^2.8.4",
+    "typescript": "^4.9.5"
   }
 }
