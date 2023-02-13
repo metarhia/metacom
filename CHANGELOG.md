@@ -2,6 +2,7 @@
 
 ## [Unreleased][unreleased]
 
+- Fix `httpCall` for `Client`
 - Fix `close` event call for `Client` instance on `Channel` destroy
 
 ## [3.0.0-alpha.5][] - 2022-12-23
