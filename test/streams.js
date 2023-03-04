@@ -1,6 +1,6 @@
 'use strict';
 
-const { Readable } = require('stream');
+const { Readable } = require('node:stream');
 const metatests = require('metatests');
 const metautil = require('metautil');
 const { MetaReadable, MetaWritable, Chunk } = require('../lib/streams.js');
