@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Add `node:` prefix for all internal modules
+
 ## [3.0.0-alpha.6][] - 2023-02-13
 
 - Fix `httpCall` for `Client`

@@ -1,8 +1,8 @@
-import { EventEmitter } from 'events';
-import { ClientRequest, ServerResponse } from 'http';
+import { EventEmitter } from 'node:events';
+import { ClientRequest, ServerResponse } from 'node:http';
+import { Writable } from 'node:stream';
 import WebSocket from 'ws';
 import { Semaphore } from 'metautil';
-import { Writable } from 'stream';
 
 export interface MetacomError extends Error {
   code: string;
