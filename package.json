@@ -37,11 +37,7 @@
   "browser": {
     "./metacom.js": "./dist/metacom.js"
   },
-  "files": [
-    "dist/",
-    "lib/",
-    "metacom.d.ts"
-  ],
+  "files": ["dist/", "lib/", "metacom.d.ts"],
   "readmeFilename": "README.md",
   "scripts": {
     "test": "npm run lint && npm run types && metatests test/",
