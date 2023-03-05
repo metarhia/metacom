@@ -65,10 +65,6 @@ export interface Options {
   queue: object;
 }
 
-export class Session {
-  constructor(token: string, channel: Channel, data: any);
-}
-
 export interface ErrorOptions {
   callId?: number;
   error?: Error;
@@ -87,8 +83,10 @@ export interface Auth {
 
 export class Client extends EventEmitter {
   ip: string | undefined;
+  callId: number;
   eventId: number;
   streamId: number;
+  auth: Auth;
   events: { close: Array<Function> };
   streams: Map<number, MetaReadable>;
   redirect(location: string): void;
@@ -166,4 +164,20 @@ export class Server {
   request(channel: Channel): void;
   closeChannels(): void;
   close(): Promise<void>;
+}
+
+export interface State {
+  [key: string]: any;
+}
+
+export interface Session {
+  token: string;
+  state: State;
+}
+
+export interface Context {
+  client: Client;
+  uuid: string;
+  state: State;
+  session: Session;
 }
