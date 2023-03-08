@@ -6,6 +6,7 @@
 - Generate UUID for each RPC call to track logic
 - Add `Context` and `State` classes
 - Fix typings: remove internal module classes, add some exported
+- Change contracts `Client` and `Channel`
 
 ## [3.0.0-alpha.6][] - 2023-02-13
 
