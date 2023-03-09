@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.7][] - 2023-02-09
+
 - Add `node:` prefix for all internal modules
 - Generate UUID for each RPC call to track logic
 - Add `Context` and `State` classes
@@ -239,7 +241,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.6...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.7...HEAD
+[3.0.0-alpha.7]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.6...v3.0.0-alpha.7
 [3.0.0-alpha.6]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.5...v3.0.0-alpha.6
 [3.0.0-alpha.5]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.4...v3.0.0-alpha.5
 [3.0.0-alpha.4]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.3...v3.0.0-alpha.4
