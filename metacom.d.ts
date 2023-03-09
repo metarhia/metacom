@@ -73,10 +73,10 @@ export interface ErrorOptions {
 
 export interface Auth {
   generateToken(): string;
-  saveSession(token: string, data: object): void;
-  startSession(token: string, data: object, fields?: object): void;
-  restoreSession(token: string): Promise<object | null>;
-  deleteSession(token: string): void;
+  saveSession(token: string, data: object): Promise<void>;
+  createSession(token: string, data: object, fields?: object): Promise<void>;
+  readSession(token: string): Promise<object | null>;
+  deleteSession(token: string): Promise<void>;
   registerUser(login: string, password: string): Promise<object>;
   getUser(login: string): Promise<object>;
 }
@@ -88,7 +88,6 @@ export class Client extends EventEmitter {
   streamId: number;
   auth: Auth;
   events: { close: Array<Function> };
-  streams: Map<number, MetaReadable>;
   redirect(location: string): void;
   startSession(token: string, data: object): boolean;
   restoreSession(token: string): boolean;
@@ -97,25 +96,42 @@ export class Client extends EventEmitter {
 }
 
 export class Channel {
-  application: object;
-  console: Console;
+  server: Server;
   auth: Auth;
+  console: Console;
   req: ClientRequest;
   res: ServerResponse;
   ip: string;
   client: Client;
   session?: Session;
+  eventId: number;
+  streamId: number;
+  streams: Map<number, MetaReadable>;
+  token: string;
   constructor(application: object, req: ClientRequest, res: ServerResponse);
   message(data: string): void;
-  prc(
+  binary(data: Buffer): void;
+  handleRpcPacket(packet: object): void;
+  handleStreamPacket(packet: object): Promise<void>;
+  createContext(): Context;
+  rpc(
     callId: number,
     interfaceName: string,
     methodName: string,
     args: [],
   ): Promise<void>;
-  restoreSession(): Promise<Session | null>;
-  destroy(): void;
+  hook(
+    proc: object,
+    interfaceName: string,
+    methodName: string,
+    args: Array<any>,
+  ): Promise<void>;
   error(code: number, errorOptions?: ErrorOptions): void;
+  sendEvent(name: string, data: object): void;
+  getStream(streamId: number): MetaWritable;
+  createStream(name: string, size: number): MetaWritable;
+  resumeCookieSession(): Promise<void>;
+  destroy(): void;
 }
 
 export class HttpChannel extends Channel {
@@ -123,14 +139,8 @@ export class HttpChannel extends Channel {
   send(obj: object, httpCode?: number): void;
   redirect(location: string): void;
   options(): void;
-  hook(
-    proc: object,
-    interfaceName: string,
-    methodName: string,
-    args: Array<any>,
-  ): Promise<void>;
-  startSession(): Session;
-  deleteSession(): void;
+  sendSessionCookie(token: string): void;
+  removeSessionCookie(): void;
 }
 
 export class WsChannel extends Channel {
@@ -138,16 +148,6 @@ export class WsChannel extends Channel {
   constructor(application: object, req: ClientRequest, connection: WebSocket);
   write(data: any): void;
   send(obj: object): void;
-  redirect(location: string): void;
-  options(): void;
-  hook(
-    proc: object,
-    interfaceName: string,
-    methodName: string,
-    args: Array<any>,
-  ): Promise<void>;
-  startSession(): Session;
-  deleteSession(): void;
 }
 
 export class Server {
