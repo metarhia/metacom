@@ -49,13 +49,13 @@
     "node": "^14.18 || 16 || 18 || 19"
   },
   "dependencies": {
-    "metautil": "^3.7.0",
+    "metautil": "^3.7.1",
     "ws": "^8.12.1"
   },
   "devDependencies": {
     "@types/node": "^18.14.6",
     "@types/ws": "^8.5.4",
-    "eslint": "^8.35.0",
+    "eslint": "^8.36.0",
     "eslint-config-metarhia": "^8.1.0",
     "eslint-config-prettier": "^8.6.0",
     "eslint-plugin-import": "^2.27.5",
