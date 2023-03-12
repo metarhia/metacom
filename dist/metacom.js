@@ -22,7 +22,7 @@ class MetacomError extends Error {
 
 class MetacomInterface extends EventEmitter {}
 
-export class Metacom extends EventEmitter {
+class Metacom extends EventEmitter {
   constructor(url, options = {}) {
     super();
     this.url = url;
@@ -277,3 +277,5 @@ Metacom.transport = {
   ws: WebsocketTransport,
   http: HttpTransport,
 };
+
+export { Metacom };

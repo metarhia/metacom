@@ -97,13 +97,11 @@ class MetaReadable extends EventEmitter {
   }
 
   async stop() {
-    if (this.bytesRead === this.size) {
-      this.streaming = false;
-      this.emit(PUSH_EVENT, null);
-    } else {
+    while (this.bytesRead !== this.size) {
       await this.waitEvent(PULL_EVENT);
-      await this.stop();
     }
+    this.streaming = false;
+    this.emit(PUSH_EVENT, null);
   }
 
   async read() {
@@ -166,6 +164,7 @@ class MetaWritable extends EventEmitter {
   write(data) {
     const chunk = Chunk.encode(this.streamId, data);
     this.transport.send(chunk);
+    return true;
   }
 
   end() {

@@ -3,7 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Fix server-side client
-- Sync browser and server-side clients codebase
+- Unify server-side and browser `streams` implementation
 - Update metautil to 3.7.1 for fixed `fetch`
 
 ## [3.0.0-alpha.7][] - 2023-02-09
