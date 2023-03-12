@@ -5,6 +5,7 @@
 - Fix server-side client
 - Unify server-side and browser `streams` implementation
 - Update metautil to 3.7.1 for fixed `fetch`
+- Unify `EventEmitter` implementation
 
 ## [3.0.0-alpha.7][] - 2023-02-09
 
