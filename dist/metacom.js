@@ -20,7 +20,12 @@ class MetacomError extends Error {
   }
 }
 
-class MetacomInterface extends EventEmitter {}
+class MetacomInterface extends EventEmitter {
+  emit(...args) {
+    super.emit('*', ...args);
+    super.emit(...args);
+  }
+}
 
 class Metacom extends EventEmitter {
   constructor(url, options = {}) {
@@ -278,4 +283,4 @@ Metacom.transport = {
   http: HttpTransport,
 };
 
-export { Metacom };
+export { Metacom, MetacomInterface };
