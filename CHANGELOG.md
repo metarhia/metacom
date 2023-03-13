@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.8][] - 2023-02-13
+
 - Fix server-side client
 - Unify server-side and browser `streams` implementation
 - Update metautil to 3.7.1 for fixed `fetch`
@@ -246,7 +248,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.7...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.8...HEAD
+[3.0.0-alpha.8]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.7...v3.0.0-alpha.8
 [3.0.0-alpha.7]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.6...v3.0.0-alpha.7
 [3.0.0-alpha.6]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.5...v3.0.0-alpha.6
 [3.0.0-alpha.5]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.4...v3.0.0-alpha.5
