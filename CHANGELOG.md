@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix `close` method of `Client` to properly clear all timeouts and intervals
+
 ## [3.0.0-alpha.8][] - 2023-02-13
 
 - Fix server-side client

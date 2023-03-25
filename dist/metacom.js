@@ -42,9 +42,12 @@ class Metacom extends EventEmitter {
     this.connected = false;
     this.opening = null;
     this.lastActivity = new Date().getTime();
-    this.callTimeout = options.callTimeout || CALL_TIMEOUT;
-    this.pingInterval = options.pingInterval || PING_INTERVAL;
-    this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
+    this.callTimeout = null;
+    this.pingInterval = null;
+    this.callTimeouts = {};
+    this.callTimeoutMs = options.callTimeout || CALL_TIMEOUT;
+    this.pingIntervalMs = options.pingInterval || PING_INTERVAL;
+    this.reconnectTimeoutMs = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.open();
   }
 
@@ -177,12 +180,13 @@ class Metacom extends EventEmitter {
         if (this.opening) await this.opening;
         if (!this.connected) await this.open();
         return new Promise((resolve, reject) => {
-          setTimeout(() => {
+          this.callTimeouts[callId] = setTimeout(() => {
+            delete this.callTimeouts[callId];
             if (this.calls.has(callId)) {
               this.calls.delete(callId);
               reject(new Error('Request timeout'));
             }
-          }, this.callTimeout);
+          }, this.callTimeoutMs);
           this.calls.set(callId, [resolve, reject]);
           const packet = { call: callId, [target]: args };
           this.send(JSON.stringify(packet));
@@ -209,9 +213,11 @@ class WebsocketTransport extends Metacom {
       this.opening = null;
       this.connected = false;
       this.emit('close');
-      setTimeout(() => {
-        if (this.active) this.open();
-      }, this.reconnectTimeout);
+      if (this.active) {
+        this.reconnectTimeout = setTimeout(() => {
+          if (this.active) this.open();
+        }, this.reconnectTimeoutMs);
+      }
     });
 
     socket.addEventListener('error', (err) => {
@@ -219,12 +225,12 @@ class WebsocketTransport extends Metacom {
       socket.close();
     });
 
-    setInterval(() => {
+    this.pingInterval = setInterval(() => {
       if (this.active) {
         const interval = new Date().getTime() - this.lastActivity;
-        if (interval > this.pingInterval) this.send('{}');
+        if (interval > this.pingIntervalMs) this.send('{}');
       }
-    }, this.pingInterval);
+    }, this.pingIntervalMs);
 
     this.opening = new Promise((resolve) => {
       socket.addEventListener('open', () => {
@@ -239,6 +245,12 @@ class WebsocketTransport extends Metacom {
 
   close() {
     this.active = false;
+    clearInterval(this.pingInterval);
+    this.pingInterval = null;
+    for (const callId in this.callTimeouts) {
+      clearTimeout(this.callTimeouts[callId]);
+      delete this.callTimeouts[callId];
+    }
     connections.delete(this);
     if (!this.socket) return;
     this.socket.close();
