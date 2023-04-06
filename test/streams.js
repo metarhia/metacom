@@ -15,7 +15,7 @@ process.emitWarning = (warning, type, ...args) => {
 };
 
 const generateInitData = () => ({
-  streamId: metautil.random(UINT_8_MAX),
+  id: metautil.random(UINT_8_MAX),
   name: metautil.random(UINT_8_MAX).toString(),
   size: metautil.random(UINT_8_MAX),
 });
@@ -46,10 +46,10 @@ const populateStream = (stream) => ({
 metatests.test('Chunk / encode / decode', (test) => {
   const initData = generateInitData();
   const dataView = generateDataView();
-  const chunkView = Chunk.encode(initData.streamId, dataView);
+  const chunkView = Chunk.encode(initData.id, dataView);
   test.type(chunkView, 'Uint8Array');
   const decoded = Chunk.decode(chunkView);
-  test.strictEqual(decoded.streamId, initData.streamId);
+  test.strictEqual(decoded.id, initData.id);
   test.strictEqual(decoded.payload, dataView);
   test.end();
 });
@@ -61,7 +61,8 @@ metatests.test('MetaWritable / constructor', (test) => {
   const packet = writeBuffer.pop();
   test.type(packet, 'string');
   const parsed = JSON.parse(packet);
-  test.strictEqual(parsed.stream, initData.streamId);
+  test.strictEqual(parsed.type, 'stream');
+  test.strictEqual(parsed.id, initData.id);
   test.strictEqual(parsed.name, initData.name);
   test.strictEqual(parsed.size, initData.size);
   test.end();
@@ -78,7 +79,8 @@ metatests.test(
     const packet = writeBuffer.pop();
     test.strictEqual(typeof packet, 'string');
     const parsed = JSON.parse(packet);
-    test.strictEqual(parsed.stream, initData.streamId);
+    test.strictEqual(parsed.type, 'stream');
+    test.strictEqual(parsed.id, initData.id);
     test.strictEqual(parsed.status, 'end');
     test.end();
   },
@@ -95,7 +97,8 @@ metatests.test(
     const packet = writeBuffer.pop();
     test.type(packet, 'string');
     const parsed = JSON.parse(packet);
-    test.strictEqual(parsed.stream, initData.streamId);
+    test.strictEqual(parsed.type, 'stream');
+    test.strictEqual(parsed.id, initData.id);
     test.strictEqual(parsed.status, 'terminate');
     test.end();
   },
@@ -112,7 +115,7 @@ metatests.test('MetaWritable / write: should send encoded packet', (test) => {
   const packet = writeBuffer.pop();
   test.type(packet, 'Uint8Array');
   const decoded = Chunk.decode(packet);
-  test.strictEqual(decoded.streamId, initData.streamId);
+  test.strictEqual(decoded.id, initData.id);
   test.strictEqual(decoded.payload, dataView);
   test.end();
 });

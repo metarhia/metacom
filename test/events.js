@@ -2,7 +2,7 @@
 
 const metatests = require('metatests');
 const EventEmitter = require('../lib/events.js');
-const { MetacomInterface } = require('../lib/client.js');
+const { MetacomUnit } = require('../lib/client.js');
 
 metatests.test('EventEmitter polyfill', async (test) => {
   const ee = new EventEmitter();
@@ -12,17 +12,17 @@ metatests.test('EventEmitter polyfill', async (test) => {
   ee.emit('eventName');
 });
 
-metatests.test('MetacomInterface', async (test) => {
-  const ee = new MetacomInterface();
+metatests.test('MetacomUnit', async (test) => {
+  const ee = new MetacomUnit();
   ee.on('eventName', () => {
     test.end();
   });
   ee.emit('eventName');
 });
 
-metatests.test('MetacomInterface subscribe *', async (test) => {
+metatests.test('MetacomUnit subscribe *', async (test) => {
   test.plan(3);
-  const ee = new MetacomInterface();
+  const ee = new MetacomUnit();
   ee.on('*', (name, data) => {
     test.strictEqual(name, 'eventName');
     test.strictEqual(data, { data: 100 });
