@@ -9,7 +9,7 @@ export interface MetacomError extends Error {
 }
 
 export class MetaReadable extends EventEmitter {
-  streamId: number;
+  id: number;
   name: string;
   size: number;
   push(data: ArrayBufferView): Promise<ArrayBufferView>;
@@ -19,7 +19,7 @@ export class MetaReadable extends EventEmitter {
 }
 
 export class MetaWritable extends EventEmitter {
-  streamId: number;
+  id: number;
   name: string;
   size: number;
   write(data: ArrayBufferView): void;
@@ -28,7 +28,7 @@ export class MetaWritable extends EventEmitter {
 }
 
 export interface BlobUploader {
-  streamId: number;
+  id: number;
   upload(): Promise<void>;
 }
 
@@ -43,14 +43,14 @@ export class Metacom extends EventEmitter {
   ready(): Promise<void>;
   load(...interfaces: Array<string>): Promise<void>;
   httpCall(
-    iname: string,
+    unit: string,
     ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
   socketCall(
-    iname: string,
+    unit: string,
     ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
-  getStream(streamId: number): MetaReadable;
+  getStream(id: number): MetaReadable;
   createStream(name: string, size: number): MetaWritable;
   createBlobUploader(blob: Blob): BlobUploader;
 }
@@ -66,7 +66,7 @@ export interface Options {
 }
 
 export interface ErrorOptions {
-  callId?: number;
+  id?: number;
   error?: Error;
   pass?: boolean;
 }
@@ -83,86 +83,77 @@ export interface Auth {
 
 export class Client extends EventEmitter {
   ip: string | undefined;
-  callId: number;
-  eventId: number;
-  streamId: number;
-  auth: Auth;
-  events: { close: Array<Function> };
-  redirect(location: string): void;
-  startSession(token: string, data: object): boolean;
-  restoreSession(token: string): boolean;
-  getStream(streamId: number): MetaReadable;
-  createStream(name: string, size: number): MetaWritable;
+  session: Session;
 }
 
-export class Channel {
-  server: Server;
-  auth: Auth;
+export class Transport {
   console: Console;
   req: ClientRequest;
-  res: ServerResponse;
+  res?: ServerResponse;
+  connection?: WebSocket;
   ip: string;
-  client: Client;
-  session?: Session;
-  eventId: number;
-  streamId: number;
-  streams: Map<number, MetaReadable>;
-  token: string;
-  constructor(application: object, req: ClientRequest, res: ServerResponse);
-  message(data: string): void;
-  binary(data: Buffer): void;
-  handleRpcPacket(packet: object): void;
-  handleStreamPacket(packet: object): Promise<void>;
-  createContext(): Context;
-  rpc(
-    callId: number,
-    interfaceName: string,
-    methodName: string,
-    args: [],
-  ): Promise<void>;
-  hook(
-    proc: object,
-    interfaceName: string,
-    methodName: string,
-    args: Array<any>,
-  ): Promise<void>;
+  constructor(
+    console: Console,
+    req: ClientRequest,
+    target: ServerResponse | WebSocket,
+  );
   error(code: number, errorOptions?: ErrorOptions): void;
-  sendEvent(name: string, data: object): void;
-  getStream(streamId: number): MetaWritable;
-  createStream(name: string, size: number): MetaWritable;
-  resumeCookieSession(): Promise<void>;
-  destroy(): void;
-}
-
-export class HttpChannel extends Channel {
-  write(data: any, httpCode?: number, ext?: string): void;
+  write(data: string | Buffer, httpCode?: number, ext?: string): void;
   send(obj: object, httpCode?: number): void;
-  redirect(location: string): void;
-  options(): void;
+  redirect?(location: string): void;
+  options?(): void;
+  getCookies?(): object;
   sendSessionCookie(token: string): void;
   removeSessionCookie(): void;
+  close(): void;
 }
 
-export class WsChannel extends Channel {
-  connection: WebSocket;
-  constructor(application: object, req: ClientRequest, connection: WebSocket);
-  write(data: any): void;
-  send(obj: object): void;
+export interface CallPacket {
+  type: 'call';
+  id: number;
+  method: string;
+  args: object;
+  meta: object;
+}
+
+export interface StreamPacket {
+  type: 'stream';
+  id: number;
+  name: string;
+  size: number;
 }
 
 export class Server {
-  options: Options;
   application: object;
+  options: Options;
+  balancer: boolean;
   console: Console;
   semaphore: Semaphore;
-  server?: any;
-  ws?: any;
-  channels?: Map<Client, Channel>;
+  httpServer: any;
+  wsServer: any;
+  clients: Set<Client>;
   constructor(options: Options, application: object);
   bind(): void;
-  listener(req: ClientRequest, res: ServerResponse): void;
-  request(channel: Channel): void;
-  closeChannels(): void;
+  message(client: Client, data: string): void;
+  rpc(client: Client, packet: CallPacket): Promise<void>;
+  binary(client: Client, data: Buffer): void;
+  handleRpcPacket(client: Client, packet: CallPacket): void;
+  handleStreamPacket(client: Client, packet: StreamPacket): Promise<void>;
+  handleRequest(
+    client: Client,
+    transport: Transport,
+    data: Buffer,
+    application: object,
+  ): void;
+  hook(
+    client: Client,
+    proc: object,
+    packet: CallPacket,
+    verb: string,
+    headers: object,
+  ): Promise<void>;
+  balancing(transport: Transport): void;
+  closeClients(): void;
   close(): Promise<void>;
 }
 

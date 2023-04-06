@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Implement metacom3 specs: https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
+
 ## [3.0.0-alpha.8][] - 2023-02-13
 
 - Fix server-side client
