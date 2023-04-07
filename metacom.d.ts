@@ -108,17 +108,6 @@ export class Transport {
   close(): void;
 }
 
-export class HttpChannel extends Channel {
-  sendSessionCookie(token: string): void;
-  removeSessionCookie(): void;
-}
-
-export class WsChannel extends Channel {
-  constructor(application: object, req: ClientRequest, connection: WebSocket);
-  write(data: any): void;
-  send(obj: object): void;
-}
-
 export interface CallPacket {
   type: 'call';
   id: number;
@@ -149,17 +138,17 @@ export class Server {
   rpc(client: Client, packet: CallPacket): Promise<void>;
   binary(client: Client, data: Buffer): void;
   handleRpcPacket(client: Client, packet: CallPacket): void;
-  async handleStreamPacket(client: Client, packet: StreamPacket): Promise<void>;
+  handleStreamPacket(client: Client, packet: StreamPacket): Promise<void>;
   handleRequest(
     client: Client,
     transport: Transport,
     data: Buffer,
-    application: Application,
+    application: object,
   ): void;
   hook(
     client: Client,
     proc: object,
-    packet: CallPAcket,
+    packet: CallPacket,
     verb: string,
     headers: object,
   ): Promise<void>;
