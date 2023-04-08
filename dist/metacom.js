@@ -107,7 +107,7 @@ class Metacom extends EventEmitter {
       } else if (type === 'event') {
         const [unit, name] = method.split('/');
         const metacomUnit = this.api[unit];
-        metacomUnit.emit(name, args);
+        if (metacomUnit) metacomUnit.emit(name, args);
       } else if (type === 'stream') {
         const { name, size, status } = packet;
         const stream = this.streams.get(id);
