@@ -92,7 +92,7 @@ class Metacom extends EventEmitter {
     } catch {
       return;
     }
-    const { type, id, method, args } = packet;
+    const { type, id, method } = packet;
     if (id) {
       if (type === 'callback') {
         const promised = this.calls.get(id);
@@ -103,11 +103,11 @@ class Metacom extends EventEmitter {
           reject(new MetacomError(packet.error));
           return;
         }
-        resolve(args);
+        resolve(packet.result);
       } else if (type === 'event') {
         const [unit, name] = method.split('/');
         const metacomUnit = this.api[unit];
-        if (metacomUnit) metacomUnit.emit(name, args);
+        if (metacomUnit) metacomUnit.emit(name, packet.data);
       } else if (type === 'stream') {
         const { name, size, status } = packet;
         const stream = this.streams.get(id);
@@ -169,7 +169,7 @@ class Metacom extends EventEmitter {
     return (method) =>
       async (args = {}) => {
         const id = ++this.callId;
-        const unitName = unit + ver ? '.' + ver : '';
+        const unitName = unit + (ver ? '.' + ver : '');
         const target = unitName + '/' + method;
         if (this.opening) await this.opening;
         if (!this.connected) await this.open();
