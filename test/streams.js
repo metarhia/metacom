@@ -3,7 +3,8 @@
 const { Readable } = require('node:stream');
 const metatests = require('metatests');
 const metautil = require('metautil');
-const { MetaReadable, MetaWritable, Chunk } = require('../lib/streams.js');
+const streams = require('../lib/streams.js');
+const { chunkEncode, chunkDecode, MetaReadable, MetaWritable } = streams;
 
 const UINT_8_MAX = 255;
 
@@ -14,7 +15,7 @@ process.emitWarning = (warning, type, ...args) => {
   return;
 };
 
-const generateInitData = () => ({
+const generatePacket = () => ({
   id: metautil.random(UINT_8_MAX),
   name: metautil.random(UINT_8_MAX).toString(),
   size: metautil.random(UINT_8_MAX),
@@ -29,10 +30,10 @@ const generateDataView = () => {
   return encoder.encode(randomString);
 };
 
-const createWritable = (initData) => {
+const createWritable = (id, name, size) => {
   const writeBuffer = [];
   const transport = { send: (packet) => writeBuffer.push(packet) };
-  const stream = new MetaWritable(transport, initData);
+  const stream = new MetaWritable(id, name, size, transport);
   return [stream, writeBuffer];
 };
 
@@ -44,35 +45,35 @@ const populateStream = (stream) => ({
 });
 
 metatests.test('Chunk / encode / decode', (test) => {
-  const initData = generateInitData();
+  const { id } = generatePacket();
   const dataView = generateDataView();
-  const chunkView = Chunk.encode(initData.id, dataView);
+  const chunkView = chunkEncode(id, dataView);
   test.type(chunkView, 'Uint8Array');
-  const decoded = Chunk.decode(chunkView);
-  test.strictEqual(decoded.id, initData.id);
+  const decoded = chunkDecode(chunkView);
+  test.strictEqual(decoded.id, id);
   test.strictEqual(decoded.payload, dataView);
   test.end();
 });
 
 metatests.test('MetaWritable / constructor', (test) => {
-  const initData = generateInitData();
-  const [, writeBuffer] = createWritable(initData);
+  const { id, name, size } = generatePacket();
+  const [, writeBuffer] = createWritable(id, name, size);
   test.strictEqual(writeBuffer.length, 1);
   const packet = writeBuffer.pop();
   test.type(packet, 'string');
   const parsed = JSON.parse(packet);
   test.strictEqual(parsed.type, 'stream');
-  test.strictEqual(parsed.id, initData.id);
-  test.strictEqual(parsed.name, initData.name);
-  test.strictEqual(parsed.size, initData.size);
+  test.strictEqual(parsed.id, id);
+  test.strictEqual(parsed.name, name);
+  test.strictEqual(parsed.size, size);
   test.end();
 });
 
 metatests.test(
   'MetaWritable / end: should send packet with "end" status',
   (test) => {
-    const initData = generateInitData();
-    const [writable, writeBuffer] = createWritable(initData);
+    const { id, name, size } = generatePacket();
+    const [writable, writeBuffer] = createWritable(id, name, size);
     test.strictEqual(writeBuffer.length, 1);
     writable.end();
     test.strictEqual(writeBuffer.length, 2);
@@ -80,7 +81,7 @@ metatests.test(
     test.strictEqual(typeof packet, 'string');
     const parsed = JSON.parse(packet);
     test.strictEqual(parsed.type, 'stream');
-    test.strictEqual(parsed.id, initData.id);
+    test.strictEqual(parsed.id, id);
     test.strictEqual(parsed.status, 'end');
     test.end();
   },
@@ -89,8 +90,8 @@ metatests.test(
 metatests.test(
   'MetaWritable / terminate: should send packet with "terminate" status',
   (test) => {
-    const initData = generateInitData();
-    const [writable, writeBuffer] = createWritable(initData);
+    const { id, name, size } = generatePacket();
+    const [writable, writeBuffer] = createWritable(id, name, size);
     test.strictEqual(writeBuffer.length, 1);
     writable.terminate();
     test.strictEqual(writeBuffer.length, 2);
@@ -98,15 +99,15 @@ metatests.test(
     test.type(packet, 'string');
     const parsed = JSON.parse(packet);
     test.strictEqual(parsed.type, 'stream');
-    test.strictEqual(parsed.id, initData.id);
+    test.strictEqual(parsed.id, id);
     test.strictEqual(parsed.status, 'terminate');
     test.end();
   },
 );
 
 metatests.test('MetaWritable / write: should send encoded packet', (test) => {
-  const initData = generateInitData();
-  const [writable, writeBuffer] = createWritable(initData);
+  const { id, name, size } = generatePacket();
+  const [writable, writeBuffer] = createWritable(id, name, size);
   const dataView = generateDataView();
   test.strictEqual(writeBuffer.length, 1);
   const result = writable.write(dataView);
@@ -114,17 +115,17 @@ metatests.test('MetaWritable / write: should send encoded packet', (test) => {
   test.strictEqual(writeBuffer.length, 2);
   const packet = writeBuffer.pop();
   test.type(packet, 'Uint8Array');
-  const decoded = Chunk.decode(packet);
-  test.strictEqual(decoded.id, initData.id);
+  const decoded = chunkDecode(packet);
+  test.strictEqual(decoded.id, id);
   test.strictEqual(decoded.payload, dataView);
   test.end();
 });
 
 metatests.test('MetaReadable', async (test) => {
   const dataView = generateDataView();
-  const initData = generateInitData();
-  Object.assign(initData, { size: dataView.buffer.byteLength });
-  const stream = new MetaReadable(initData);
+  const { id, name } = generatePacket();
+  const size = dataView.buffer.byteLength;
+  const stream = new MetaReadable(id, name, size);
   const buffer = Buffer.from(dataView.buffer);
   populateStream(stream).with(buffer);
   const chunks = [];
@@ -136,9 +137,9 @@ metatests.test('MetaReadable', async (test) => {
 
 metatests.test('MetaReadable / toBlob', async (test) => {
   const dataView = generateDataView();
-  const initData = generateInitData();
-  Object.assign(initData, { size: dataView.buffer.byteLength });
-  const stream = new MetaReadable(initData);
+  const { id, name } = generatePacket();
+  const size = dataView.buffer.byteLength;
+  const stream = new MetaReadable(id, name, size);
   const buffer = Buffer.from(dataView.buffer);
   populateStream(stream).with(buffer);
   const blob = await stream.toBlob();

@@ -2,33 +2,20 @@ import EventEmitter from './events.js';
 
 const STREAM_ID_LENGTH = 4;
 
-const createIdBuffer = (id) => {
-  const buffer = new ArrayBuffer(STREAM_ID_LENGTH);
-  const view = new DataView(buffer);
-  view.setInt32(0, id);
-  return buffer;
+const chunkEncode = (id, payload) => {
+  const chunk = new Uint8Array(STREAM_ID_LENGTH + payload.length);
+  const idArray = new Int32Array(chunk.buffer, 0, 1);
+  idArray[0] = id;
+  chunk.set(payload, STREAM_ID_LENGTH);
+  return chunk;
 };
 
-const getStreamId = (buffer) => {
-  const view = new DataView(buffer);
-  return view.getInt32(0);
+const chunkDecode = (chunk) => {
+  const view = new DataView(chunk.buffer);
+  const id = view.getInt32(0);
+  const payload = chunk.subarray(STREAM_ID_LENGTH);
+  return { id, payload };
 };
-
-class Chunk {
-  static encode(id, payload) {
-    const idView = new Uint8Array(createIdBuffer(id));
-    const chunkView = new Uint8Array(STREAM_ID_LENGTH + payload.length);
-    chunkView.set(idView);
-    chunkView.set(payload, STREAM_ID_LENGTH);
-    return chunkView;
-  }
-
-  static decode(chunkView) {
-    const id = getStreamId(chunkView.buffer);
-    const payload = chunkView.subarray(STREAM_ID_LENGTH);
-    return { id, payload };
-  }
-}
 
 const PUSH_EVENT = Symbol();
 const PULL_EVENT = Symbol();
@@ -36,15 +23,15 @@ const DEFAULT_HIGH_WATER_MARK = 32;
 const MAX_HIGH_WATER_MARK = 1000;
 
 class MetaReadable extends EventEmitter {
-  constructor(initData, options = {}) {
+  constructor(id, name, size, options = {}) {
     super();
-    this.id = initData.id;
-    this.name = initData.name;
-    this.size = initData.size;
+    this.id = id;
+    this.name = name;
+    this.size = size;
     this.highWaterMark = options.highWaterMark || DEFAULT_HIGH_WATER_MARK;
     this.queue = [];
     this.streaming = true;
-    this.status = null;
+    this.status = 'active';
     this.bytesRead = 0;
     this.maxListenersCount = this.getMaxListeners() - 1;
   }
@@ -136,34 +123,30 @@ class MetaReadable extends EventEmitter {
   async *[Symbol.asyncIterator]() {
     while (this.streaming) {
       const chunk = await this.read();
-      if (chunk) yield chunk;
-      else return;
+      if (!chunk) return;
+      yield chunk;
     }
   }
 }
 
 class MetaWritable extends EventEmitter {
-  constructor(transport, initData) {
+  constructor(id, name, size, transport) {
     super();
+    this.id = id;
+    this.name = name;
+    this.size = size;
     this.transport = transport;
-    this.id = initData.id;
-    this.name = initData.name;
-    this.size = initData.size;
     this.init();
   }
 
   init() {
-    const packet = {
-      type: 'stream',
-      id: this.id,
-      name: this.name,
-      size: this.size,
-    };
+    const { id, name, size } = this;
+    const packet = { type: 'stream', id, name, size };
     this.transport.send(JSON.stringify(packet));
   }
 
   write(data) {
-    const chunk = Chunk.encode(this.id, data);
+    const chunk = chunkEncode(this.id, data);
     this.transport.send(chunk);
     return true;
   }
@@ -179,4 +162,4 @@ class MetaWritable extends EventEmitter {
   }
 }
 
-export { Chunk, MetaReadable, MetaWritable };
+export { chunkEncode, chunkDecode, MetaReadable, MetaWritable };
