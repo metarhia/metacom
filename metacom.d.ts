@@ -12,6 +12,14 @@ export class MetaReadable extends EventEmitter {
   id: number;
   name: string;
   size: number;
+  constructor(
+    id: number,
+    name: string,
+    size: number,
+    options?: {
+      highWaterMark?: number;
+    },
+  );
   push(data: ArrayBufferView): Promise<ArrayBufferView>;
   finalize(writable: Writable): Promise<void>;
   pipe(writable: Writable): Writable;
@@ -22,6 +30,7 @@ export class MetaWritable extends EventEmitter {
   id: number;
   name: string;
   size: number;
+  constructor(id: number, name: string, size: number, transport: Transport);
   write(data: ArrayBufferView): void;
   end(): void;
   terminate(): void;
