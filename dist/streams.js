@@ -1,19 +1,20 @@
 import EventEmitter from './events.js';
 
-const STREAM_ID_LENGTH = 4;
+const ID_LENGTH = 4;
 
 const chunkEncode = (id, payload) => {
-  const chunk = new Uint8Array(STREAM_ID_LENGTH + payload.length);
-  const idArray = new Int32Array(chunk.buffer, 0, 1);
-  idArray[0] = id;
-  chunk.set(payload, STREAM_ID_LENGTH);
+  const buffer = new ArrayBuffer(ID_LENGTH + payload.length);
+  const view = new DataView(buffer);
+  const chunk = new Uint8Array(buffer);
+  view.setInt32(0, id);
+  chunk.set(payload, ID_LENGTH);
   return chunk;
 };
 
 const chunkDecode = (chunk) => {
   const view = new DataView(chunk.buffer);
   const id = view.getInt32(0);
-  const payload = chunk.subarray(STREAM_ID_LENGTH);
+  const payload = chunk.subarray(ID_LENGTH);
   return { id, payload };
 };
 
