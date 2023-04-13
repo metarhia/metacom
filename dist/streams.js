@@ -48,8 +48,9 @@ class MetaReadable extends EventEmitter {
   }
 
   async finalize(writable) {
-    const waitWritableEvent = this.waitEvent.bind(writable);
-    writable.once('error', () => this.terminate());
+    const waitWritableEvent = EventEmitter.once.bind(writable);
+    const onError = () => this.terminate();
+    writable.once('error', onError);
     for await (const chunk of this) {
       const needDrain = !writable.write(chunk);
       if (needDrain) await waitWritableEvent('drain');
@@ -58,6 +59,7 @@ class MetaReadable extends EventEmitter {
     writable.end();
     await waitWritableEvent('close');
     await this.close();
+    writable.removeListener('error', onError);
   }
 
   pipe(writable) {
