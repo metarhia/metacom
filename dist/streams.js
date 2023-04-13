@@ -61,7 +61,7 @@ class MetaReadable extends EventEmitter {
   }
 
   pipe(writable) {
-    void this.finalize(writable);
+    this.finalize(writable);
     return writable;
   }
 
