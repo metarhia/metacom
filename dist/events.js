@@ -60,6 +60,10 @@ class EventEmitter {
     }
     this.events.delete(name);
   }
+
+  static once(emitter, name) {
+    return new Promise((resolve) => emitter.once(name, resolve));
+  }
 }
 
 export default EventEmitter;
