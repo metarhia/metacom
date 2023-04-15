@@ -44,6 +44,7 @@ class Metacom extends EventEmitter {
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
+    this.ping = null;
     this.open();
   }
 
@@ -97,8 +98,9 @@ class Metacom extends EventEmitter {
       if (type === 'callback') {
         const promised = this.calls.get(id);
         if (!promised) return;
-        const [resolve, reject] = promised;
+        const [resolve, reject, timeout] = promised;
         this.calls.delete(id);
+        clearTimeout(timeout);
         if (packet.error) {
           reject(new MetacomError(packet.error));
           return;
@@ -174,13 +176,13 @@ class Metacom extends EventEmitter {
         if (this.opening) await this.opening;
         if (!this.connected) await this.open();
         return new Promise((resolve, reject) => {
-          setTimeout(() => {
+          const timeout = setTimeout(() => {
             if (this.calls.has(id)) {
               this.calls.delete(id);
               reject(new Error('Request timeout'));
             }
           }, this.callTimeout);
-          this.calls.set(id, [resolve, reject]);
+          this.calls.set(id, [resolve, reject, timeout]);
           const packet = { type: 'call', id, method: target, args };
           this.send(JSON.stringify(packet));
         });
@@ -216,7 +218,7 @@ class WebsocketTransport extends Metacom {
       socket.close();
     });
 
-    setInterval(() => {
+    this.ping = setInterval(() => {
       if (this.active) {
         const interval = new Date().getTime() - this.lastActivity;
         if (interval > this.pingInterval) this.send('{}');
@@ -237,6 +239,7 @@ class WebsocketTransport extends Metacom {
   close() {
     this.active = false;
     connections.delete(this);
+    clearInterval(this.ping);
     if (!this.socket) return;
     this.socket.close();
     this.socket = null;

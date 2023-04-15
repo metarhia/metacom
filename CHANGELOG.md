@@ -5,6 +5,7 @@
 - Implement metacom3 specs: https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
 - Refactor streams
 - Optimize chunk encoding
+- Fix setTimeout and setInterval leaks
 
 ## [3.0.0-alpha.8][] - 2023-02-13
 
