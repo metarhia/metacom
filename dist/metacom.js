@@ -1,5 +1,5 @@
 import EventEmitter from './events.js';
-import { Chunk, MetaReadable, MetaWritable } from './streams.js';
+import { chunkDecode, MetaReadable, MetaWritable } from './streams.js';
 
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
@@ -139,7 +139,7 @@ class Metacom extends EventEmitter {
   async binary(blob) {
     const buffer = await blob.arrayBuffer();
     const byteView = new Uint8Array(buffer);
-    const { id, payload } = Chunk.decode(byteView);
+    const { id, payload } = chunkDecode(byteView);
     const stream = this.streams.get(id);
     if (stream) await stream.push(payload);
     else console.warn(`Stream ${id} is not initialized`);
