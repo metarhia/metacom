@@ -37,7 +37,11 @@
   "browser": {
     "./metacom.js": "./dist/metacom.js"
   },
-  "files": ["dist/", "lib/", "metacom.d.ts"],
+  "files": [
+    "dist/",
+    "lib/",
+    "metacom.d.ts"
+  ],
   "readmeFilename": "README.md",
   "scripts": {
     "test": "npm run lint && npm run types && metatests test/",
@@ -49,19 +53,19 @@
     "node": "^14.18 || 16 || 18 || 19 || 20"
   },
   "dependencies": {
-    "metautil": "^3.7.1",
+    "metautil": "^3.7.2",
     "ws": "^8.13.0"
   },
   "devDependencies": {
-    "@types/node": "^18.15.2",
+    "@types/node": "^18.16.3",
     "@types/ws": "^8.5.4",
-    "eslint": "^8.36.0",
+    "eslint": "^8.39.0",
     "eslint-config-metarhia": "^8.1.0",
-    "eslint-config-prettier": "^8.7.0",
+    "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prettier": "^4.0.0",
     "metatests": "^0.8.2",
-    "prettier": "^2.8.4",
+    "prettier": "^2.8.8",
     "typescript": "^4.9.5"
   }
 }
