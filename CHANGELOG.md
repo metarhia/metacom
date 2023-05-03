@@ -2,6 +2,13 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.10][] - 2023-05-03
+
+- Drop node.js 14 support, add node.js 20
+- Convert package_lock.json to lockfileVersion 2
+- Fix client-side `Chunk` usage
+- Update dependencies
+
 ## [3.0.0-alpha.9][] - 2023-04-22
 
 - Implement metacom3 specs: https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
@@ -255,7 +262,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.9...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.10...HEAD
+[3.0.0-alpha.10]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.9...v3.0.0-alpha.10
 [3.0.0-alpha.9]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.8...v3.0.0-alpha.9
 [3.0.0-alpha.8]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.7...v3.0.0-alpha.8
 [3.0.0-alpha.7]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.6...v3.0.0-alpha.7
