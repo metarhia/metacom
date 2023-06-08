@@ -2,6 +2,12 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.11][] - 2023-06-08
+
+- Support pipe readable (for large files)
+- Support SNI callback for TLS transport
+- Multiple fixes
+
 ## [3.0.0-alpha.10][] - 2023-05-03
 
 - Drop node.js 14 support, add node.js 20
@@ -262,7 +268,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.10...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.11...HEAD
+[3.0.0-alpha.11]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.10...v3.0.0-alpha.11
 [3.0.0-alpha.10]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.9...v3.0.0-alpha.10
 [3.0.0-alpha.9]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.8...v3.0.0-alpha.9
 [3.0.0-alpha.8]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.7...v3.0.0-alpha.8
