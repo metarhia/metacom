@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "3.0.0-alpha.10",
+  "version": "3.0.0-alpha.11",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -53,13 +53,13 @@
     "node": "16 || 18 || 19 || 20"
   },
   "dependencies": {
-    "metautil": "^3.7.2",
+    "metautil": "^3.8.0",
     "ws": "^8.13.0"
   },
   "devDependencies": {
-    "@types/node": "^18.16.3",
+    "@types/node": "^20.2.5",
     "@types/ws": "^8.5.4",
-    "eslint": "^8.39.0",
+    "eslint": "^8.42.0",
     "eslint-config-metarhia": "^8.1.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-import": "^2.27.5",

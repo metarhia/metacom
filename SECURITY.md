@@ -6,7 +6,7 @@
 | ------- | ------------------ |
 | 0.x     | :x:                |
 | 1.x     | :x:                |
-| 2.x     | :white_check_mark: |
+| 2.x     | :x:                |
 | 3.x     | :white_check_mark: |
 
 ## Reporting a Vulnerability
