@@ -2,6 +2,12 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.0-alpha.13][] - 2023-06-17
+
+- Support Content-Range, Accept-Ranges, Content-Length headers
+- Fix multiple code style issues and improvements
+- Update dependencies
+
 ## [3.0.0-alpha.12][] - 2023-06-08
 
 - Serve static from balancing port
@@ -272,7 +278,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.12...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.13...HEAD
+[3.0.0-alpha.13]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.12...v3.0.0-alpha.13
 [3.0.0-alpha.12]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.11...v3.0.0-alpha.12
 [3.0.0-alpha.11]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.10...v3.0.0-alpha.11
 [3.0.0-alpha.10]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.9...v3.0.0-alpha.10
