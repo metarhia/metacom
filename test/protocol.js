@@ -14,11 +14,11 @@ const packets = {
   call: {
     normal: {
       input: {
-        callId: 1,
-        iface: 'auth',
-        ver: 1,
-        method: 'signIn',
-        data: { email: 'test@gmail.com', password: 'secret' },
+        id: 1,
+        unit: 'auth',
+        version: 1,
+        name: 'signIn',
+        args: { email: 'test@gmail.com', password: 'secret' },
         meta: { some: 'data' },
       },
       output: {
@@ -31,11 +31,11 @@ const packets = {
     },
     withoutVersion: {
       input: {
-        callId: 1,
-        iface: 'auth',
-        ver: undefined,
-        method: 'signIn',
-        data: { email: 'test@gmail.com', password: 'secret' },
+        id: 1,
+        unit: 'auth',
+        version: undefined,
+        name: 'signIn',
+        args: { email: 'test@gmail.com', password: 'secret' },
         meta: { some: 'data' },
       },
       output: {
@@ -50,8 +50,8 @@ const packets = {
   callback: {
     normal: {
       input: {
-        callId: 1,
-        data: { token: 'random-string' },
+        id: 1,
+        result: { token: 'random-string' },
         meta: { some: 'data' },
       },
       output: {
@@ -65,7 +65,7 @@ const packets = {
   event: {
     normal: {
       input: {
-        iface: 'account',
+        unit: 'account',
         eventName: 'created',
         data: { accountId: 'random-string' },
         meta: { some: 'data' },
@@ -80,7 +80,7 @@ const packets = {
   },
   stream: {
     initializing: {
-      input: { streamId: 1, name: 'some-name', size: 1e9, status: undefined },
+      input: { id: 1, name: 'some-name', size: 1e9, status: undefined },
       output: {
         type: 'stream',
         id: 1,
@@ -90,7 +90,7 @@ const packets = {
       },
     },
     finalizing: {
-      input: { streamId: 1, status: 'end', name: undefined, size: undefined },
+      input: { id: 1, status: 'end', name: undefined, size: undefined },
       output: {
         type: 'stream',
         id: 1,
@@ -101,7 +101,7 @@ const packets = {
     },
     terminating: {
       input: {
-        streamId: 1,
+        id: 1,
         status: 'terminate',
         name: undefined,
         size: undefined,
@@ -117,7 +117,7 @@ const packets = {
   },
   error: {
     normal: {
-      input: { callId: 1, message: 'Invalid data', code: 400 },
+      input: { id: 1, message: 'Invalid data', code: 400 },
       output: {
         type: 'callback',
         id: 1,
@@ -125,7 +125,7 @@ const packets = {
       },
     },
     withoutCode: {
-      input: { callId: 1, message: 'Invalid data', code: undefined },
+      input: { id: 1, message: 'Invalid data', code: undefined },
       output: {
         type: 'callback',
         id: 1,
