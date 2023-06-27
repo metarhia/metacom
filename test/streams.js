@@ -32,8 +32,11 @@ const generateDataView = () => {
 
 const createWritable = (id, name, size) => {
   const writeBuffer = [];
-  const transport = { send: (packet) => writeBuffer.push(packet) };
-  const stream = new MetaWritable(id, name, size, transport);
+  const transport = {
+    send: (packet) => writeBuffer.push(JSON.stringify(packet)),
+    write: (data) => writeBuffer.push(data),
+  };
+  const stream = new MetaWritable(transport, { id, name, size });
   return [stream, writeBuffer];
 };
 
