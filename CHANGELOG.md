@@ -2,98 +2,30 @@
 
 ## [Unreleased][unreleased]
 
-## [3.0.0-alpha.13][] - 2023-06-17
-
-- Support Content-Range, Accept-Ranges, Content-Length headers
-- Fix multiple code style issues and improvements
-- Update dependencies
-
-## [3.0.0-alpha.12][] - 2023-06-08
-
-- Serve static from balancing port
-
-## [3.0.0-alpha.11][] - 2023-06-08
-
-- Support pipe readable (for large files)
-- Support SNI callback for TLS transport
-- Multiple fixes
-
-## [3.0.0-alpha.10][] - 2023-05-03
-
-- Drop node.js 14 support, add node.js 20
-- Convert package_lock.json to lockfileVersion 2
-- Fix client-side `Chunk` usage
-- Update dependencies
-
-## [3.0.0-alpha.9][] - 2023-04-22
+## [3.0.0][] - 2023-06-30
 
 - Implement metacom3 specs: https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
-- Refactor streams
-- Optimize chunk encoding
-- Fix setTimeout and setInterval leaks
-
-## [3.0.0-alpha.8][] - 2023-02-13
-
-- Fix server-side client
-- Unify server-side and browser `streams` implementation
-- Update metautil to 3.7.1 for fixed `fetch`
-- Unify `EventEmitter` implementation
-
-## [3.0.0-alpha.7][] - 2023-02-09
-
-- Add `node:` prefix for all internal modules
-- Generate UUID for each RPC call to track logic
-- Add `Context` and `State` classes
-- Fix typings: remove internal module classes, add some exported
-- Change contracts `Client` and `Channel`
-
-## [3.0.0-alpha.6][] - 2023-02-13
-
-- Fix `httpCall` for `Client`
-- Fix `close` event call for `Client` instance on `Channel` destroy
-
-## [3.0.0-alpha.5][] - 2022-12-23
-
-- Move `serveStatic` to impress
-- Fix path separaton in url for windows
-- Fix serving static files
-- Use `fetch` polyfill from metautil
-- Optimize abstractions
-- Update dependencies
-
-## [3.0.0-alpha.4][] - 2022-07-30
-
-- Package maintenance
-
-## [3.0.0-alpha.3][] - 2022-07-26
-
-- Add metacom binary streams
-  - Event emitter based
+- Implement metacom streams
   - Websocket bidirectional streaming
   - Multiple simultaneous streams
   - Interaction with nodejs streams
   - File streaming
-- Implement metacom stream protocol
-  - Stream initialization
-  - Stream closing
-  - Stream termination
-  - Chunk identification with metadata header
-- Api interfaces
-  - Stream consumers
-  - Stream producers
-- Add stream types
-- Fix browser client WebsocketTransport open
-- Add method for a possibility to delete session token from the application routes
-- Fix serve static files with query in URL
-
-## [3.0.0-alpha.2][] - 2022-07-07
-
-- Pass http verb to the hook
-- Package meintenance
-
-## [3.0.0-alpha.1][] - 2022-05-16
-
 - Pass certain port for `Server` in `options`, do not pass `threadId`
+- Generate UUID for each RPC call to track logic
+- Add `Context` and `State` classes
+- Change contracts `Client` and `Channel`
+- Fix setTimeout and setInterval leaks
+- Support pipe readable (for large files)
+- Support SNI callback for TLS transport
+- Support Content-Range, Accept-Ranges, Content-Length headers
+- Move `serveStatic` to impress
+- Serve static from balancing port
+- Use `fetch` polyfill from metautil
+- Convert package_lock.json to lockfileVersion 2
+- Unify `EventEmitter` implementation
+- Drop node.js 14 support, add node.js 20
+- Add `node:` prefix for all internal modules
+- Update dependencies
 
 ## [2.0.7][] - 2022-05-09
 
@@ -278,20 +210,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.13...HEAD
-[3.0.0-alpha.13]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.12...v3.0.0-alpha.13
-[3.0.0-alpha.12]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.11...v3.0.0-alpha.12
-[3.0.0-alpha.11]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.10...v3.0.0-alpha.11
-[3.0.0-alpha.10]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.9...v3.0.0-alpha.10
-[3.0.0-alpha.9]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.8...v3.0.0-alpha.9
-[3.0.0-alpha.8]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.7...v3.0.0-alpha.8
-[3.0.0-alpha.7]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.6...v3.0.0-alpha.7
-[3.0.0-alpha.6]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.5...v3.0.0-alpha.6
-[3.0.0-alpha.5]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.4...v3.0.0-alpha.5
-[3.0.0-alpha.4]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.3...v3.0.0-alpha.4
-[3.0.0-alpha.3]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.2...v3.0.0-alpha.3
-[3.0.0-alpha.2]: https://github.com/metarhia/metacom/compare/v3.0.0-alpha.1...v3.0.0-alpha.2
-[3.0.0-alpha.1]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0-alpha.1
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0
 [2.0.7]: https://github.com/metarhia/metacom/compare/v2.0.6...v2.0.7
 [2.0.6]: https://github.com/metarhia/metacom/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/metarhia/metacom/compare/v2.0.4...v2.0.5
