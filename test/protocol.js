@@ -66,7 +66,7 @@ const packets = {
     normal: {
       input: {
         unit: 'account',
-        eventName: 'created',
+        name: 'created',
         data: { accountId: 'random-string' },
         meta: { some: 'data' },
       },
