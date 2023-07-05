@@ -13,7 +13,7 @@ process.emitWarning = (warning, type, ...args) => {
   return;
 };
 
-metatests.test('Client / call', async (test) => {
+metatests.test('Client / calls', async (test) => {
   const api = {
     system: {
       introspect: { handler: async () => api },
@@ -59,9 +59,7 @@ metatests.test('Client / call', async (test) => {
   /** @type Metacom */
   let client;
 
-  test.defer(() => {
-    mockServer.close();
-  });
+  test.defer(() => void mockServer.close());
 
   test.beforeEach(async () => {
     client = Metacom.create('ws://localhost:8000/', { callTimeout: 150 });
@@ -69,9 +67,7 @@ metatests.test('Client / call', async (test) => {
     await client.load('test');
   });
 
-  test.afterEach(async () => {
-    client.close();
-  });
+  test.afterEach(async () => void client.close());
 
   test.testAsync('handles simple api calls', async (t) => {
     const result = await client.api.test.test();
@@ -91,5 +87,72 @@ metatests.test('Client / call', async (test) => {
 
   test.testAsync('handles api errors', async (t) => {
     await t.rejects(client.api.test.error(), new Error('Error message'));
+  });
+});
+
+metatests.test('Client / events', async (test) => {
+  const api = {
+    system: {
+      introspect: { handler: async () => api },
+    },
+    test: {
+      echo: {
+        handler: async () => {
+          await timers.setTimeout(10);
+          return { success: true };
+        },
+      },
+    },
+  };
+
+  const mockServer = new WebSocketServer({ port: 8001 });
+  mockServer.on('connection', (ws) => {
+    const pingInterval = setInterval(() => {
+      const packet = { type: 'event', name: 'test/ping', data: { ping: true } };
+      ws.send(JSON.stringify(packet));
+    }, 100);
+    ws.on('close', () => void clearInterval(pingInterval));
+    ws.on('message', async (raw) => {
+      const packet = metautil.jsonParse(raw) || {};
+      if (packet.type === 'call' && packet.method === 'system/introspect') {
+        const introspection = { type: 'callback', id: packet.id, result: api };
+        ws.send(JSON.stringify(introspection));
+        return;
+      }
+      const { type, name, data } = packet;
+      if (type !== 'event') return;
+      const [unit, event] = name.split('/');
+      const result = await api[unit][event].handler(data);
+      ws.send(JSON.stringify({ type: 'event', name, data: result }));
+    });
+  });
+
+  /** @type Metacom */
+  let client;
+
+  test.defer(() => void mockServer.close());
+
+  test.beforeEach(async () => {
+    client = Metacom.create('ws://localhost:8001/', { callTimeout: 150 });
+    await client.opening;
+    await client.load('test');
+  });
+
+  test.afterEach(async () => void client.close());
+
+  test.testAsync('handles event emitting', async (t) => {
+    client.api.test.emit('echo', { test: true });
+    client.api.test.on('*', console.log);
+    const echoResult = await new Promise((resolve) =>
+      client.api.test.once('echo', resolve),
+    );
+    t.strictEqual(echoResult, { success: true });
+  });
+
+  test.testAsync('handles events from server', async (t) => {
+    const ping = await new Promise((resolve) =>
+      client.api.test.on('ping', resolve),
+    );
+    t.strictEqual(ping, { ping: true });
   });
 });
