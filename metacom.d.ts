@@ -63,6 +63,11 @@ export interface Options {
   protocol: string;
   ports: Array<number>;
   queue: object;
+  cors?: {
+    origin?: string;
+    origins?: string[];
+    credentials?: boolean;
+  };
 }
 
 export interface ErrorOptions {

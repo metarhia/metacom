@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+- Extend CORS:
+  - add multiple origins handling with backward compatibility
+  - add `'Access-Control-Allow-Origin'` header to allow using cookies
+
 ## [3.0.0-alpha.8][] - 2023-02-13
 
 - Fix server-side client
