@@ -2,6 +2,12 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.1][] - 2023-06-22
+
+- Add `MetacomUnit` method `post` not emitting `*`
+- Fix invalid event packets parsing in server client
+- Package maintenance: update code style and dependencies
+
 ## [3.0.0][] - 2023-06-30
 
 - Implement metacom3 specs: https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
@@ -210,7 +216,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.0...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/metarhia/metacom/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0
 [2.0.7]: https://github.com/metarhia/metacom/compare/v2.0.6...v2.0.7
 [2.0.6]: https://github.com/metarhia/metacom/compare/v2.0.5...v2.0.6
