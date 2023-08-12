@@ -166,7 +166,8 @@ metatests.test('Client / stream', async (test) => {
     const { id, payload } = chunkDecode(chunk);
     const stream = storage.get(id);
     if (!stream) return;
-    stream.data.push(payload.toString('utf8'));
+    const stringChunk = Buffer.from(payload).toString('utf8');
+    stream.data.push(stringChunk);
   };
 
   const handleOutgoingStream = async (ws, { id, name, blob }) => {
@@ -226,7 +227,7 @@ metatests.test('Client / stream', async (test) => {
     }, 100);
     ws.on('close', () => void clearInterval(pingInterval));
     ws.on('message', async (raw, isBinary) => {
-      if (isBinary) return void handleBinary(raw);
+      if (isBinary) return void handleBinary(new Uint8Array(raw));
       const packet = metautil.jsonParse(raw) || {};
       if (packet.type === 'call' && packet.method === 'system/introspect') {
         const introspection = { type: 'callback', id: packet.id, result: api };
