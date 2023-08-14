@@ -2,6 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.2][] - 2023-08-14
+
+- Bugfixes: MetaReadable, binary packages parsing and serialization
+- Refactoring: Transport API unification
+
 ## [3.0.1][] - 2023-06-22
 
 - Add `MetacomUnit` method `post` not emitting `*`
@@ -216,7 +221,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.2...HEAD
+[3.0.2]: https://github.com/metarhia/metacom/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/metarhia/metacom/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0
 [2.0.7]: https://github.com/metarhia/metacom/compare/v2.0.6...v2.0.7
