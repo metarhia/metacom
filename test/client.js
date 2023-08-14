@@ -71,24 +71,24 @@ metatests.test('Client / calls', async (test) => {
 
   test.afterEach(async () => void client.close());
 
-  test.testAsync('handles simple api calls', async (t) => {
+  test.testAsync('handles simple api calls', async (subtest) => {
     const result = await client.api.test.test();
-    t.strictEqual(result, { success: true });
+    subtest.strictEqual(result, { success: true });
   });
 
-  test.testAsync('handles parallel api calls', async (t) => {
+  test.testAsync('handles parallel api calls', async (subtest) => {
     const promises = [];
     for (let i = 0; i < 10; i++) promises.push(client.api.test.test());
     const res = await Promise.all(promises);
-    for (const r of res) t.strictEqual(r, { success: true });
+    for (const r of res) subtest.strictEqual(r, { success: true });
   });
 
-  test.testAsync('handles call timeouts', async (t) => {
-    await t.rejects(client.api.test.timeout(), new Error('Request timeout'));
+  test.testAsync('handles call timeouts', async (subtest) => {
+    await subtest.rejects(client.api.test.timeout(), new Error('Request timeout'));
   });
 
-  test.testAsync('handles api errors', async (t) => {
-    await t.rejects(client.api.test.error(), new Error('Error message'));
+  test.testAsync('handles api errors', async (subtest) => {
+    await subtest.rejects(client.api.test.error(), new Error('Error message'));
   });
 });
 
@@ -142,20 +142,20 @@ metatests.test('Client / events', async (test) => {
 
   test.afterEach(async () => void client.close());
 
-  test.testAsync('handles event emitting', async (t) => {
+  test.testAsync('handles event emitting', async (subtest) => {
     client.api.test.emit('echo', { test: true });
     client.api.test.on('*', console.log);
     const echoResult = await new Promise((resolve) =>
       client.api.test.once('echo', resolve),
     );
-    t.strictEqual(echoResult, { success: true });
+    subtest.strictEqual(echoResult, { success: true });
   });
 
-  test.testAsync('handles events from server', async (t) => {
+  test.testAsync('handles events from server', async (subtest) => {
     const ping = await new Promise((resolve) =>
       client.api.test.on('ping', resolve),
     );
-    t.strictEqual(ping, { ping: true });
+    subtest.strictEqual(ping, { ping: true });
   });
 });
 
@@ -255,7 +255,7 @@ metatests.test('Client / stream', async (test) => {
 
   test.afterEach(async () => void client.close());
 
-  test.testAsync('handles file uploades', async (t) => {
+  test.testAsync('handles file uploades', async (subtest) => {
     const data = 'Some random data for upload to the server';
     const name = 'upload-stream';
     const blob = new Blob([data]);
@@ -263,18 +263,18 @@ metatests.test('Client / stream', async (test) => {
     const stream = client.createBlobUploader(blob);
     await stream.upload();
     const uploadedFile = await client.api.test.getStreamData({ id: stream.id });
-    t.strictEqual(uploadedFile.name, name);
-    t.strictEqual(uploadedFile.size, blob.size);
-    t.strictEqual(uploadedFile.data.join(''), data);
-    t.strictEqual(uploadedFile.status, 'ended');
+    subtest.strictEqual(uploadedFile.name, name);
+    subtest.strictEqual(uploadedFile.size, blob.size);
+    subtest.strictEqual(uploadedFile.data.join(''), data);
+    subtest.strictEqual(uploadedFile.status, 'ended');
   });
 
-  test.testAsync('handles file downloads', async (t) => {
+  test.testAsync('handles file downloads', async (subtest) => {
     const name = 'download-stream';
     const { id } = await client.api.test.download({ name });
     const readable = client.getStream(id);
     const blob = await readable.toBlob();
     const data = await blob.text();
-    t.strictEqual(data, 'Some random data for upload to the client');
+    subtest.strictEqual(data, 'Some random data for upload to the client');
   });
 });
