@@ -84,7 +84,8 @@ metatests.test('Client / calls', async (test) => {
   });
 
   test.testAsync('handles call timeouts', async (subtest) => {
-    await subtest.rejects(client.api.test.timeout(), new Error('Request timeout'));
+    const promise = client.api.test.timeout();
+    await subtest.rejects(promise, new Error('Request timeout'));
   });
 
   test.testAsync('handles api errors', async (subtest) => {
