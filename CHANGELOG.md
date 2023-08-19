@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.3][] - 2023-08-19
+
+- Bugfixes: sendEvent call, checking http or ws transport
+
 ## [3.0.2][] - 2023-08-14
 
 - Bugfixes: MetaReadable, binary packages parsing and serialization
@@ -221,7 +225,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.2...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.3...HEAD
+[3.0.3]: https://github.com/metarhia/metacom/compare/v3.0.2...v3.0.3
 [3.0.2]: https://github.com/metarhia/metacom/compare/v3.0.1...v3.0.2
 [3.0.1]: https://github.com/metarhia/metacom/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0
