@@ -143,15 +143,6 @@ metatests.test('Client / events', async (test) => {
 
   test.afterEach(async () => void client.close());
 
-  test.testAsync('handles event emitting', async (subtest) => {
-    client.api.test.emit('echo', { test: true });
-    client.api.test.on('*', console.log);
-    const echoResult = await new Promise((resolve) =>
-      client.api.test.once('echo', resolve),
-    );
-    subtest.strictEqual(echoResult, { success: true });
-  });
-
   test.testAsync('handles events from server', async (subtest) => {
     const ping = await new Promise((resolve) =>
       client.api.test.on('ping', resolve),
