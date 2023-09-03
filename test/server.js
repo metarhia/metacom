@@ -42,13 +42,13 @@ metatests.test('Server / calls', async (test) => {
   const noop = () => {};
   const options = {
     host: 'localhost',
-    port: 7000,
+    port: 3000,
     protocol: 'http',
     timeouts: { bind: 100 },
     queue: { concurrency: 100, size: 100, timeout: 5_000 },
   };
   const application = {
-    console: { log: noop, info: noop, error: noop },
+    console: { log: noop, info: noop, warn: noop, error: noop },
     static: { constructor: { name: 'Static' } },
     auth: { saveSession: async () => {} },
     getMethod: (unit, _version, method) => new ProcedureMock(api[unit][method]),
