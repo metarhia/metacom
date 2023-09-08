@@ -2,6 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+## [3.0.5][] - 2023-09-08
+
+- Check static handler class
+- Update dependencies
+
 ## [3.0.4][] - 2023-08-20
 
 - Bugfixes: event packets parsing and prevent echo
@@ -229,7 +234,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.4...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.5...HEAD
+[3.0.5]: https://github.com/metarhia/metacom/compare/v3.0.4...v3.0.5
 [3.0.4]: https://github.com/metarhia/metacom/compare/v3.0.3...v3.0.4
 [3.0.3]: https://github.com/metarhia/metacom/compare/v3.0.2...v3.0.3
 [3.0.2]: https://github.com/metarhia/metacom/compare/v3.0.1...v3.0.2
