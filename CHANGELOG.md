@@ -2,6 +2,12 @@
 
 ## [Unreleased][unreleased]
 
+## [3.1.0][] - 2023-10-06
+
+- Decompose bind to init and listen to handle EADDRINUSE and escalate error
+- Fix buffer length calculation for unicode strings
+- Drop node.js 16 and 19 and update dependencies
+
 ## [3.0.6][] - 2023-09-13
 
 - Log requests to static
@@ -239,7 +245,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.0.6...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/metarhia/metacom/compare/v3.0.6...v3.1.0
 [3.0.6]: https://github.com/metarhia/metacom/compare/v3.0.5...v3.0.6
 [3.0.5]: https://github.com/metarhia/metacom/compare/v3.0.4...v3.0.5
 [3.0.4]: https://github.com/metarhia/metacom/compare/v3.0.3...v3.0.4
