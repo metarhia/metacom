@@ -142,7 +142,8 @@ export class Server {
   wsServer: any;
   clients: Set<Client>;
   constructor(options: Options, application: object);
-  bind(): void;
+  init(): void;
+  listen(): Promise<void>;
   message(client: Client, data: string): void;
   rpc(client: Client, packet: CallPacket): Promise<void>;
   binary(client: Client, data: Buffer): void;
