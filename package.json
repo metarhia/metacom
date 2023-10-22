@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -53,7 +53,7 @@
     "node": "18 || 20"
   },
   "dependencies": {
-    "metautil": "^3.14.0",
+    "metautil": "^3.15.0",
     "ws": "^8.14.0"
   },
   "devDependencies": {

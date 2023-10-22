@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+## [3.1.2][] - 2023-10-22
+
+- Fix: proc timeout reached error detection
+
 ## [3.1.1][] - 2023-10-09
 
 - Fix: do not serve API over http and ws on balancing port
@@ -249,7 +253,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.1.1...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.1.2...HEAD
+[3.1.2]: https://github.com/metarhia/metacom/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/metarhia/metacom/compare/v3.1.0...v3.1.1
 [3.1.0]: https://github.com/metarhia/metacom/compare/v3.0.6...v3.1.0
 [3.0.6]: https://github.com/metarhia/metacom/compare/v3.0.5...v3.0.6
