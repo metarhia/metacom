@@ -10,25 +10,19 @@ Metacom protocol specification:
 https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
 
 ```js
-// Load at frontend
-import { Metacom } from './metacom.js';
+import { Metacom } from 'metacom';
+// const { Metacom } = require('metacom'); // for backend
 
-// Load at backend
-const { Metacom } = require('metacom');
-
-// Open connection (both platforms) and make calls
-const metacom = Metacom.create('https://domainname.com:8000');
-(async () => {
-  const { api } = metacom;
-  try {
-    await metacom.load('auth'); // Load `auth` interface
-    await api.auth.status(); // Check session status
-  } catch (err) {
-    await api.auth.signIn({ login: 'marcus', password: 'marcus' });
-  }
-  await metacom.load('example'); // Load `example` interface
-  const result = api.example.methodName({ arg1, arg2 });
-})();
+const metacom = Metacom.create('ws://domainname.com:8000');
+const { api } = metacom;
+try {
+  await metacom.load('auth'); // Load `auth` interface
+  await api.auth.status(); // Check session status
+} catch (err) {
+  await api.auth.signIn({ login: 'marcus', password: 'marcus' });
+}
+await metacom.load('example'); // Load `example` interface
+const result = api.example.methodName({ arg1, arg2 });
 ```
 
 ## Streams over Websocket
@@ -38,7 +32,7 @@ const metacom = Metacom.create('https://domainname.com:8000');
 Create `uploadFile` function on the client:
 
 ```js
-const metacom = Metacom.create('https://example.com/api');
+const metacom = Metacom.create('ws://example.com/api');
 
 const uploadFile = async (file) => {
   // createBlobUploader creates streamId and inits file reader for convenience
@@ -75,7 +69,7 @@ async ({ streamId, name }) => {
 Create `downloadFile` function on the client:
 
 ```js
-const metacom = Metacom.create('https://example.com/api');
+const metacom = Metacom.create('ws://example.com/api');
 
 const downloadFile = async (name) => {
   // Init backend file producer to get streamId
