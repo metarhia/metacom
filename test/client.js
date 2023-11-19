@@ -29,7 +29,7 @@ metatests.test('Client / calls', async (test) => {
       },
       timeout: {
         handler: async () => {
-          await timers.setTimeout(200);
+          await timers.setTimeout(350);
           return { success: true };
         },
       },
@@ -64,7 +64,7 @@ metatests.test('Client / calls', async (test) => {
   test.defer(() => void mockServer.close());
 
   test.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8000/', { callTimeout: 150 });
+    client = Metacom.create('ws://localhost:8000/', { callTimeout: 300 });
     await client.opening;
     await client.load('test');
   });
