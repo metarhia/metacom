@@ -3,12 +3,10 @@
   "env": {
     "browser": true,
     "es6": true,
+    "es2020": true,
     "node": true
   },
   "parserOptions": {
     "ecmaVersion": "latest"
-  },
-  "globals": {
-    "BigInt": true
   }
 }
