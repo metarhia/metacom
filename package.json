@@ -1,6 +1,6 @@
 {
   "name": "metacom",
-  "version": "3.1.2",
+  "version": "3.2.0",
   "author": "Timur Shemsedinov <timur.shemsedinov@gmail.com>",
   "description": "Communication protocol for Metarhia stack with rpc, events, binary streams, memory and db access",
   "license": "MIT",
@@ -40,7 +40,9 @@
   "files": [
     "dist/",
     "lib/",
-    "metacom.d.ts"
+    "metacom.d.ts",
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "readmeFilename": "README.md",
   "scripts": {
