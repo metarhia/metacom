@@ -1,4 +1,4 @@
-import EventEmitter from './events.js';
+import { EventEmitter } from 'metautil';
 import { chunkDecode, MetaReadable, MetaWritable } from './streams.js';
 
 const CALL_TIMEOUT = 7 * 1000;
