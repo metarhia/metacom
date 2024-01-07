@@ -55,7 +55,7 @@
     "node": "18 || 20 || 21"
   },
   "dependencies": {
-    "metautil": "5.0.0",
+    "metautil": "5.1.0",
     "ws": "^8.15.0"
   },
   "devDependencies": {
