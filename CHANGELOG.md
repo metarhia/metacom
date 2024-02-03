@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Fix conversion of custom thrown exceptions for response to client
+
 ## [3.2.0][] - 2023-12-10
 
 - Remove `EventEmitter` polyfill, use polyfill from metautil 5.0.0
