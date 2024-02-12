@@ -3,7 +3,7 @@
 ## [Unreleased][unreleased]
 
 - Fix conversion of custom thrown exceptions for response to client
-- Add support for `http ` protocol requests
+- Add support for `http` protocol requests
 
 ## [3.2.0][] - 2023-12-10
 
