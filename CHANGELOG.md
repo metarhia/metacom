@@ -2,8 +2,172 @@
 
 ## [Unreleased][unreleased]
 
-- Update Metacom exports
+- Fix conversion of custom thrown exceptions for response to client
 - Add support for `http ` protocol requests
+
+## [3.2.0][] - 2023-12-10
+
+- Remove `EventEmitter` polyfill, use polyfill from metautil 5.0.0
+- Stop using deprecated `fetch` polyfill from metautil
+- Do not add `online` event if we have no `window`
+- Implement simple websocket server
+- Fixed MetaReadable stream
+- Fixed timeouts in unittests
+- Package maintenance: update dependencies and eslint and CI configs
+
+## [3.1.2][] - 2023-10-22
+
+- Fix: proc timeout reached error detection
+
+## [3.1.1][] - 2023-10-09
+
+- Fix: do not serve API over http and ws on balancing port
+
+## [3.1.0][] - 2023-10-06
+
+- Decompose bind to init and listen to handle EADDRINUSE and escalate error
+- Fix buffer length calculation for unicode strings
+- Drop node.js 16 and 19 and update dependencies
+
+## [3.0.6][] - 2023-09-13
+
+- Log requests to static
+- Template pages for HTTP errors
+
+## [3.0.5][] - 2023-09-08
+
+- Check static handler class
+- Update dependencies
+
+## [3.0.4][] - 2023-08-20
+
+- Bugfixes: event packets parsing and prevent echo
+
+## [3.0.3][] - 2023-08-19
+
+- Bugfixes: sendEvent call, checking http or ws transport
+
+## [3.0.2][] - 2023-08-14
+
+- Bugfixes: MetaReadable, binary packages parsing and serialization
+- Refactoring: Transport API unification
+
+## [3.0.1][] - 2023-06-22
+
+- Add `MetacomUnit` method `post` not emitting `*`
+- Fix invalid event packets parsing in server client
+- Package maintenance: update code style and dependencies
+
+## [3.0.0][] - 2023-06-30
+
+- Implement metacom3 specs: https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
+- Implement metacom streams
+  - Websocket bidirectional streaming
+  - Multiple simultaneous streams
+  - Interaction with nodejs streams
+  - File streaming
+- Pass certain port for `Server` in `options`, do not pass `threadId`
+- Generate UUID for each RPC call to track logic
+- Add `Context` and `State` classes
+- Change contracts `Client` and `Channel`
+- Fix setTimeout and setInterval leaks
+- Support pipe readable (for large files)
+- Support SNI callback for TLS transport
+- Support Content-Range, Accept-Ranges, Content-Length headers
+- Move `serveStatic` to impress
+- Serve static from balancing port
+- Use `fetch` polyfill from metautil
+- Convert package_lock.json to lockfileVersion 2
+- Unify `EventEmitter` implementation
+- Drop node.js 14 support, add node.js 20
+- Add `node:` prefix for all internal modules
+- Update dependencies
+
+## [2.0.7][] - 2022-05-09
+
+- Fix client to support falsy results parsing
+- Add reading cors.origin from server config in impress
+- Removed duplicated error handling
+- Remove duplicated EventEmitter in MetacomInterface
+
+## [2.0.6][] - 2022-04-26
+
+- Fix missing channel handling in Client
+- Fix default `httpCode` in `Channel#error()` calls
+- Add custom http headers for rpc hooks
+- Prevent return after semaphore enter
+
+## [2.0.5][] - 2022-03-18
+
+- Fix clients Map memory leak
+- Add static create method for server-side Client
+- Add open and close events in browser-side Client
+- Add common content types (MIME) to collection
+- Pass custom errors with `code` thrown or returned from handlers
+- Update dependencies
+
+## [2.0.4][] - 2021-10-12
+
+- Return index.html not only from the root folder
+- Fix parse broken JSON packets
+- Fix detecting ping packets (empty objects)
+- Fix error logging and passing to client
+- Validation `call` identifier type
+
+## [2.0.3][] - 2021-09-23
+
+- Remove `toString` in `receiveBody` to be compatible with ws
+
+## [2.0.2][] - 2021-09-11
+
+- Rework Channel and Server
+  - Decompose Channel to WsChannel and HttpChannel
+  - Move event handlers from Server to WsChannel and HttpChannel
+  - Return after error to avoid double reply and logging
+  - Update typings
+
+## [2.0.1][] - 2021-09-03
+
+- Simplify Channel/Session machinery
+  - Collections: sessions, channels
+  - Decompose: extract transport and static modules
+- Fix: empty packet structure error
+
+## [2.0.0][] - 2021-08-19
+
+- Support GET requests and change calls: `hook` and `invoke`
+- Add `redirect` method to `Client` with delegation to `Channel`
+- Update dependencies
+
+## [1.8.2][] - 2021-08-06
+
+- Rewrite `Client` method `startSession` and `restoreSession` to remove access
+  to `auth.provider` and work with database structure, move this to application
+  leyer where we `know` auth specific DB structure
+- Move types to package root
+
+## [1.8.1][] - 2021-07-10
+
+- Move split and parseParams to metautil
+- Fix custom errors over http transport
+- Remove timeout in Server duplicated in rpc call (Procedure class)
+
+## [1.8.0][] - 2021-07-07
+
+- Add http hooks with custom method names
+- Fix Metacom typings
+- Improve url parsing
+
+## [1.7.5][] - 2021-07-01
+
+- Fix Metacom typings
+- Update dependencies
+
+## [1.7.4][] - 2021-06-26
+
+- Update Metacom exports
+- Throw errors on wrong configs
+- Update Client implementation in /distr
 
 ## [1.7.3][] - 2021-06-08
 
@@ -102,7 +266,31 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v1.7.3...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/metarhia/metacom/compare/v3.1.2...v3.2.0
+[3.1.2]: https://github.com/metarhia/metacom/compare/v3.1.1...v3.1.2
+[3.1.1]: https://github.com/metarhia/metacom/compare/v3.1.0...v3.1.1
+[3.1.0]: https://github.com/metarhia/metacom/compare/v3.0.6...v3.1.0
+[3.0.6]: https://github.com/metarhia/metacom/compare/v3.0.5...v3.0.6
+[3.0.5]: https://github.com/metarhia/metacom/compare/v3.0.4...v3.0.5
+[3.0.4]: https://github.com/metarhia/metacom/compare/v3.0.3...v3.0.4
+[3.0.3]: https://github.com/metarhia/metacom/compare/v3.0.2...v3.0.3
+[3.0.2]: https://github.com/metarhia/metacom/compare/v3.0.1...v3.0.2
+[3.0.1]: https://github.com/metarhia/metacom/compare/v3.0.0...v3.0.1
+[3.0.0]: https://github.com/metarhia/metacom/compare/v2.0.7...v3.0.0
+[2.0.7]: https://github.com/metarhia/metacom/compare/v2.0.6...v2.0.7
+[2.0.6]: https://github.com/metarhia/metacom/compare/v2.0.5...v2.0.6
+[2.0.5]: https://github.com/metarhia/metacom/compare/v2.0.4...v2.0.5
+[2.0.4]: https://github.com/metarhia/metacom/compare/v2.0.3...v2.0.4
+[2.0.3]: https://github.com/metarhia/metacom/compare/v2.0.2...v2.0.3
+[2.0.2]: https://github.com/metarhia/metacom/compare/v2.0.1...v2.0.2
+[2.0.1]: https://github.com/metarhia/metacom/compare/v2.0.0...v2.0.1
+[2.0.0]: https://github.com/metarhia/metacom/compare/v1.8.1...v2.0.0
+[1.8.2]: https://github.com/metarhia/metacom/compare/v1.8.1...v1.8.2
+[1.8.1]: https://github.com/metarhia/metacom/compare/v1.8.0...v1.8.1
+[1.8.0]: https://github.com/metarhia/metacom/compare/v1.7.5...v1.8.0
+[1.7.5]: https://github.com/metarhia/metacom/compare/v1.7.4...v1.7.5
+[1.7.4]: https://github.com/metarhia/metacom/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/metarhia/metacom/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/metarhia/metacom/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/metarhia/metacom/compare/v1.7.0...v1.7.1

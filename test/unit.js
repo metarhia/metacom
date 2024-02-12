@@ -1,3 +1,7 @@
 'use strict';
 
-['client', 'server'].map((test) => require('./' + test));
+const tests = ['client', 'server', 'streams'];
+
+for (const test of tests) {
+  require(`./${test}.js`);
+}
