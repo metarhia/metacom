@@ -102,6 +102,6 @@ async ({ name }) => {
 
 ## License & Contributors
 
-Copyright (c) 2018-2023 [Metarhia contributors](https://github.com/metarhia/metacom/graphs/contributors).
+Copyright (c) 2018-2024 [Metarhia contributors](https://github.com/metarhia/metacom/graphs/contributors).
 Metacom is [MIT licensed](./LICENSE).\
 Metacom is a part of [Metarhia](https://github.com/metarhia) technology stack.
