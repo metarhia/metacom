@@ -2,6 +2,12 @@
 
 ## [Unreleased][unreleased]
 
+## [3.2.1][] - 2024-02-12
+
+- Added call limits with queue to hooks
+- Fix conversion of custom thrown exceptions for response to client
+- Update dependencies
+
 ## [3.2.0][] - 2023-12-10
 
 - Remove `EventEmitter` polyfill, use polyfill from metautil 5.0.0
@@ -263,7 +269,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.2.0...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.2.1...HEAD
+[3.2.1]: https://github.com/metarhia/metacom/compare/v3.2.0...v3.2.1
 [3.2.0]: https://github.com/metarhia/metacom/compare/v3.1.2...v3.2.0
 [3.1.2]: https://github.com/metarhia/metacom/compare/v3.1.1...v3.1.2
 [3.1.1]: https://github.com/metarhia/metacom/compare/v3.1.0...v3.1.1
