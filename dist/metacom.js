@@ -64,9 +64,8 @@ class Metacom extends EventEmitter {
 
   createStream(name, size) {
     const id = ++this.streamId;
-    const initData = { type: 'stream', id, name, size };
     const transport = this;
-    return new MetaWritable(transport, initData);
+    return new MetaWritable(id, name, size, transport);
   }
 
   createBlobUploader(blob) {
@@ -123,8 +122,7 @@ class Metacom extends EventEmitter {
         if (stream) {
           console.error(new Error(`Stream ${name} is already initialized`));
         } else {
-          const streamData = { id, name, size };
-          const stream = new MetaReadable(streamData);
+          const stream = new MetaReadable(id, name, size);
           this.streams.set(id, stream);
         }
       } else if (!stream) {
