@@ -36,7 +36,7 @@ const createWritable = (id, name, size) => {
     send: (packet) => writeBuffer.push(JSON.stringify(packet)),
     write: (data) => writeBuffer.push(data),
   };
-  const stream = new MetaWritable(transport, { id, name, size });
+  const stream = new MetaWritable(id, name, size, transport);
   return [stream, writeBuffer];
 };
 
