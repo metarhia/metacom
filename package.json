@@ -46,10 +46,10 @@
   ],
   "readmeFilename": "README.md",
   "scripts": {
-    "test": "npm run lint && npm run types && metatests test/",
+    "test": "npm run -s lint && npm run types && metatests test/",
     "types": "tsc -p tsconfig.json",
-    "lint": "eslint . && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\" \"**/*.ts\"",
-    "fmt": "prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\" \"**/*.yml\" \"**/*.ts\""
+    "lint": "eslint . && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\"",
+    "fix": "eslint . --fix && prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\""
   },
   "engines": {
     "node": "18 || 20 || 21 || 22"
