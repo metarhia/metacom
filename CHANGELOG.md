@@ -2,6 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+## [3.2.4][] - 2024-09-01
+
+- Update eslint to 9.x and prettier with configs
+- Add node.js 22 to CI
+
 ## [3.2.3][] - 2024-04-27
 
 - Fixed ping packets
@@ -278,7 +283,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.2.3...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v3.2.4...HEAD
+[3.2.4]: https://github.com/metarhia/metacom/compare/v3.2.3...v3.2.4
 [3.2.3]: https://github.com/metarhia/metacom/compare/v3.2.2...v3.2.3
 [3.2.2]: https://github.com/metarhia/metacom/compare/v3.2.1...v3.2.2
 [3.2.1]: https://github.com/metarhia/metacom/compare/v3.2.0...v3.2.1
