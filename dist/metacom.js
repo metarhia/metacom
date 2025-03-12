@@ -222,12 +222,14 @@ class WebsocketTransport extends Metacom {
       socket.close();
     });
 
-    this.ping = setInterval(() => {
-      if (this.active) {
-        const interval = Date.now() - this.lastActivity;
-        if (interval > this.pingInterval) this.send('{}');
-      }
-    }, this.pingInterval);
+    if (this.pingInterval) {
+      this.ping = setInterval(() => {
+        if (this.active) {
+          const interval = Date.now() - this.lastActivity;
+          if (interval > this.pingInterval) this.send('{}');
+        }
+      }, this.pingInterval);
+    }
 
     this.opening = new Promise((resolve) => {
       socket.addEventListener('open', () => {
@@ -243,7 +245,7 @@ class WebsocketTransport extends Metacom {
   close() {
     this.active = false;
     connections.delete(this);
-    clearInterval(this.ping);
+    if (this.ping) clearInterval(this.ping);
     if (!this.socket) return;
     this.socket.close();
     this.socket = null;
