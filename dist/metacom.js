@@ -7,12 +7,18 @@ const RECONNECT_TIMEOUT = 2 * 1000;
 
 const connections = new Set();
 
-if (window) {
-  window.addEventListener('online', () => {
-    for (const connection of connections) {
-      if (!connection.connected) connection.open();
-    }
-  });
+const online = () => {
+  for (const connection of connections) {
+    if (!connection.connected) connection.open();
+  }
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', online);
+}
+
+if (typeof self !== 'undefined' && !!self.registration) {
+  self.addEventListener('online', online);
 }
 
 class MetacomError extends Error {
