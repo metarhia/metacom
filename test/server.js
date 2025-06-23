@@ -42,13 +42,13 @@ metatests.test('Server / calls', async (test) => {
   const noop = () => {};
   const options = {
     host: 'localhost',
-    port: 8000,
+    port: 8001,
     protocol: 'http',
     timeouts: { bind: 100 },
     queue: { concurrency: 100, size: 100, timeout: 5_000 },
   };
   const application = {
-    console: { log: noop, info: noop, warn: noop, error: noop },
+    console: { log: noop, info: noop, warn: noop, error: noop, debug: noop },
     static: { constructor: { name: 'Static' } },
     auth: { saveSession: async () => {} },
     getMethod: (unit, _version, method) => new ProcedureMock(api[unit][method]),
@@ -59,6 +59,7 @@ metatests.test('Server / calls', async (test) => {
 
   test.beforeEach(async () => {
     server = new Server(application, options);
+    server.listen();
   });
 
   test.afterEach(async () => {
@@ -73,12 +74,8 @@ metatests.test('Server / calls', async (test) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(packet),
-    })
-      .then((res) => res.json())
-      .catch((err) => {
-        console.log({ EEE: err });
-      });
-    console.log({ response, subtest });
+    }).then((res) => res.json());
+
     subtest.strictEqual(response.id, id);
     subtest.strictEqual(response.type, 'callback');
     subtest.strictEqual(response.result, `Hello, ${args.name}`);
