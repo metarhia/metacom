@@ -59,7 +59,7 @@ metatests.test('Server / calls', async (test) => {
 
   test.beforeEach(async () => {
     server = new Server(application, options);
-    server.listen();
+    await server.listen();
   });
 
   test.afterEach(async () => {
