@@ -74,7 +74,12 @@ metatests.test('Server / calls', async (test) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(packet),
-    }).then((res) => res.json());
+    })
+      .then((res) => res.json())
+      .catch((err) => {
+        console.log({ EEE: err });
+      });
+    console.log({ response, subtest });
 
     subtest.strictEqual(response.id, id);
     subtest.strictEqual(response.type, 'callback');
