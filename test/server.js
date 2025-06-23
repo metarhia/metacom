@@ -80,7 +80,7 @@ metatests.test('Server / calls', async (test) => {
     subtest.strictEqual(response.result, `Hello, ${args.name}`);
   });
 
-  test.testAsync('handles WS RPC', async (subtest) => {
+  test.testAsync('WS RPC handles', async (subtest) => {
     const id = 1;
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
