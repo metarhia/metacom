@@ -42,7 +42,7 @@ metatests.test('Server / calls', async (test) => {
   const noop = () => {};
   const options = {
     host: 'localhost',
-    port: 8001,
+    port: 8003,
     protocol: 'http',
     timeouts: { bind: 100 },
     queue: { concurrency: 100, size: 100, timeout: 5_000 },
