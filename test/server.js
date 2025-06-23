@@ -55,7 +55,6 @@ metatests.test('Server / calls', async (test) => {
     getHook: noop,
   };
 
-  /** @type Server */
   let server;
 
   test.beforeEach(async () => {
