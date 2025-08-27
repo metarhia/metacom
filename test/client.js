@@ -2,6 +2,7 @@
 
 const timers = require('node:timers/promises');
 const { Blob } = require('node:buffer');
+const { randomUUID } = require('node:crypto');
 const metatests = require('metatests');
 const { WebSocketServer } = require('ws');
 const metautil = require('metautil');
@@ -64,7 +65,10 @@ metatests.test('Client / calls', async (test) => {
   test.defer(() => void mockServer.close());
 
   test.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8000/', { callTimeout: 300 });
+    client = Metacom.create('ws://localhost:8000/', {
+      callTimeout: 300,
+      generateId: randomUUID,
+    });
     await client.opening;
     await client.load('test');
   });
@@ -136,7 +140,7 @@ metatests.test('Client / events', async (test) => {
   test.defer(() => void mockServer.close());
 
   test.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8001/');
+    client = Metacom.create('ws://localhost:8001/', { generateId: randomUUID });
     await client.opening;
     await client.load('test');
   });
@@ -201,7 +205,7 @@ metatests.test('Client / stream', async (test) => {
       },
       download: {
         handler: async ({ name }, ws) => {
-          const id = 2;
+          const id = randomUUID();
           const data = 'Some random data for upload to the client';
           const blob = new Blob([data]);
           handleOutgoingStream(ws, { id, name, blob });
@@ -240,7 +244,7 @@ metatests.test('Client / stream', async (test) => {
   test.defer(() => void mockServer.close());
 
   test.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8002/');
+    client = Metacom.create('ws://localhost:8002/', { generateId: randomUUID });
     await client.opening;
     await client.load('test');
   });
@@ -269,4 +273,111 @@ metatests.test('Client / stream', async (test) => {
     const data = await blob.text();
     subtest.strictEqual(data, 'Some random data for upload to the client');
   });
+});
+
+metatests.test('Client / different ID generation strategies', async (test) => {
+  const api = {
+    system: {
+      introspect: { handler: async () => api },
+    },
+    test: {
+      test: {
+        handler: async () => {
+          await timers.setTimeout(10);
+          return { success: true };
+        },
+      },
+    },
+  };
+
+  const mockServer = new WebSocketServer({ port: 8003 });
+  mockServer.on('connection', (ws) => {
+    ws.on('message', async (raw) => {
+      const packet = metautil.jsonParse(raw) || {};
+      const { type, id, method } = packet;
+      const [unit, name] = method.split('/');
+      if (type !== 'call') return;
+      try {
+        const result = await api[unit][name].handler();
+        ws.send(JSON.stringify({ type: 'callback', id, result }));
+      } catch (/** @type any */ { message }) {
+        const packet = { type: 'callback', id, error: { code: 400, message } };
+        ws.send(JSON.stringify(packet));
+      }
+    });
+  });
+
+  test.defer(() => void mockServer.close());
+
+  test.testAsync('works with UUID generation', async (subtest) => {
+    const client = Metacom.create('ws://localhost:8003/', {
+      generateId: randomUUID,
+    });
+    await client.opening;
+    await client.load('test');
+    const result = await client.api.test.test();
+    subtest.strictEqual(result, { success: true });
+    client.close();
+  });
+
+  test.testAsync('works with incremental IDs', async (subtest) => {
+    let counter = 1;
+    const client = Metacom.create('ws://localhost:8003/', {
+      generateId: () => String(counter++),
+    });
+    await client.opening;
+    await client.load('test');
+    const result = await client.api.test.test();
+    subtest.strictEqual(result, { success: true });
+    client.close();
+  });
+
+  test.testAsync('works with timestamp-based IDs', async (subtest) => {
+    const client = Metacom.create('ws://localhost:8003/', {
+      generateId: () =>
+        `ts_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+    });
+    await client.opening;
+    await client.load('test');
+    const result = await client.api.test.test();
+    subtest.strictEqual(result, { success: true });
+    client.close();
+  });
+
+  test.testAsync('works with short random IDs', async (subtest) => {
+    const client = Metacom.create('ws://localhost:8003/', {
+      generateId: () => Math.random().toString(36).substring(2, 8),
+    });
+    await client.opening;
+    await client.load('test');
+    const result = await client.api.test.test();
+    subtest.strictEqual(result, { success: true });
+    client.close();
+  });
+});
+
+metatests.test('Client / generateId validation', async (test) => {
+  test.testAsync(
+    'throws error when generateId is not provided',
+    async (subtest) => {
+      subtest.throws(() => {
+        Metacom.create('ws://localhost:8000/');
+      }, /generateId function is required/);
+    },
+  );
+
+  test.testAsync('throws error when generateId is null', async (subtest) => {
+    subtest.throws(() => {
+      Metacom.create('ws://localhost:8000/', { generateId: null });
+    }, /generateId function is required/);
+  });
+
+  test.testAsync(
+    'throws error when generateId is undefined',
+    async (subtest) => {
+      subtest.throws(() => {
+        Metacom.create('ws://localhost:8000/', { generateId: undefined });
+      }, /generateId function is required/);
+    },
+  );
 });

@@ -9,11 +9,11 @@ export interface MetacomError extends Error {
 }
 
 export class MetaReadable extends EventEmitter {
-  id: number;
+  id: string;
   name: string;
   size: number;
   constructor(
-    id: number,
+    id: string,
     name: string,
     size: number,
     options?: {
@@ -27,17 +27,17 @@ export class MetaReadable extends EventEmitter {
 }
 
 export class MetaWritable extends EventEmitter {
-  id: number;
+  id: string;
   name: string;
   size: number;
-  constructor(id: number, name: string, size: number, transport: Transport);
+  constructor(id: string, name: string, size: number, transport: Transport);
   write(data: ArrayBufferView): void;
   end(): void;
   terminate(): void;
 }
 
 export interface BlobUploader {
-  id: number;
+  id: string;
   upload(): Promise<void>;
 }
 
@@ -46,7 +46,7 @@ export class Metacom extends EventEmitter {
   socket: WebSocket;
   api: object;
   callId: number;
-  calls: Map<number, [Function, Function]>;
+  calls: Map<string, [Function, Function]>;
   constructor(url: string);
   static create(url: string, options?: unknown): Metacom;
   ready(): Promise<void>;
@@ -59,7 +59,7 @@ export class Metacom extends EventEmitter {
     unit: string,
     ver: string,
   ): (methodName: string) => (args: object) => Promise<void>;
-  getStream(id: number): MetaReadable;
+  getStream(id: string): MetaReadable;
   createStream(name: string, size: number): MetaWritable;
   createBlobUploader(blob: Blob): BlobUploader;
 }
@@ -75,7 +75,7 @@ export interface Options {
 }
 
 export interface ErrorOptions {
-  id?: number;
+  id?: string;
   error?: Error;
   pass?: boolean;
 }
@@ -119,7 +119,7 @@ export class Transport {
 
 export interface CallPacket {
   type: 'call';
-  id: number;
+  id: string;
   method: string;
   args: object;
   meta: object;
@@ -127,7 +127,7 @@ export interface CallPacket {
 
 export interface StreamPacket {
   type: 'stream';
-  id: number;
+  id: string;
   name: string;
   size: number;
 }

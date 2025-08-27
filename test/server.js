@@ -2,6 +2,7 @@
 
 const timers = require('node:timers/promises');
 const { WebSocket } = require('ws');
+const { randomUUID } = require('node:crypto');
 const metatests = require('metatests');
 const { Server } = require('../lib/server.js');
 
@@ -46,6 +47,7 @@ metatests.test('Server / calls', async (test) => {
     protocol: 'http',
     timeouts: { bind: 100 },
     queue: { concurrency: 100, size: 100, timeout: 5_000 },
+    generateId: randomUUID,
   };
   const application = {
     console: { log: noop, info: noop, warn: noop, error: noop, debug: noop },
@@ -67,7 +69,7 @@ metatests.test('Server / calls', async (test) => {
   });
 
   test.testAsync('handles HTTP RPC', async (subtest) => {
-    const id = 1;
+    const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
     const response = await fetch(`http://${options.host}:${options.port}/api`, {
@@ -82,7 +84,7 @@ metatests.test('Server / calls', async (test) => {
   });
 
   test.testAsync('WS RPC handles', async (subtest) => {
-    const id = 1;
+    const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
     const socket = new WebSocket(`ws://${options.host}:${options.port}`);
