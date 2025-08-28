@@ -18,7 +18,7 @@ function parseStatusCode(statusLine) {
 
 test('handshake: successful upgrade', async () => {
   const httpServer = http.createServer();
-  const tinyWsServer = new WebsocketServer(httpServer);
+  const tinyWsServer = new WebsocketServer({ server: httpServer });
   tinyWsServer.on('connection', () => {
     // no-op: we only assert that handshake upgraded successfully
   });
@@ -47,7 +47,7 @@ test('handshake: successful upgrade', async () => {
 test('handshake: negative cases', async (t) => {
   await t.test('missing Upgrade header -> should not upgrade', async () => {
     const httpServer = http.createServer();
-    const tinyWsServer = new WebsocketServer(httpServer);
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
     await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -78,7 +78,7 @@ test('handshake: negative cases', async (t) => {
 
   await t.test('missing Connection header -> should not upgrade', async () => {
     const httpServer = http.createServer();
-    const tinyWsServer = new WebsocketServer(httpServer);
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
     await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -108,7 +108,7 @@ test('handshake: negative cases', async (t) => {
     'unsupported Sec-WebSocket-Version -> should not upgrade',
     async () => {
       const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer(httpServer);
+      const tinyWsServer = new WebsocketServer({ server: httpServer });
       tinyWsServer.on('connection', () => {});
 
       await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -140,7 +140,7 @@ test('handshake: negative cases', async (t) => {
     'invalid Sec-WebSocket-Key (not base64) -> should not upgrade',
     async () => {
       const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer(httpServer);
+      const tinyWsServer = new WebsocketServer({ server: httpServer });
       tinyWsServer.on('connection', () => {});
 
       await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -172,7 +172,7 @@ test('handshake: negative cases', async (t) => {
     'invalid Sec-WebSocket-Key length -> should not upgrade',
     async () => {
       const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer(httpServer);
+      const tinyWsServer = new WebsocketServer({ server: httpServer });
       tinyWsServer.on('connection', () => {});
 
       await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -203,7 +203,7 @@ test('handshake: negative cases', async (t) => {
 
   await t.test('wrong Upgrade token value -> should not upgrade', async () => {
     const httpServer = http.createServer();
-    const tinyWsServer = new WebsocketServer(httpServer);
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
     await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -234,7 +234,7 @@ test('handshake: negative cases', async (t) => {
     'Connection header without Upgrade token -> should not upgrade',
     async () => {
       const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer(httpServer);
+      const tinyWsServer = new WebsocketServer({ server: httpServer });
       tinyWsServer.on('connection', () => {});
 
       await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -267,7 +267,7 @@ test('handshake: negative cases', async (t) => {
     'missing Host header (HTTP/1.1 requires Host) -> should not upgrade',
     async () => {
       const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer(httpServer);
+      const tinyWsServer = new WebsocketServer({ server: httpServer });
       tinyWsServer.on('connection', () => {});
 
       await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -299,7 +299,7 @@ test('handshake: negative cases', async (t) => {
 
   await t.test('wrong HTTP method (POST) -> should not upgrade', async () => {
     const httpServer = http.createServer();
-    const tinyWsServer = new WebsocketServer(httpServer);
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
     await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -329,7 +329,7 @@ test('handshake: negative cases', async (t) => {
 
   await t.test('HTTP/1.0 request -> should not upgrade', async () => {
     const httpServer = http.createServer();
-    const tinyWsServer = new WebsocketServer(httpServer);
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
     await new Promise((resolve) => httpServer.listen(0, resolve));
@@ -361,7 +361,7 @@ test('handshake: negative cases', async (t) => {
 // eslint-disable-next-line max-len
 test('handshake: Sec-WebSocket-Accept is correct and no subprotocol by default', async () => {
   const httpServer = http.createServer();
-  const tinyWsServer = new WebsocketServer(httpServer);
+  const tinyWsServer = new WebsocketServer({ server: httpServer });
   // Terminate immediately to avoid waiting for heartbeat timeouts
   tinyWsServer.on('connection', (ws) => ws.terminate());
 
@@ -401,7 +401,7 @@ test('handshake: Sec-WebSocket-Accept is correct and no subprotocol by default',
 // eslint-disable-next-line max-len
 test('handshake: Connection header token matching is case-insensitive and allows multiple', async () => {
   const httpServer = http.createServer();
-  const tinyWsServer = new WebsocketServer(httpServer);
+  const tinyWsServer = new WebsocketServer({ server: httpServer });
   // Terminate immediately to avoid waiting for heartbeat timeouts
   tinyWsServer.on('connection', (ws) => ws.terminate());
 
