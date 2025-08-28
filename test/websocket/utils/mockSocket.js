@@ -48,6 +48,4 @@ class MockSocket extends EventEmitter {
   }
 }
 
-module.exports = {
-  MockSocket,
-};
+module.exports = { MockSocket };
