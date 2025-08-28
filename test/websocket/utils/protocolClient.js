@@ -19,6 +19,7 @@ function parseStatusCode(statusLine) {
 // Methods: send(data), sendFrame(opcode, payload, { fin=true, mask=true }),
 // sendText, sendBinary, ping, close
 class ProtocolClient extends EventEmitter {
+  #handlers;
   constructor(url) {
     super();
     const u = new URL(url);
@@ -30,136 +31,53 @@ class ProtocolClient extends EventEmitter {
     this._closeSent = false;
     this._fragments = null; // { opcode, chunks: Buffer[] }
 
-    this.socket = net.connect({ port, host }, () => {
-      // Reduce Nagle latency for faster test handshakes/frames
-      this.socket.setNoDelay(true);
-      const key = crypto.randomBytes(16).toString('base64');
-      const req = [
-        `GET ${u.pathname || '/'} HTTP/1.1`,
-        `Host: ${host}:${port}`,
-        'Upgrade: websocket',
-        'Connection: Upgrade',
-        `Sec-WebSocket-Key: ${key}`,
-        'Sec-WebSocket-Version: 13',
-        '\r\n',
-      ].join('\r\n');
-      this.socket.write(req);
-    });
+    // Handlers dispatch map: { [opcode]: handler }
+    this.#handlers = {
+      0x0: this.#handleContinuation,
+      0x1: this.#handleText,
+      0x2: this.#handleBinary,
+      0x8: this.#handleClose,
+      0x9: this.#handlePing,
+      0xa: this.#handlePong,
+    };
 
+    this.socket = ProtocolClient.#createSocket(u, host, port);
+    this.#attachSocketListeners();
+  }
+
+  static #createSocket(url, host, port) {
+    const socket = net.connect({ port, host }, () => {
+      // Reduce Nagle latency for faster test handshakes/frames
+      socket.setNoDelay(true);
+      const key = crypto.randomBytes(16).toString('base64');
+      const req = ProtocolClient.#buildUpgradeRequest(
+        host,
+        port,
+        url.pathname,
+        key,
+      );
+      socket.write(req);
+    });
+    return socket;
+  }
+
+  static #buildUpgradeRequest(host, port, path, key) {
+    return [
+      `GET ${path || '/'} HTTP/1.1`,
+      `Host: ${host}:${port}`,
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      `Sec-WebSocket-Key: ${key}`,
+      'Sec-WebSocket-Version: 13',
+      '\r\n',
+    ].join('\r\n');
+  }
+
+  #attachSocketListeners() {
     this.socket.on('data', (chunk) => {
       this._buffer = Buffer.concat([this._buffer, chunk]);
-
-      if (!this._opened) {
-        const idx = this._buffer.indexOf('\r\n\r\n');
-        if (idx === -1) return;
-        const header = this._buffer.subarray(0, idx).toString();
-        const statusLine = header.split('\r\n', 1)[0] || '';
-        const code = parseStatusCode(statusLine);
-        if (code !== 101) {
-          this.socket.destroy();
-          this.emit('close');
-          return;
-        }
-        this._opened = true;
-        this._buffer = this._buffer.subarray(idx + 4);
-        this.emit('open');
-      }
-
-      while (this._buffer.length >= 2) {
-        const b0 = this._buffer[0];
-        const b1 = this._buffer[1];
-        const fin = (b0 & 0x80) !== 0;
-        const opcode = b0 & 0x0f;
-        const masked = (b1 & 0x80) !== 0;
-        let len = b1 & 0x7f;
-        let offset = 2;
-
-        if (len === 126) {
-          if (this._buffer.length < offset + 2) break;
-          len = this._buffer.readUInt16BE(offset);
-          offset += 2;
-        } else if (len === 127) {
-          if (this._buffer.length < offset + 8) break;
-          const high = this._buffer.readUInt32BE(offset);
-          const low = this._buffer.readUInt32BE(offset + 4);
-          len = high * TWO_32 + low;
-          offset += 8;
-        }
-
-        const maskLen = masked ? 4 : 0;
-        if (this._buffer.length < offset + maskLen + len) break;
-
-        let payload = this._buffer.subarray(
-          offset + maskLen,
-          offset + maskLen + len,
-        );
-        if (masked) {
-          const mask = this._buffer.subarray(offset, offset + 4);
-          const un = Buffer.alloc(payload.length);
-          for (let i = 0; i < payload.length; i++) {
-            un[i] = payload[i] ^ mask[i % 4];
-          }
-          payload = un;
-        }
-
-        this._buffer = this._buffer.subarray(offset + maskLen + len);
-
-        if (opcode === 0x0) {
-          // CONTINUATION
-          if (this._fragments) {
-            this._fragments.chunks.push(payload);
-            if (fin) {
-              const full = Buffer.concat(this._fragments.chunks);
-              const startOpcode = this._fragments.opcode;
-              this._fragments = null;
-              this.emit('frame', startOpcode, full, { fin, masked });
-              if (startOpcode === 0x1) this.emit('message', full);
-            }
-          }
-          continue;
-        }
-
-        if (opcode === 0x1 || opcode === 0x2) {
-          // TEXT / BINARY
-          if (!fin) {
-            this._fragments = { opcode, chunks: [payload] };
-            continue;
-          }
-          this.emit('frame', opcode, payload, { fin, masked });
-          if (opcode === 0x1) this.emit('message', payload);
-          continue;
-        }
-
-        if (opcode === 0x9) {
-          // PING
-          this.emit('frame', opcode, payload, { fin, masked });
-          this.emit('ping', payload);
-          continue;
-        }
-
-        if (opcode === 0xa) {
-          // PONG
-          this.emit('frame', opcode, payload, { fin, masked });
-          this.emit('pong', payload);
-          continue;
-        }
-
-        if (opcode === 0x8) {
-          // CLOSE
-          let code = 1005; // no status
-          let reason = '';
-          if (payload.length >= 2) {
-            code = payload.readUInt16BE(0);
-            if (payload.length > 2) reason = payload.subarray(2).toString();
-          }
-          this.emit('frame', opcode, payload, { fin, masked });
-          this.socket.end();
-          this.emit('close', code, reason);
-          continue;
-        }
-
-        this.emit('frame', opcode, payload, { fin, masked });
-      }
+      if (!this._opened && !this.#consumeHandshake()) return;
+      this.#consumeFrames();
     });
 
     const onEndOrClose = () => {
@@ -171,6 +89,128 @@ class ProtocolClient extends EventEmitter {
       this.socket.destroy();
       this.emit('close');
     });
+  }
+
+  #consumeHandshake() {
+    const idx = this._buffer.indexOf('\r\n\r\n');
+    if (idx === -1) return false;
+    const header = this._buffer.subarray(0, idx).toString();
+    const statusLine = header.split('\r\n', 1)[0] || '';
+    const code = parseStatusCode(statusLine);
+    if (code !== 101) {
+      this.socket.destroy();
+      this.emit('close');
+      return false;
+    }
+    this._opened = true;
+    this._buffer = this._buffer.subarray(idx + 4);
+    this.emit('open');
+    return true;
+  }
+
+  #consumeFrames() {
+    while (this._buffer.length >= 2) {
+      const b0 = this._buffer[0];
+      const b1 = this._buffer[1];
+      const fin = (b0 & 0x80) !== 0;
+      const opcode = b0 & 0x0f;
+      const masked = (b1 & 0x80) !== 0;
+      let len = b1 & 0x7f;
+      let offset = 2;
+
+      if (len === 126) {
+        if (this._buffer.length < offset + 2) break;
+        len = this._buffer.readUInt16BE(offset);
+        offset += 2;
+      } else if (len === 127) {
+        if (this._buffer.length < offset + 8) break;
+        const high = this._buffer.readUInt32BE(offset);
+        const low = this._buffer.readUInt32BE(offset + 4);
+        len = high * TWO_32 + low;
+        offset += 8;
+      }
+
+      const maskLen = masked ? 4 : 0;
+      if (this._buffer.length < offset + maskLen + len) break;
+
+      const payload = this._buffer.subarray(
+        offset + maskLen,
+        offset + maskLen + len,
+      );
+      if (masked) {
+        const mask = this._buffer.subarray(offset, offset + 4);
+        for (let i = 0; i < payload.length; i++) {
+          payload[i] ^= mask[i & 0x03];
+        }
+      }
+
+      this._buffer = this._buffer.subarray(offset + maskLen + len);
+
+      this.#dispatchFrame({ opcode, fin, masked, payload });
+    }
+  }
+
+  #dispatchFrame({ opcode, fin, masked, payload }) {
+    const handler = this.#handlers && this.#handlers[opcode];
+    if (handler) {
+      handler.call(this, { opcode, fin, masked, payload });
+      return;
+    }
+    // Unknown opcode: just emit the frame raw
+    this.emit('frame', opcode, payload, { fin, masked });
+    return;
+  }
+
+  #handleContinuation({ fin, masked, payload }) {
+    if (this._fragments) {
+      this._fragments.chunks.push(payload);
+      if (fin) {
+        const full = Buffer.concat(this._fragments.chunks);
+        const startOpcode = this._fragments.opcode;
+        this._fragments = null;
+        this.emit('frame', startOpcode, full, { fin, masked });
+        if (startOpcode === 0x1) this.emit('message', full);
+      }
+    }
+  }
+
+  #handleText({ opcode, fin, masked, payload }) {
+    if (!fin) {
+      this._fragments = { opcode, chunks: [payload] };
+      return;
+    }
+    this.emit('frame', opcode, payload, { fin, masked });
+    this.emit('message', payload);
+  }
+
+  #handleBinary({ opcode, fin, masked, payload }) {
+    if (!fin) {
+      this._fragments = { opcode, chunks: [payload] };
+      return;
+    }
+    this.emit('frame', opcode, payload, { fin, masked });
+  }
+
+  #handlePing({ opcode, fin, masked, payload }) {
+    this.emit('frame', opcode, payload, { fin, masked });
+    this.emit('ping', payload);
+  }
+
+  #handlePong({ opcode, fin, masked, payload }) {
+    this.emit('frame', opcode, payload, { fin, masked });
+    this.emit('pong', payload);
+  }
+
+  #handleClose({ opcode, fin, masked, payload }) {
+    let code = 1005; // no status
+    let reason = '';
+    if (payload.length >= 2) {
+      code = payload.readUInt16BE(0);
+      if (payload.length > 2) reason = payload.subarray(2).toString();
+    }
+    this.emit('frame', opcode, payload, { fin, masked });
+    this.socket.end();
+    this.emit('close', code, reason);
   }
 
   _sendFrame(opcode, payload, { fin = true, mask = true } = {}) {
