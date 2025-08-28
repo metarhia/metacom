@@ -2,6 +2,7 @@
 
 const net = require('net');
 const crypto = require('crypto');
+const { EventEmitter } = require('node:events');
 
 const TWO_32 = 4294967296;
 
@@ -17,18 +18,12 @@ function parseStatusCode(statusLine) {
 // 'pong'(Buffer), 'close'(code, reason)
 // Methods: send(data), sendFrame(opcode, payload, { fin=true, mask=true }),
 // sendText, sendBinary, ping, close
-class ProtocolClient {
+class ProtocolClient extends EventEmitter {
   constructor(url) {
+    super();
     const u = new URL(url);
     const port = u.port || 80;
     const host = u.hostname || 'localhost';
-
-    this._openCb = null;
-    this._messageCb = null;
-    this._frameCb = null;
-    this._pingCb = null;
-    this._pongCb = null;
-    this._closeCb = null;
 
     this._buffer = Buffer.alloc(0);
     this._opened = false;
@@ -62,12 +57,12 @@ class ProtocolClient {
         const code = parseStatusCode(statusLine);
         if (code !== 101) {
           this.socket.destroy();
-          if (this._closeCb) this._closeCb();
+          this.emit('close');
           return;
         }
         this._opened = true;
         this._buffer = this._buffer.subarray(idx + 4);
-        if (this._openCb) this._openCb();
+        this.emit('open');
       }
 
       while (this._buffer.length >= 2) {
@@ -117,10 +112,8 @@ class ProtocolClient {
               const full = Buffer.concat(this._fragments.chunks);
               const startOpcode = this._fragments.opcode;
               this._fragments = null;
-              if (this._frameCb) {
-                this._frameCb(startOpcode, full, { fin, masked });
-              }
-              if (startOpcode === 0x1 && this._messageCb) this._messageCb(full);
+              this.emit('frame', startOpcode, full, { fin, masked });
+              if (startOpcode === 0x1) this.emit('message', full);
             }
           }
           continue;
@@ -132,22 +125,22 @@ class ProtocolClient {
             this._fragments = { opcode, chunks: [payload] };
             continue;
           }
-          if (this._frameCb) this._frameCb(opcode, payload, { fin, masked });
-          if (opcode === 0x1 && this._messageCb) this._messageCb(payload);
+          this.emit('frame', opcode, payload, { fin, masked });
+          if (opcode === 0x1) this.emit('message', payload);
           continue;
         }
 
         if (opcode === 0x9) {
           // PING
-          if (this._frameCb) this._frameCb(opcode, payload, { fin, masked });
-          if (this._pingCb) this._pingCb(payload);
+          this.emit('frame', opcode, payload, { fin, masked });
+          this.emit('ping', payload);
           continue;
         }
 
         if (opcode === 0xa) {
           // PONG
-          if (this._frameCb) this._frameCb(opcode, payload, { fin, masked });
-          if (this._pongCb) this._pongCb(payload);
+          this.emit('frame', opcode, payload, { fin, masked });
+          this.emit('pong', payload);
           continue;
         }
 
@@ -159,24 +152,24 @@ class ProtocolClient {
             code = payload.readUInt16BE(0);
             if (payload.length > 2) reason = payload.subarray(2).toString();
           }
-          if (this._frameCb) this._frameCb(opcode, payload, { fin, masked });
+          this.emit('frame', opcode, payload, { fin, masked });
           this.socket.end();
-          if (this._closeCb) this._closeCb(code, reason);
+          this.emit('close', code, reason);
           continue;
         }
 
-        if (this._frameCb) this._frameCb(opcode, payload, { fin, masked });
+        this.emit('frame', opcode, payload, { fin, masked });
       }
     });
 
     const onEndOrClose = () => {
-      if (this._closeCb) this._closeCb();
+      this.emit('close');
     };
     this.socket.on('end', onEndOrClose);
     this.socket.on('close', onEndOrClose);
     this.socket.on('error', () => {
       this.socket.destroy();
-      if (this._closeCb) this._closeCb();
+      this.emit('close');
     });
   }
 
@@ -263,15 +256,6 @@ class ProtocolClient {
     this._sendFrame(0x8, payload);
     this._closeSent = true;
     this.socket.end();
-  }
-
-  on(event, cb) {
-    if (event === 'open') this._openCb = cb;
-    else if (event === 'message') this._messageCb = (buf) => cb(buf);
-    else if (event === 'frame') this._frameCb = cb;
-    else if (event === 'ping') this._pingCb = (buf) => cb(buf);
-    else if (event === 'pong') this._pongCb = (buf) => cb(buf);
-    else if (event === 'close') this._closeCb = cb;
   }
 
   // Attempts an HTTP Upgrade handshake with custom headers.
