@@ -5,16 +5,14 @@ import { EventEmitter } from 'node:events';
 import type { Connection } from './connection.js';
 
 export interface WebsocketServerOptions {
+  server: HttpServer | HttpSServer;
   pingInterval?: number;
   maxBuffer?: number;
   closeTimeout?: number;
 }
 
 export declare class WebsocketServer extends EventEmitter {
-  constructor(
-    server: HttpServer | HttpSServer,
-    options?: WebsocketServerOptions,
-  );
+  constructor(options: WebsocketServerOptions);
 
   on(
     event: 'connection',

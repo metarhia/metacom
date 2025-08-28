@@ -13,7 +13,8 @@ const {
 
 async function startServer(onConn) {
   const httpServer = http.createServer();
-  const tinyWsServer = new WebsocketServer(httpServer, {
+  const tinyWsServer = new WebsocketServer({
+    server: httpServer,
     closeTimeout: 0,
     pingInterval: 60_000,
   });

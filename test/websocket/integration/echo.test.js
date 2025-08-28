@@ -9,7 +9,7 @@ const { ProtocolClient } = require('../utils/protocolClient.js');
 
 test('should echo messages', async () => {
   const httpServer = http.createServer();
-  const tinyWsServer = new WebsocketServer(httpServer);
+  const tinyWsServer = new WebsocketServer({ server: httpServer });
 
   tinyWsServer.on('connection', (conn) => {
     conn.on('message', (msg) => conn.send(`Echo: ${msg}`));
