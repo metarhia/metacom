@@ -2,7 +2,8 @@
 
 const timers = require('node:timers/promises');
 const { WebSocket } = require('ws');
-const metatests = require('metatests');
+const { test } = require('node:test');
+const assert = require('node:assert');
 const { Server } = require('../lib/server.js');
 
 const { emitWarning } = process;
@@ -27,7 +28,7 @@ class ProcedureMock {
   }
 }
 
-metatests.test('Server / calls', async (test) => {
+test('Server / calls', async (t) => {
   const api = {
     test: {
       hello: {
@@ -57,16 +58,16 @@ metatests.test('Server / calls', async (test) => {
 
   let server;
 
-  test.beforeEach(async () => {
+  t.beforeEach(async () => {
     server = new Server(application, options);
     await server.listen();
   });
 
-  test.afterEach(async () => {
+  t.afterEach(async () => {
     await server.close();
   });
 
-  test.testAsync('handles HTTP RPC', async (subtest) => {
+  await t.test('handles HTTP RPC', async () => {
     const id = 1;
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
@@ -76,12 +77,12 @@ metatests.test('Server / calls', async (test) => {
       body: JSON.stringify(packet),
     }).then((res) => res.json());
 
-    subtest.strictEqual(response.id, id);
-    subtest.strictEqual(response.type, 'callback');
-    subtest.strictEqual(response.result, `Hello, ${args.name}`);
+    assert.strictEqual(response.id, id);
+    assert.strictEqual(response.type, 'callback');
+    assert.strictEqual(response.result, `Hello, ${args.name}`);
   });
 
-  test.testAsync('WS RPC handles', async (subtest) => {
+  await t.test('WS RPC handles', async () => {
     const id = 1;
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
@@ -90,8 +91,8 @@ metatests.test('Server / calls', async (test) => {
     socket.send(JSON.stringify(packet));
     const resPacket = await new Promise((res) => socket.on('message', res));
     const response = JSON.parse(resPacket);
-    subtest.strictEqual(response.id, id);
-    subtest.strictEqual(response.type, 'callback');
-    subtest.strictEqual(response.result, `Hello, ${args.name}`);
+    assert.strictEqual(response.id, id);
+    assert.strictEqual(response.type, 'callback');
+    assert.strictEqual(response.result, `Hello, ${args.name}`);
   });
 });
