@@ -46,7 +46,7 @@
   ],
   "readmeFilename": "README.md",
   "scripts": {
-    "test": "npm run -s lint && npm run types && metatests test/",
+    "test": "npm run -s lint && npm run types && node --test",
     "types": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\"",
     "fix": "eslint . --fix && prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\""
@@ -63,7 +63,6 @@
     "@types/ws": "^8.5.12",
     "eslint": "^9.27.0",
     "eslint-config-metarhia": "^9.1.1",
-    "metatests": "^0.9.1",
     "prettier": "^3.3.3",
     "typescript": "^5.8.3"
   }
