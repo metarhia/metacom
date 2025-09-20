@@ -52,7 +52,7 @@
     "fix": "eslint . --fix && prettier --write \"**/*.js\" \"**/*.json\" \"**/*.md\""
   },
   "engines": {
-    "node": "18 || 20 || 21 || 22 || 23 || 24"
+    "node": ">=18"
   },
   "dependencies": {
     "metautil": "5.2.5",
