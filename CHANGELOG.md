@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+- Migrate tests from metatests to Node.js native test runner
+- Update dependencies, and remove metatests
+- Update Node.js engine requirement to >=18, update CI
+
 ## [3.2.5][] - 2025-05-25
 
 - Add node.js 23 and 24 to CI
