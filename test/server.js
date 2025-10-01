@@ -2,6 +2,7 @@
 
 const timers = require('node:timers/promises');
 const { WebSocket } = require('ws');
+const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { Server } = require('../lib/server.js');
@@ -47,6 +48,7 @@ test('Server / calls', async (t) => {
     protocol: 'http',
     timeouts: { bind: 100 },
     queue: { concurrency: 100, size: 100, timeout: 5_000 },
+    generateId: randomUUID,
   };
   const application = {
     console: { log: noop, info: noop, warn: noop, error: noop, debug: noop },
@@ -68,7 +70,7 @@ test('Server / calls', async (t) => {
   });
 
   await t.test('handles HTTP RPC', async () => {
-    const id = 1;
+    const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
     const response = await fetch(`http://${options.host}:${options.port}/api`, {
@@ -83,7 +85,7 @@ test('Server / calls', async (t) => {
   });
 
   await t.test('WS RPC handles', async () => {
-    const id = 1;
+    const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
     const socket = new WebSocket(`ws://${options.host}:${options.port}`);

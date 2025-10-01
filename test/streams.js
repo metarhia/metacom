@@ -1,6 +1,7 @@
 'use strict';
 
 const { Readable } = require('node:stream');
+const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const metautil = require('metautil');
@@ -17,7 +18,7 @@ process.emitWarning = (warning, type, ...args) => {
 };
 
 const generatePacket = () => ({
-  id: metautil.random(UINT_8_MAX),
+  id: randomUUID(),
   name: metautil.random(UINT_8_MAX).toString(),
   size: metautil.random(UINT_8_MAX),
 });
@@ -57,6 +58,43 @@ test('Chunk / encode / decode', () => {
   const decoded = chunkDecode(chunkView);
   assert.strictEqual(decoded.id, id);
   assert.deepStrictEqual(decoded.payload, dataView);
+});
+
+test('Chunk / encode / decode with different ID lengths', () => {
+  const testCases = [
+    'short',
+    'medium_length_id',
+    'very_long_identifier_for_testing_purposes',
+    randomUUID(),
+    'a',
+    '123456789012345678901234567890123456789012345678901234567890',
+  ];
+
+  for (const id of testCases) {
+    const dataView = generateDataView();
+    const chunkView = chunkEncode(id, dataView);
+    assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
+    const decoded = chunkDecode(chunkView);
+    assert.strictEqual(decoded.id, id);
+    assert.deepStrictEqual(decoded.payload, dataView);
+  }
+});
+
+test('Chunk / encode validation for ID length limit', () => {
+  const maxId = 'a'.repeat(255);
+  const dataView = generateDataView();
+
+  const chunkView = chunkEncode(maxId, dataView);
+  assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
+  const decoded = chunkDecode(chunkView);
+  assert.strictEqual(decoded.id, maxId);
+  assert.deepStrictEqual(decoded.payload, dataView);
+
+  const tooLongId = 'a'.repeat(256);
+
+  assert.throws(() => {
+    chunkEncode(tooLongId, dataView);
+  }, /ID length 256 exceeds maximum of 255 characters/);
 });
 
 test('MetaWritable / constructor', () => {
