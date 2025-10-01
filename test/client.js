@@ -3,7 +3,8 @@
 const timers = require('node:timers/promises');
 const { Blob } = require('node:buffer');
 const { randomUUID } = require('node:crypto');
-const metatests = require('metatests');
+const { test } = require('node:test');
+const assert = require('node:assert');
 const { WebSocketServer } = require('ws');
 const metautil = require('metautil');
 const { Metacom } = require('../lib/client.js');
@@ -16,7 +17,7 @@ process.emitWarning = (warning, type, ...args) => {
   return;
 };
 
-metatests.test('Client / calls', async (test) => {
+test('Client / calls', async (t) => {
   const api = {
     system: {
       introspect: { handler: async () => api },
@@ -62,9 +63,9 @@ metatests.test('Client / calls', async (test) => {
   /** @type Metacom */
   let client;
 
-  test.defer(() => void mockServer.close());
+  t.after(() => void mockServer.close());
 
-  test.beforeEach(async () => {
+  t.beforeEach(async () => {
     client = Metacom.create('ws://localhost:8000/', {
       callTimeout: 300,
       generateId: randomUUID,
@@ -73,31 +74,31 @@ metatests.test('Client / calls', async (test) => {
     await client.load('test');
   });
 
-  test.afterEach(async () => void client.close());
+  t.afterEach(async () => void client.close());
 
-  test.testAsync('handles simple api calls', async (subtest) => {
+  await t.test('handles simple api calls', async () => {
     const result = await client.api.test.test();
-    subtest.strictEqual(result, { success: true });
+    assert.deepStrictEqual(result, { success: true });
   });
 
-  test.testAsync('handles parallel api calls', async (subtest) => {
+  await t.test('handles parallel api calls', async () => {
     const promises = [];
     for (let i = 0; i < 10; i++) promises.push(client.api.test.test());
     const res = await Promise.all(promises);
-    for (const r of res) subtest.strictEqual(r, { success: true });
+    for (const r of res) assert.deepStrictEqual(r, { success: true });
   });
 
-  test.testAsync('handles call timeouts', async (subtest) => {
+  await t.test('handles call timeouts', async () => {
     const promise = client.api.test.timeout();
-    await subtest.rejects(promise, new Error('Request timeout'));
+    await assert.rejects(promise, new Error('Request timeout'));
   });
 
-  test.testAsync('handles api errors', async (subtest) => {
-    await subtest.rejects(client.api.test.error(), new Error('Error message'));
+  await t.test('handles api errors', async () => {
+    await assert.rejects(client.api.test.error(), new Error('Error message'));
   });
 });
 
-metatests.test('Client / events', async (test) => {
+test('Client / events', async (t) => {
   const api = {
     system: {
       introspect: { handler: async () => api },
@@ -137,25 +138,25 @@ metatests.test('Client / events', async (test) => {
   /** @type Metacom */
   let client;
 
-  test.defer(() => void mockServer.close());
+  t.after(() => void mockServer.close());
 
-  test.beforeEach(async () => {
+  t.beforeEach(async () => {
     client = Metacom.create('ws://localhost:8001/', { generateId: randomUUID });
     await client.opening;
     await client.load('test');
   });
 
-  test.afterEach(async () => void client.close());
+  t.afterEach(async () => void client.close());
 
-  test.testAsync('handles events from server', async (subtest) => {
+  await t.test('handles events from server', async () => {
     const ping = await new Promise((resolve) =>
       client.api.test.on('ping', resolve),
     );
-    subtest.strictEqual(ping, { ping: true });
+    assert.deepStrictEqual(ping, { ping: true });
   });
 });
 
-metatests.test('Client / stream', async (test) => {
+test('Client / stream', async (t) => {
   const storage = new Map();
 
   const handleBinary = (chunk) => {
@@ -241,17 +242,17 @@ metatests.test('Client / stream', async (test) => {
   /** @type Metacom */
   let client;
 
-  test.defer(() => void mockServer.close());
+  t.after(() => void mockServer.close());
 
-  test.beforeEach(async () => {
+  t.beforeEach(async () => {
     client = Metacom.create('ws://localhost:8002/', { generateId: randomUUID });
     await client.opening;
     await client.load('test');
   });
 
-  test.afterEach(async () => void client.close());
+  t.afterEach(async () => void client.close());
 
-  test.testAsync('handles file uploades', async (subtest) => {
+  await t.test('handles file uploades', async () => {
     const data = 'Some random data for upload to the server';
     const name = 'upload-stream';
     const blob = new Blob([data]);
@@ -259,19 +260,19 @@ metatests.test('Client / stream', async (test) => {
     const stream = client.createBlobUploader(blob);
     await stream.upload();
     const uploadedFile = await client.api.test.getStreamData({ id: stream.id });
-    subtest.strictEqual(uploadedFile.name, name);
-    subtest.strictEqual(uploadedFile.size, blob.size);
-    subtest.strictEqual(uploadedFile.data.join(''), data);
-    subtest.strictEqual(uploadedFile.status, 'ended');
+    assert.strictEqual(uploadedFile.name, name);
+    assert.strictEqual(uploadedFile.size, blob.size);
+    assert.strictEqual(uploadedFile.data.join(''), data);
+    assert.strictEqual(uploadedFile.status, 'ended');
   });
 
-  test.testAsync('handles file downloads', async (subtest) => {
+  await t.test('handles file downloads', async () => {
     const name = 'download-stream';
     const { id } = await client.api.test.download({ name });
     const readable = client.getStream(id);
     const blob = await readable.toBlob();
     const data = await blob.text();
-    subtest.strictEqual(data, 'Some random data for upload to the client');
+    assert.strictEqual(data, 'Some random data for upload to the client');
   });
 });
 
