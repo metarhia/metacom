@@ -73,10 +73,10 @@ test('Chunk / encode / decode with different ID lengths', () => {
   for (const id of testCases) {
     const dataView = generateDataView();
     const chunkView = chunkEncode(id, dataView);
-    test.type(chunkView, 'Uint8Array');
+    assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
     const decoded = chunkDecode(chunkView);
-    test.strictEqual(decoded.id, id);
-    test.strictEqual(decoded.payload, dataView);
+    assert.strictEqual(decoded.id, id);
+    assert.deepStrictEqual(decoded.payload, dataView);
   }
 });
 
@@ -85,14 +85,14 @@ test('Chunk / encode validation for ID length limit', () => {
   const dataView = generateDataView();
 
   const chunkView = chunkEncode(maxId, dataView);
-  test.type(chunkView, 'Uint8Array');
+  assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
   const decoded = chunkDecode(chunkView);
-  test.strictEqual(decoded.id, maxId);
-  test.strictEqual(decoded.payload, dataView);
+  assert.strictEqual(decoded.id, maxId);
+  assert.deepStrictEqual(decoded.payload, dataView);
 
   const tooLongId = 'a'.repeat(256);
 
-  test.throws(() => {
+  assert.throws(() => {
     chunkEncode(tooLongId, dataView);
   }, /ID length 256 exceeds maximum of 255 characters/);
 });

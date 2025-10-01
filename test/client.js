@@ -276,7 +276,7 @@ test('Client / stream', async (t) => {
   });
 });
 
-metatests.test('Client / different ID generation strategies', async (test) => {
+test('Client / different ID generation strategies', async (t) => {
   const api = {
     system: {
       introspect: { handler: async () => api },
@@ -308,20 +308,20 @@ metatests.test('Client / different ID generation strategies', async (test) => {
     });
   });
 
-  test.defer(() => void mockServer.close());
+  t.after(() => void mockServer.close());
 
-  test.testAsync('works with UUID generation', async (subtest) => {
+  await t.test('works with UUID generation', async () => {
     const client = Metacom.create('ws://localhost:8003/', {
       generateId: randomUUID,
     });
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
-    subtest.strictEqual(result, { success: true });
+    assert.deepStrictEqual(result, { success: true });
     client.close();
   });
 
-  test.testAsync('works with incremental IDs', async (subtest) => {
+  await t.test('works with incremental IDs', async () => {
     let counter = 1;
     const client = Metacom.create('ws://localhost:8003/', {
       generateId: () => String(counter++),
@@ -329,11 +329,11 @@ metatests.test('Client / different ID generation strategies', async (test) => {
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
-    subtest.strictEqual(result, { success: true });
+    assert.deepStrictEqual(result, { success: true });
     client.close();
   });
 
-  test.testAsync('works with timestamp-based IDs', async (subtest) => {
+  await t.test('works with timestamp-based IDs', async () => {
     const client = Metacom.create('ws://localhost:8003/', {
       generateId: () =>
         `ts_${Date.now()}_${Math.random().toString(36).substring(2)}`,
@@ -341,44 +341,38 @@ metatests.test('Client / different ID generation strategies', async (test) => {
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
-    subtest.strictEqual(result, { success: true });
+    assert.deepStrictEqual(result, { success: true });
     client.close();
   });
 
-  test.testAsync('works with short random IDs', async (subtest) => {
+  await t.test('works with short random IDs', async () => {
     const client = Metacom.create('ws://localhost:8003/', {
       generateId: () => Math.random().toString(36).substring(2, 8),
     });
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
-    subtest.strictEqual(result, { success: true });
+    assert.deepStrictEqual(result, { success: true });
     client.close();
   });
 });
 
-metatests.test('Client / generateId validation', async (test) => {
-  test.testAsync(
-    'throws error when generateId is not provided',
-    async (subtest) => {
-      subtest.throws(() => {
-        Metacom.create('ws://localhost:8000/');
-      }, /generateId function is required/);
-    },
-  );
-
-  test.testAsync('throws error when generateId is null', async (subtest) => {
-    subtest.throws(() => {
-      Metacom.create('ws://localhost:8000/', { generateId: null });
-    }, /generateId function is required/);
+test('Client / generateId validation', async (t) => {
+  await t.test('throws error when generateId is not provided', async () => {
+    assert.throws(() => {
+      Metacom.create('ws://localhost:8000/');
+    }, /Function generateId is required/);
   });
 
-  test.testAsync(
-    'throws error when generateId is undefined',
-    async (subtest) => {
-      subtest.throws(() => {
-        Metacom.create('ws://localhost:8000/', { generateId: undefined });
-      }, /generateId function is required/);
-    },
-  );
+  await t.test('throws error when generateId is null', async () => {
+    assert.throws(() => {
+      Metacom.create('ws://localhost:8000/', { generateId: null });
+    }, /Function generateId is required/);
+  });
+
+  await t.test('throws error when generateId is undefined', async () => {
+    assert.throws(() => {
+      Metacom.create('ws://localhost:8000/', { generateId: undefined });
+    }, /Function generateId is required/);
+  });
 });
