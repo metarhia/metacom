@@ -2,7 +2,7 @@
 
 ## [Unreleased][unreleased]
 
-## [3.2.6][] - 2024-09-20
+## [3.2.6][] - 2025-09-20
 
 - Migrate tests from metatests to Node.js native test runner
 - Update dependencies, and remove metatests
