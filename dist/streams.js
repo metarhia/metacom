@@ -1,4 +1,4 @@
-import { EventEmitter } from 'metautil';
+import { Emitter } from 'metautil';
 
 const ID_LENGTH = 4;
 
@@ -20,11 +20,12 @@ const chunkDecode = (chunk) => {
 const PUSH_EVENT = Symbol();
 const PULL_EVENT = Symbol();
 const DEFAULT_HIGH_WATER_MARK = 32;
+const MAX_LISTENERS = 10;
 const MAX_HIGH_WATER_MARK = 1000;
 
-class MetaReadable extends EventEmitter {
+class MetaReadable extends Emitter {
   constructor(id, name, size, options = {}) {
-    super();
+    super(options);
     this.id = id;
     this.name = name;
     this.size = size;
@@ -33,7 +34,6 @@ class MetaReadable extends EventEmitter {
     this.streaming = true;
     this.status = 'active';
     this.bytesRead = 0;
-    this.maxListenersCount = this.getMaxListeners() - 1;
   }
 
   async push(data) {
@@ -48,7 +48,7 @@ class MetaReadable extends EventEmitter {
   }
 
   async finalize(writable) {
-    const waitWritableEvent = EventEmitter.once.bind(this, writable);
+    const waitWritableEvent = Emitter.once.bind(this, writable);
     const onError = () => this.terminate();
     writable.once('error', onError);
     for await (const chunk of this) {
@@ -110,7 +110,7 @@ class MetaReadable extends EventEmitter {
   // increase queue if source is much faster than reader
   // implement remote backpressure to resolve
   checkStreamLimits() {
-    if (this.listenerCount(PULL_EVENT) >= this.maxListenersCount) {
+    if (this.listenerCount(PULL_EVENT) >= MAX_LISTENERS) {
       ++this.highWaterMark;
     }
     if (this.highWaterMark > MAX_HIGH_WATER_MARK) {
@@ -131,7 +131,7 @@ class MetaReadable extends EventEmitter {
   }
 }
 
-class MetaWritable extends EventEmitter {
+class MetaWritable extends Emitter {
   constructor(id, name, size, transport) {
     super();
     this.id = id;
