@@ -1,4 +1,4 @@
-import { EventEmitter } from 'metautil';
+import { Emitter } from 'metautil';
 import { chunkDecode, MetaReadable, MetaWritable } from './streams.js';
 
 const CALL_TIMEOUT = 7 * 1000;
@@ -28,14 +28,14 @@ class MetacomError extends Error {
   }
 }
 
-class MetacomUnit extends EventEmitter {
+class MetacomUnit extends Emitter {
   emit(...args) {
     super.emit('*', ...args);
     super.emit(...args);
   }
 }
 
-class Metacom extends EventEmitter {
+class Metacom extends Emitter {
   constructor(url, options = {}) {
     super();
     this.url = url;
