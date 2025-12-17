@@ -8,6 +8,9 @@ module.exports = [
     files: ['dist/**/*.js'],
     languageOptions: {
       sourceType: 'module',
+      globals: {
+        crypto: 'readonly',
+      },
     },
   },
 ];

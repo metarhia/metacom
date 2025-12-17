@@ -48,16 +48,15 @@ class MetaReadable extends Emitter {
   }
 
   async finalize(writable) {
-    const waitWritableEvent = Emitter.once.bind(this, writable);
     const onError = () => this.terminate();
     writable.once('error', onError);
     for await (const chunk of this) {
       const needDrain = !writable.write(chunk);
-      if (needDrain) await waitWritableEvent('drain');
+      if (needDrain) await writable.waitEvent('drain');
     }
     this.emit('end');
     writable.end();
-    await waitWritableEvent('close');
+    await writable.waitEvent('close');
     await this.close();
     writable.removeListener('error', onError);
   }
@@ -102,6 +101,7 @@ class MetaReadable extends Emitter {
 
   pull() {
     const data = this.queue.shift();
+    if (!data) return data;
     this.bytesRead += data.length;
     this.emit(PULL_EVENT);
     return data;
