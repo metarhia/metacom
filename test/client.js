@@ -357,22 +357,12 @@ test('Client / different ID generation strategies', async (t) => {
   });
 });
 
-test('Client / generateId validation', async (t) => {
-  await t.test('throws error when generateId is not provided', async () => {
-    assert.throws(() => {
-      Metacom.create('ws://localhost:8000/');
-    }, /Function generateId is required/);
-  });
-
-  await t.test('throws error when generateId is null', async () => {
-    assert.throws(() => {
-      Metacom.create('ws://localhost:8000/', { generateId: null });
-    }, /Function generateId is required/);
-  });
-
-  await t.test('throws error when generateId is undefined', async () => {
-    assert.throws(() => {
-      Metacom.create('ws://localhost:8000/', { generateId: undefined });
-    }, /Function generateId is required/);
-  });
+test('Client / default generateId', async () => {
+  const client = Metacom.create('ws://localhost:8000/');
+  client.on('error', () => {});
+  assert.ok(typeof client.generateId === 'function');
+  const id1 = client.generateId();
+  const id2 = client.generateId();
+  assert.ok(id1 !== id2);
+  client.close();
 });

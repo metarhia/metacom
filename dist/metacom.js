@@ -33,18 +33,20 @@ class MetacomUnit extends Emitter {
     super.emit('*', ...args);
     super.emit(...args);
   }
+
+  post(...args) {
+    super.emit(...args);
+  }
 }
 
 class Metacom extends Emitter {
   constructor(url, options = {}) {
-    super();
+    super(options);
     this.url = url;
     this.socket = null;
     this.api = {};
-    this.callId = 0;
     this.calls = new Map();
     this.streams = new Map();
-    this.streamId = 0;
     this.active = false;
     this.connected = false;
     this.opening = null;
@@ -52,6 +54,7 @@ class Metacom extends Emitter {
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
+    this.generateId = options.generateId || crypto.randomUUID;
     this.ping = null;
     this.open();
   }
@@ -69,7 +72,7 @@ class Metacom extends Emitter {
   }
 
   createStream(name, size) {
-    const id = ++this.streamId;
+    const id = this.generateId();
     const transport = this;
     return new MetaWritable(id, name, size, transport);
   }
@@ -174,7 +177,7 @@ class Metacom extends Emitter {
   scaffold(unit, ver) {
     return (method) =>
       async (args = {}) => {
-        const id = ++this.callId;
+        const id = this.generateId();
         const unitName = unit + (ver ? '.' + ver : '');
         const target = unitName + '/' + method;
         if (this.opening) await this.opening;
