@@ -7,6 +7,14 @@ const RECONNECT_TIMEOUT = 2 * 1000;
 
 const connections = new Set();
 
+const toByteView = async (input) => {
+  if (typeof input.arrayBuffer === 'function') {
+    const buffer = await input.arrayBuffer();
+    return new Uint8Array(buffer);
+  }
+  return new Uint8Array(input);
+};
+
 const online = () => {
   for (const connection of connections) {
     if (!connection.connected) connection.open();
@@ -148,9 +156,8 @@ class Metacom extends Emitter {
     }
   }
 
-  async binary(blob) {
-    const buffer = await blob.arrayBuffer();
-    const byteView = new Uint8Array(buffer);
+  async binary(input) {
+    const byteView = await toByteView(input);
     const { id, payload } = chunkDecode(byteView);
     const stream = this.streams.get(id);
     if (stream) await stream.push(payload);
@@ -191,7 +198,7 @@ class Metacom extends Emitter {
           }, this.callTimeout);
           this.calls.set(id, [resolve, reject, timeout]);
           const packet = { type: 'call', id, method: target, args };
-          this.send(JSON.stringify(packet));
+          this.send(packet);
         });
       };
   }
@@ -229,7 +236,7 @@ class WebsocketTransport extends Metacom {
       this.ping = setInterval(() => {
         if (this.active) {
           const interval = Date.now() - this.lastActivity;
-          if (interval > this.pingInterval) this.send('{}');
+          if (interval > this.pingInterval) this.write('{}');
         }
       }, this.pingInterval);
     }
@@ -254,10 +261,17 @@ class WebsocketTransport extends Metacom {
     this.socket = null;
   }
 
-  send(data) {
+  write(data) {
     if (!this.connected) return;
     this.lastActivity = Date.now();
     this.socket.send(data);
+  }
+
+  send(data) {
+    if (!this.connected) return;
+    this.lastActivity = Date.now();
+    const payload = JSON.stringify(data);
+    this.socket.send(payload);
   }
 }
 
@@ -275,11 +289,9 @@ class HttpTransport extends Metacom {
 
   send(data) {
     this.lastActivity = Date.now();
-    fetch(this.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: data,
-    }).then((res) =>
+    const body = JSON.stringify(data);
+    const headers = { 'Content-Type': 'application/json' };
+    fetch(this.url, { method: 'POST', headers, body }).then((res) =>
       res.text().then((packet) => {
         this.message(packet);
       }),
