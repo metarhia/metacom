@@ -35,17 +35,19 @@
   "main": "metacom.js",
   "types": "metacom.d.ts",
   "browser": {
-    "./metacom.js": "./dist/metacom.js"
+    "./metacom.js": "./metacom.mjs"
   },
   "files": [
     "dist/",
     "lib/",
+    "metacom.mjs",
     "metacom.d.ts",
     "CHANGELOG.md",
     "SECURITY.md"
   ],
   "readmeFilename": "README.md",
   "scripts": {
+    "build": "metarhia-build",
     "test": "npm run -s lint && npm run types && node --test",
     "types": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier -c \"**/*.js\" \"**/*.json\" \"**/*.md\"",
@@ -63,6 +65,7 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9.39.1",
     "eslint-config-metarhia": "^9.1.4",
+    "metarhia-build": "^0.0.0",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3"
   }
