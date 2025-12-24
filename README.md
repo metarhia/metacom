@@ -39,7 +39,7 @@ const uploadFile = async (file) => {
   const uploader = metacom.createBlobUploader(file);
   // Prepare backend file consumer
   await metacom.api.files.upload({
-    streamId: uploader.streamId,
+    streamId: uploader.id,
     name: file.name,
   });
   // Start uploading stream and wait for its end

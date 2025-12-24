@@ -1,0 +1,3 @@
+{
+  "order": ["client-listeners.js", "chunks.js", "streams.js", "metacom.js"]
+}
