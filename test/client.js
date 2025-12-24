@@ -7,8 +7,8 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { WebSocketServer } = require('ws');
 const metautil = require('metautil');
-const { Metacom } = require('../lib/client.js');
-const { chunkEncode, chunkDecode } = require('../lib/streams.js');
+const { Metacom } = require('../lib/metacom.js');
+const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
 
 const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {
