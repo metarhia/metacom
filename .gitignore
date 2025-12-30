@@ -4,3 +4,4 @@ node_modules
 .eslintrc.json
 .idea
 metacom.mjs
+metacom.iife.js

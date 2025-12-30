@@ -1,4 +1,8 @@
 {
-  "libDir": "dist",
-  "order": ["streams.js", "metacom.js"]
+  "order": [
+    "client-listeners.js",
+    "encoders-browser.js",
+    "streams.js",
+    "metacom.js"
+  ]
 }

@@ -25,6 +25,21 @@ await metacom.load('example'); // Load `example` interface
 const result = api.example.methodName({ arg1, arg2 });
 ```
 
+## Service workers
+
+There is a special `metacom.iife.js` file supposed to be used in service workers.
+It makes `metacomIIFE` object available in service workers global scope.
+Special service worker wrapper is planned to be created later.
+As for now it's possible to use metacom within custom service worker.
+
+```js
+// inside custom service worker
+importScripts('metacom.iife.js');
+const { Metacom } = metacomIIFE;
+
+const metacom = Metacom.create('ws://domainname.com:8000');
+```
+
 ## Streams over Websocket
 
 ### Example: big file upload
