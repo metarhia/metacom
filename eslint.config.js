@@ -5,7 +5,7 @@ const init = require('eslint-config-metarhia');
 module.exports = [
   ...init,
   {
-    files: ['dist/**/*.js'],
+    files: ['metacom.mjs'],
     languageOptions: {
       sourceType: 'module',
       globals: {
