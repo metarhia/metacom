@@ -13,4 +13,14 @@ module.exports = [
       },
     },
   },
+  {
+    files: ['metacom-service-worker.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        importScripts: 'readonly',
+        metacomIIFE: 'readonly',
+      },
+    },
+  },
 ];

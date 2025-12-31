@@ -62,6 +62,8 @@ export class Metacom extends EventEmitter {
   getStream(id: string): MetaReadable;
   createStream(name: string, size: number): MetaWritable;
   createBlobUploader(blob: Blob): BlobUploader;
+  uploadFile(file: Blob, options?: { unit?: string; method?: string }): Promise<Blob>;
+  downloadFile(name: string, options?: { unit?: string; method?: string }): Promise<Blob>;
 }
 
 export interface Options {
