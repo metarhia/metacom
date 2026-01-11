@@ -33,7 +33,13 @@ Create `uploadFile` function on the client:
 
 ```js
 const metacom = Metacom.create('ws://example.com/api');
-
+const file = await metacom.uploadFile('file.txt');
+// or with optional options object
+const file2 = await metacom.uploadFile('file.txt', {
+  unit: 'otherFiles',
+  method: 'downloadOther',
+});
+// this is hides the complexity of the stream and file creation
 const uploadFile = async (file) => {
   // createBlobUploader creates streamId and inits file reader for convenience
   const uploader = metacom.createBlobUploader(file);
@@ -44,7 +50,7 @@ const uploadFile = async (file) => {
   });
   // Start uploading stream and wait for its end
   await uploader.upload();
-  return { uploadedFile: file };
+  return file;
 };
 ```
 
@@ -71,6 +77,13 @@ Create `downloadFile` function on the client:
 ```js
 const metacom = Metacom.create('ws://example.com/api');
 
+const file = await metacom.downloadFile('file.txt');
+// or with optional options object
+const file2 = await metacom.downloadFile('file.txt', {
+  unit: 'otherFiles',
+  method: 'downloadOther',
+});
+// this is hides the complexity of the stream and file creation
 const downloadFile = async (name) => {
   // Init backend file producer to get streamId
   const { streamId } = await metacom.api.files.download({ name });
@@ -96,8 +109,39 @@ async ({ name }) => {
   const writable = context.client.createStream(name, size);
   // Pipe nodejs readable to metacom writable
   readable.pipe(writable);
-  return { streamId: writable.streamId };
+  return { streamId: writable.id };
 };
+```
+
+### Example: use service worker proxy
+
+Service worker proxy is a script that runs in the background and handles all metacom messages.
+Copy service worker file to your app public directory (e.g., `public/` or `static/`).
+
+```sh
+ln -s node_modules/metacom/lib/metacom-service-worker.js application/static
+```
+
+If you use own service worker, register it in your app and import `metacom-service-worker.js` in it.
+
+```js
+// your service worker file e.g. my-service-worker.js
+importScripts('/metacom-service-worker.js');
+
+// your main thread file
+navigator.serviceWorker.register('/my-service-worker.js');
+```
+
+Then in main thread code use `Metacom.createProxy` async function to init metacom with MessageChannel transport to communicate with service worker.
+
+```js
+import { Metacom } from 'metacom';
+const metacomLoad = ['auth', 'example'];
+const metacom = await Metacom.createProxy(metacomLoad);
+// don't use metacom.load('auth', 'example') since createProxy does it for you (passes units to service worker)
+
+// Use metacom as usual
+const result = await metacom.api.example.methodName({ arg1, arg2 });
 ```
 
 ## License & Contributors

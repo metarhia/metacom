@@ -20,10 +20,11 @@ const listenOnline = (connections) => {
 export { listenOnline };
 //#endregion
 
-//#region chunks.js
+//#region chunks-browser.js
 const ID_LENGTH_BYTES = 1;
 const chunkEncode = (id, payload) => {
-  const idBuffer = Buffer.from(id, 'utf8');
+  const encoder = new TextEncoder();
+  const idBuffer = encoder.encode(id);
   const idLength = idBuffer.length;
   if (idLength > 255) {
     throw new Error(`ID length ${idLength} exceeds maximum of 255 characters`);
@@ -37,7 +38,8 @@ const chunkEncode = (id, payload) => {
 const chunkDecode = (chunk) => {
   const idLength = chunk[0];
   const idBuffer = chunk.subarray(ID_LENGTH_BYTES, ID_LENGTH_BYTES + idLength);
-  const id = Buffer.from(idBuffer).toString('utf8');
+  const decoder = new TextDecoder();
+  const id = decoder.decode(idBuffer);
   const payload = chunk.subarray(ID_LENGTH_BYTES + idLength);
   return { id, payload };
 };
@@ -225,7 +227,17 @@ class Metacom extends Emitter {
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.generateId = options.generateId || (() => crypto.randomUUID());
     this.ping = null;
-    this.open();
+    if (!options.messagePortTransport) {
+      this.open();
+    }
+  }
+  static async createProxy(url, options) {
+    const { transport } = Metacom;
+    const Transport = transport.mp;
+    options.messagePortTransport = true;
+    const instance = new Transport(url, options);
+    await instance.open(options.metacomLoad);
+    return instance;
   }
   static create(url, options) {
     const { transport } = Metacom;
@@ -321,6 +333,10 @@ class Metacom extends Emitter {
   async load(...units) {
     const introspect = this.scaffold('system')('introspect');
     const introspection = await introspect(units);
+    this.initApi(units, introspection);
+    return introspection;
+  }
+  initApi(units, introspection) {
     const available = Object.keys(introspection);
     for (const unit of units) {
       if (!available.includes(unit)) continue;
@@ -351,9 +367,25 @@ class Metacom extends Emitter {
           }, this.callTimeout);
           this.calls.set(id, [resolve, reject, timeout]);
           const packet = { type: 'call', id, method: target, args };
-          this.send(packet);
+          this.send(packet, { unit, method });
         });
       };
+  }
+  async uploadFile(file, { unit = 'files', method = 'upload' } = {}) {
+    this.lastActivity = Date.now();
+    const uploader = this.createBlobUploader(file);
+    await this.api[unit][method]({
+      streamId: uploader.id,
+      name: file.name || `blob-${uploader.id}`,
+    });
+    await uploader.upload();
+    return file;
+  }
+  async downloadFile(name, { unit = 'files', method = 'download' } = {}) {
+    const { streamId } = await this.api[unit][method]({ name });
+    const readable = await this.getStream(streamId);
+    const blob = await readable.toBlob();
+    return new File([blob], name);
   }
 }
 class WebsocketTransport extends Metacom {
@@ -439,9 +471,98 @@ class HttpTransport extends Metacom {
     );
   }
 }
+class MessagePortTransport extends Metacom {
+  async open(metacomLoad) {
+    this.active = true;
+    this.connected = true;
+    const messageChannel = new MessageChannel();
+    this.messagePort = messageChannel.port1;
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active;
+    worker.postMessage(
+      {
+        type: 'PORT_INITIALIZATION',
+        url: this.url,
+        metacomLoad,
+      },
+      [messageChannel.port2],
+    );
+    const { promise, resolve } = Promise.withResolvers();
+    // Process messages from worker
+    this.messagePort.onmessage = ({ data }) => {
+      const { payload, type } = data;
+      switch (type) {
+        case 'INTROSPECTION':
+          // instead of metacom.load with implicit introspection call
+          // use initApi, when introspection data comes from worker
+          this.initApi(metacomLoad, payload);
+          resolve(this);
+          return;
+        case 'CALLBACK':
+          this.message(JSON.stringify(payload));
+          break;
+        case 'UPLOADED':
+          if (!payload.done) return;
+          this.emit(`stream_${payload.meta.id}`, payload.meta);
+          break;
+        case 'DOWNLOADED': {
+          if (!payload.done) return;
+          const { arrayBuffer, meta } = payload;
+          const file = new File([arrayBuffer], meta.name);
+          this.emit(`stream_${meta.id}`, file);
+          break;
+        }
+        default:
+          break;
+      }
+    };
+    return promise;
+  }
+  close() {
+    this.active = false;
+    this.connected = false;
+  }
+  send(packet, { unit, method } = {}) {
+    if (!this.messagePort) throw new Error('MessagePort is not initialized');
+    this.lastActivity = Date.now();
+    this.messagePort.postMessage({ unit, method, packet });
+  }
+  // overriden methods for passing files through service worker
+  async uploadFile(file, { unit = 'files', method = 'upload' } = {}) {
+    const arrayBuffer = await file.arrayBuffer();
+    if (!this.messagePort) throw new Error('MessagePort is not initialized');
+    this.lastActivity = Date.now();
+    const id = this.generateId();
+    this.messagePort.postMessage(
+      {
+        type: 'UPLOAD',
+        unit,
+        method,
+        packet: arrayBuffer,
+        meta: { id, name: file.name, size: file.size, type: file.type },
+      },
+      [arrayBuffer],
+    );
+    return await this.toPromise(`stream_${id}`).then(() => file);
+  }
+  async downloadFile(name, { unit = 'files', method = 'download' } = {}) {
+    if (!this.messagePort) throw new Error('MessagePort is not initialized');
+    this.lastActivity = Date.now();
+    const id = this.generateId();
+    this.messagePort.postMessage({
+      type: 'DOWNLOAD',
+      unit,
+      method,
+      packet: { name },
+      meta: { id },
+    });
+    return await this.toPromise(`stream_${id}`);
+  }
+}
 Metacom.transport = {
   ws: WebsocketTransport,
   http: HttpTransport,
+  mp: MessagePortTransport,
 };
 export {
   Metacom,
