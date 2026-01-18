@@ -1,14 +1,16 @@
 'use strict';
+
+importScripts('metautil.iife.js');
 importScripts('metacom.iife.js');
 
 // exists in global scope after importScripts
 const { Metacom } = metacomIIFE;
 
-const METACOMS_BY_URL = new Map();
+const connections = new Map();
 
 const EXECUTORS = {
-  DOWNLOAD: downloadFile,
-  UPLOAD: uploadFile,
+  download: downloadFile,
+  upload: uploadFile,
 };
 
 self.addEventListener('message', async ({ data, ports } = {}) => {
@@ -18,11 +20,11 @@ self.addEventListener('message', async ({ data, ports } = {}) => {
   const messagePort = ports[0];
   const { url, metacomLoad } = data;
 
-  let metacom = METACOMS_BY_URL.get(url);
+  let metacom = connections.get(url);
 
   if (!metacom) {
     metacom = Metacom.create(url);
-    METACOMS_BY_URL.set(url, metacom);
+    connections.set(url, metacom);
   }
 
   messagePort.onmessage = (event) => {
@@ -32,7 +34,7 @@ self.addEventListener('message', async ({ data, ports } = {}) => {
 
   const introspection = await metacom.load(...metacomLoad);
 
-  messagePort.postMessage({ type: 'INTROSPECTION', payload: introspection });
+  messagePort.postMessage({ type: 'introspection', payload: introspection });
 });
 
 async function callMethod(metacom, messagePort, data) {
@@ -40,7 +42,7 @@ async function callMethod(metacom, messagePort, data) {
   const { id, args } = packet;
   const result = await metacom.api[unit][method](args);
   messagePort.postMessage({
-    type: 'CALLBACK',
+    type: 'callback',
     payload: {
       result,
       type: 'callback',
@@ -54,7 +56,7 @@ async function uploadFile(metacom, messagePort, data) {
   const { fileArrayBuffer, meta } = data;
   const file = new File([fileArrayBuffer], meta.name, { type: meta.type });
   await metacom.uploadFile(file, { unit: meta.unit, method: meta.method });
-  messagePort.postMessage({ type: 'UPLOADED', payload: { done: true, meta } });
+  messagePort.postMessage({ type: 'uploaded', payload: { done: true, meta } });
 }
 
 async function downloadFile(metacom, messagePort, data) {
@@ -65,7 +67,7 @@ async function downloadFile(metacom, messagePort, data) {
   });
   const arrayBuffer = await file.arrayBuffer();
   messagePort.postMessage(
-    { type: 'DOWNLOADED', payload: { done: true, meta, arrayBuffer } },
+    { type: 'downloaded', payload: { done: true, meta, arrayBuffer } },
     [arrayBuffer],
   );
 }

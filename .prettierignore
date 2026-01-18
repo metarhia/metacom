@@ -1,2 +1,4 @@
 package.json
 package-lock.json
+metacom.mjs
+metacom.iife.js
