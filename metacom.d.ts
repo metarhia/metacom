@@ -1,5 +1,4 @@
 import { EventEmitter } from 'node:events';
-import { ClientRequest, ServerResponse } from 'node:http';
 import { Writable } from 'node:stream';
 import WebSocket from 'ws';
 import { Semaphore } from 'metautil';
@@ -95,17 +94,7 @@ export class Client extends EventEmitter {
   session: Session;
 }
 
-export class Transport {
-  console: Console;
-  req: ClientRequest;
-  res?: ServerResponse;
-  connection?: WebSocket;
-  ip: string;
-  constructor(
-    console: Console,
-    req: ClientRequest,
-    target: ServerResponse | WebSocket,
-  );
+export interface Transport {
   error(code: number, errorOptions?: ErrorOptions): void;
   write(data: string | Buffer, httpCode?: number, ext?: string): void;
   send(obj: object, httpCode?: number): void;
