@@ -1,9 +1,5 @@
-'use strict';
-
-const { Emitter } = require('metautil');
-const WebSocket = require('ws');
-const { randomUUID } = require('node:crypto');
-const { MetaWritable, MetaReadable, chunkDecode } = require('./streams.js');
+import { Emitter } from 'metautil';
+import { chunkDecode, MetaReadable, MetaWritable } from './streams.js';
 
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
@@ -12,7 +8,7 @@ const RECONNECT_TIMEOUT = 2 * 1000;
 const connections = new Set();
 
 const toByteView = async (input) => {
-  if (input && typeof input.arrayBuffer === 'function') {
+  if (typeof input.arrayBuffer === 'function') {
     const buffer = await input.arrayBuffer();
     return new Uint8Array(buffer);
   }
@@ -52,7 +48,7 @@ class Metacom extends Emitter {
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
-    this.generateId = options.generateId || randomUUID;
+    this.generateId = options.generateId || crypto.randomUUID;
     this.ping = null;
     this.open();
   }
@@ -294,4 +290,4 @@ Metacom.transport = {
   http: HttpTransport,
 };
 
-module.exports = { Metacom, MetacomUnit, connections };
+export { Metacom, MetacomUnit, connections };
