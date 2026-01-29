@@ -5,21 +5,11 @@ init[0].ignores.push('metacom.iife.js');
 module.exports = [
   ...init,
   {
-    files: ['metacom.mjs'],
+    files: ['metacom.mjs', 'metacom-service-worker.js'],
     languageOptions: {
       sourceType: 'module',
       globals: {
         crypto: 'readonly',
-      },
-    },
-  },
-  {
-    files: ['metacom-service-worker.js'],
-    languageOptions: {
-      sourceType: 'script',
-      globals: {
-        importScripts: 'readonly',
-        metacomIIFE: 'readonly',
       },
     },
   },

@@ -3,7 +3,7 @@
 // Copyright (c) 2018-2025 Metarhia contributors
 // Version 3.2.6 metacom MIT License
 
-import { Emitter } from 'metautil';
+import { Emitter } from './metautil.js';
 
 //#region client-listeners.js
 const listenOnline = (connections) => {
@@ -535,8 +535,8 @@ class MessagePortTransport extends Metacom {
     this.active = true;
     this.connected = true;
 
-    const messageChannel = new MessageChannel();
-    this.messagePort = messageChannel.port1;
+    const { port1, port2 } = new MessageChannel();
+    this.messagePort = port1;
 
     const registration = await navigator.serviceWorker.ready;
     const worker = registration.active;
@@ -547,7 +547,7 @@ class MessagePortTransport extends Metacom {
         url: this.url,
         metacomLoad,
       },
-      [messageChannel.port2],
+      [port2],
     );
 
     const { promise, resolve } = Promise.withResolvers();

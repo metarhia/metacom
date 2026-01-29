@@ -1,10 +1,4 @@
-'use strict';
-
-importScripts('metautil.iife.js');
-importScripts('metacom.iife.js');
-
-// exists in global scope after importScripts
-const { Metacom } = metacomIIFE;
+import { Metacom } from './metacom.js';
 
 const connections = new Map();
 
