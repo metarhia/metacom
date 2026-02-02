@@ -250,10 +250,10 @@ class Metacom extends Emitter {
 
   static create(url, options) {
     const { transport } = Metacom;
-    let Transport = url.startsWith('ws') ? transport.ws : transport.http;
     if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
-      Transport = transport.event;
+      return transport.event.getInstance(url, options);
     }
+    const Transport = url.startsWith('ws') ? transport.ws : transport.http;
     return new Transport(url, options);
   }
 
@@ -490,6 +490,14 @@ class HttpTransport extends Metacom {
 }
 
 class EventTransport extends Metacom {
+  static instance = null;
+
+  static getInstance(url, options = {}) {
+    if (EventTransport.instance) return EventTransport.instance;
+    EventTransport.instance = new EventTransport(url, options);
+    return EventTransport.instance;
+  }
+
   constructor(url, options = {}) {
     super(url, options);
     this.worker = null;
@@ -538,6 +546,7 @@ class EventTransport extends Metacom {
     }
     this.connected = false;
     this.worker = null;
+    if (EventTransport.instance === this) EventTransport.instance = null;
   }
 
   write(data) {
