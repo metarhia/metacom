@@ -189,7 +189,6 @@ export {
 // metacom.js
 
 const CALL_TIMEOUT = 7 * 1000;
-const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
 
 const toByteView = async (input) => {
@@ -241,10 +240,8 @@ class Metacom extends Emitter {
     this.opening = null;
     this.lastActivity = Date.now();
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
-    this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.generateId = options.generateId || metautil.generateId;
-    this.ping = null;
     this.open();
   }
 
@@ -422,15 +419,6 @@ class WebsocketTransport extends Metacom {
       socket.close();
     });
 
-    if (this.pingInterval) {
-      this.ping = setInterval(() => {
-        if (this.active) {
-          const interval = Date.now() - this.lastActivity;
-          if (interval > this.pingInterval) this.write('{}');
-        }
-      }, this.pingInterval);
-    }
-
     this.opening = new Promise((resolve) => {
       socket.addEventListener('open', () => {
         this.opening = null;
@@ -445,7 +433,6 @@ class WebsocketTransport extends Metacom {
   close() {
     this.active = false;
     Metacom.connections.delete(this);
-    if (this.ping) clearInterval(this.ping);
     if (!this.socket) return;
     this.socket.close();
     this.socket = null;
@@ -538,7 +525,6 @@ class EventTransport extends Metacom {
   close() {
     this.active = false;
     Metacom.connections.delete(this);
-    if (this.ping) clearInterval(this.ping);
     if (this.messageHandler) {
       const { serviceWorker } = navigator;
       serviceWorker.removeEventListener('message', this.messageHandler);
@@ -572,7 +558,6 @@ class MetacomProxy extends Emitter {
     this.connection = null;
     this.url = null;
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
-    this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.generateId = options.generateId || metautil.generateId;
   }
@@ -587,7 +572,6 @@ class MetacomProxy extends Emitter {
     this.url = `${protocol}//${self.location.host}`;
     const options = {
       callTimeout: this.callTimeout,
-      pingInterval: this.pingInterval,
       reconnectTimeout: this.reconnectTimeout,
       generateId: this.generateId,
     };
