@@ -1,27 +1,11 @@
-// Copyright (c) 2018-2025 Metarhia contributors
-// Version 3.2.6 metacom MIT License
+import * as metautil from './metautil.js';
 
-import { Emitter } from 'metautil';
+const { Emitter } = metautil;
 
-//#region client-listeners.js
-const listenOnline = (connections) => {
-  const online = () => {
-    for (const connection of connections) {
-      if (!connection.connected) connection.open();
-    }
-  };
-  if (typeof window !== 'undefined') {
-    window.addEventListener('online', online);
-  }
-  if (typeof self !== 'undefined' && !!self.registration) {
-    self.addEventListener('online', online);
-  }
-};
-export { listenOnline };
-//#endregion
+// chunks-browser.js
 
-//#region chunks-browser.js
 const ID_LENGTH_BYTES = 1;
+
 const chunkEncode = (id, payload) => {
   const encoder = new TextEncoder();
   const idBuffer = encoder.encode(id);
@@ -35,6 +19,7 @@ const chunkEncode = (id, payload) => {
   chunk.set(payload, ID_LENGTH_BYTES + idLength);
   return chunk;
 };
+
 const chunkDecode = (chunk) => {
   const idLength = chunk[0];
   const idBuffer = chunk.subarray(ID_LENGTH_BYTES, ID_LENGTH_BYTES + idLength);
@@ -43,18 +28,20 @@ const chunkDecode = (chunk) => {
   const payload = chunk.subarray(ID_LENGTH_BYTES + idLength);
   return { id, payload };
 };
+
 export {
   chunkEncode,
   chunkDecode,
 };
-//#endregion
 
-//#region streams.js
+// streams.js
+
 const PUSH_EVENT = Symbol();
 const PULL_EVENT = Symbol();
 const DEFAULT_HIGH_WATER_MARK = 32;
 const MAX_LISTENERS = 10;
 const MAX_HIGH_WATER_MARK = 1000;
+
 class MetaReadable extends Emitter {
   constructor(id, name, size, options = {}) {
     super(options);
@@ -67,6 +54,7 @@ class MetaReadable extends Emitter {
     this.status = 'active';
     this.bytesRead = 0;
   }
+
   async push(data) {
     if (this.queue.length > this.highWaterMark) {
       this.checkStreamLimits();
@@ -77,6 +65,7 @@ class MetaReadable extends Emitter {
     if (this.queue.length === 1) this.emit(PUSH_EVENT);
     return data;
   }
+
   async finalize(writable) {
     const onError = () => this.terminate();
     writable.once('error', onError);
@@ -90,10 +79,12 @@ class MetaReadable extends Emitter {
     await this.close();
     writable.removeListener('error', onError);
   }
+
   pipe(writable) {
     this.finalize(writable);
     return writable;
   }
+
   async toBlob(type = '') {
     const chunks = [];
     for await (const chunk of this) {
@@ -101,14 +92,17 @@ class MetaReadable extends Emitter {
     }
     return new Blob(chunks, { type });
   }
+
   async close() {
     await this.stop();
     this.status = 'closed';
   }
+
   async terminate() {
     await this.stop();
     this.status = 'terminated';
   }
+
   async stop() {
     while (this.bytesRead !== this.size) {
       await this.waitEvent(PULL_EVENT);
@@ -116,12 +110,14 @@ class MetaReadable extends Emitter {
     this.streaming = false;
     this.emit(PUSH_EVENT, null);
   }
+
   async read() {
     if (this.queue.length > 0) return this.pull();
     const finisher = await this.waitEvent(PUSH_EVENT);
     if (finisher === null) return null;
     return this.pull();
   }
+
   pull() {
     const data = this.queue.shift();
     if (!data) return data;
@@ -129,6 +125,7 @@ class MetaReadable extends Emitter {
     this.emit(PULL_EVENT);
     return data;
   }
+
   checkStreamLimits() {
     if (this.listenerCount(PULL_EVENT) >= MAX_LISTENERS) {
       ++this.highWaterMark;
@@ -137,9 +134,11 @@ class MetaReadable extends Emitter {
       throw new Error('Stream overflow occurred');
     }
   }
+
   waitEvent(event) {
     return new Promise((resolve) => this.once(event, resolve));
   }
+
   async *[Symbol.asyncIterator]() {
     while (this.streaming) {
       const chunk = await this.read();
@@ -148,6 +147,7 @@ class MetaReadable extends Emitter {
     }
   }
 }
+
 class MetaWritable extends Emitter {
   constructor(id, name, size, transport) {
     super();
@@ -157,37 +157,41 @@ class MetaWritable extends Emitter {
     this.transport = transport;
     this.init();
   }
+
   init() {
     const { id, name, size } = this;
     const packet = { type: 'stream', id, name, size };
     this.transport.send(packet);
   }
+
   write(data) {
     const chunk = chunkEncode(this.id, data);
     this.transport.write(chunk);
     return true;
   }
+
   end() {
     const packet = { type: 'stream', id: this.id, status: 'end' };
     this.transport.send(packet);
   }
+
   terminate() {
     const packet = { type: 'stream', id: this.id, status: 'terminate' };
     this.transport.send(packet);
   }
 }
+
 export {
   MetaReadable,
   MetaWritable,
 };
-//#endregion
 
-//#region metacom.js
+// metacom.js
+
 const CALL_TIMEOUT = 7 * 1000;
 const PING_INTERVAL = 60 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
-const connections = new Set();
-listenOnline(connections);
+
 const toByteView = async (input) => {
   if (typeof input.arrayBuffer === 'function') {
     const buffer = await input.arrayBuffer();
@@ -195,22 +199,36 @@ const toByteView = async (input) => {
   }
   return new Uint8Array(input);
 };
+
 class MetacomError extends Error {
   constructor({ message, code }) {
     super(message);
     this.code = code;
   }
 }
+
 class MetacomUnit extends Emitter {
   emit(...args) {
     super.emit('*', ...args);
     super.emit(...args);
   }
+
   post(...args) {
     super.emit(...args);
   }
 }
+
 class Metacom extends Emitter {
+  static connections = new Set();
+
+  static online() {
+    for (const connection of Metacom.connections) {
+      if (!connection.connected) connection.open();
+    }
+  }
+
+  static offline() {}
+
   constructor(url, options = {}) {
     super(options);
     this.url = url;
@@ -225,25 +243,32 @@ class Metacom extends Emitter {
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.pingInterval = options.pingInterval || PING_INTERVAL;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
-    this.generateId = options.generateId || (() => crypto.randomUUID());
+    this.generateId = options.generateId || metautil.generateId;
     this.ping = null;
     this.open();
   }
+
   static create(url, options) {
     const { transport } = Metacom;
-    const Transport = url.startsWith('ws') ? transport.ws : transport.http;
+    let Transport = url.startsWith('ws') ? transport.ws : transport.http;
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+      Transport = transport.event;
+    }
     return new Transport(url, options);
   }
+
   getStream(id) {
     const stream = this.streams.get(id);
     if (stream) return stream;
     throw new Error(`Stream ${id} is not initialized`);
   }
+
   createStream(name, size) {
     const id = this.generateId();
     const transport = this;
     return new MetaWritable(id, name, size, transport);
   }
+
   createBlobUploader(blob) {
     const name = blob.name || 'blob';
     const size = blob.size;
@@ -260,6 +285,7 @@ class Metacom extends Emitter {
       },
     };
   }
+
   async message(data) {
     if (data === '{}') return;
     this.lastActivity = Date.now();
@@ -313,6 +339,7 @@ class Metacom extends Emitter {
       }
     }
   }
+
   async binary(input) {
     const byteView = await toByteView(input);
     const { id, payload } = chunkDecode(byteView);
@@ -320,6 +347,7 @@ class Metacom extends Emitter {
     if (stream) await stream.push(payload);
     else console.warn(`Stream ${id} is not initialized`);
   }
+
   async load(...units) {
     const introspect = this.scaffold('system')('introspect');
     const introspection = await introspect(units);
@@ -336,6 +364,7 @@ class Metacom extends Emitter {
       this.api[unit] = methods;
     }
   }
+
   scaffold(unit, ver) {
     return (method) =>
       async (args = {}) => {
@@ -358,6 +387,13 @@ class Metacom extends Emitter {
       };
   }
 }
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', Metacom.online);
+} else if (typeof self !== 'undefined') {
+  self.addEventListener('online', Metacom.online);
+}
+
 class WebsocketTransport extends Metacom {
   async open() {
     if (this.opening) return this.opening;
@@ -365,11 +401,13 @@ class WebsocketTransport extends Metacom {
     const socket = new WebSocket(this.url);
     this.active = true;
     this.socket = socket;
-    connections.add(this);
+    Metacom.connections.add(this);
+
     socket.addEventListener('message', ({ data }) => {
       if (typeof data === 'string') this.message(data);
       else this.binary(data);
     });
+
     socket.addEventListener('close', () => {
       this.opening = null;
       this.connected = false;
@@ -378,10 +416,12 @@ class WebsocketTransport extends Metacom {
         if (this.active) this.open();
       }, this.reconnectTimeout);
     });
+
     socket.addEventListener('error', (err) => {
       this.emit('error', err);
       socket.close();
     });
+
     if (this.pingInterval) {
       this.ping = setInterval(() => {
         if (this.active) {
@@ -390,6 +430,7 @@ class WebsocketTransport extends Metacom {
         }
       }, this.pingInterval);
     }
+
     this.opening = new Promise((resolve) => {
       socket.addEventListener('open', () => {
         this.opening = null;
@@ -400,19 +441,22 @@ class WebsocketTransport extends Metacom {
     });
     return this.opening;
   }
+
   close() {
     this.active = false;
-    connections.delete(this);
+    Metacom.connections.delete(this);
     if (this.ping) clearInterval(this.ping);
     if (!this.socket) return;
     this.socket.close();
     this.socket = null;
   }
+
   write(data) {
     if (!this.connected) return;
     this.lastActivity = Date.now();
     this.socket.send(data);
   }
+
   send(data) {
     if (!this.connected) return;
     this.lastActivity = Date.now();
@@ -420,16 +464,19 @@ class WebsocketTransport extends Metacom {
     this.socket.send(payload);
   }
 }
+
 class HttpTransport extends Metacom {
   async open() {
     this.active = true;
     this.connected = true;
     this.emit('open');
   }
+
   close() {
     this.active = false;
     this.connected = false;
   }
+
   send(data) {
     this.lastActivity = Date.now();
     const body = JSON.stringify(data);
@@ -441,12 +488,153 @@ class HttpTransport extends Metacom {
     );
   }
 }
+
+class EventTransport extends Metacom {
+  constructor(url, options = {}) {
+    super(url, options);
+    this.worker = null;
+    this.clientId = options.clientId || metautil.generateId();
+    this.messageHandler = null;
+  }
+
+  async open() {
+    if (this.opening) return this.opening;
+    if (this.connected) return Promise.resolve();
+    this.active = true;
+    Metacom.connections.add(this);
+    this.opening = new Promise((resolve, reject) => {
+      if (typeof navigator === 'undefined') {
+        return void reject(new Error('Navigator not supported'));
+      }
+      const { serviceWorker } = navigator;
+      if (!serviceWorker) {
+        return void reject(new Error('Service Worker not supported'));
+      }
+      serviceWorker.ready.then((registration) => {
+        this.worker = registration.active;
+        this.messageHandler = (event) => {
+          const { type, data } = event.data;
+          if (type === 'metacom' && data !== undefined) {
+            if (typeof data === 'string') this.message(data);
+            else this.binary(data);
+          }
+        };
+        serviceWorker.addEventListener('message', this.messageHandler);
+        this.connected = true;
+        resolve();
+      });
+    });
+    return this.opening;
+  }
+
+  close() {
+    this.active = false;
+    Metacom.connections.delete(this);
+    if (this.ping) clearInterval(this.ping);
+    if (this.messageHandler) {
+      const { serviceWorker } = navigator;
+      serviceWorker.removeEventListener('message', this.messageHandler);
+      this.messageHandler = null;
+    }
+    this.connected = false;
+    this.worker = null;
+  }
+
+  write(data) {
+    if (!this.worker) return;
+    this.lastActivity = Date.now();
+    const { clientId } = this;
+    this.worker.postMessage({ type: 'metacom', clientId, data });
+  }
+
+  send(data) {
+    if (!this.worker) return;
+    this.lastActivity = Date.now();
+    const payload = JSON.stringify(data);
+    const { clientId } = this;
+    this.worker.postMessage({ type: 'metacom', clientId, data: payload });
+  }
+}
+
+class MetacomProxy extends Emitter {
+  constructor(options = {}) {
+    super(options);
+    this.clients = new Map();
+    this.connection = null;
+    this.url = null;
+    this.callTimeout = options.callTimeout || CALL_TIMEOUT;
+    this.pingInterval = options.pingInterval || PING_INTERVAL;
+    this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
+    this.generateId = options.generateId || metautil.generateId;
+  }
+
+  async ensureConnection() {
+    if (this.connection) {
+      return this.connection.connected
+        ? Promise.resolve()
+        : this.connection.open();
+    }
+    const protocol = self.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    this.url = `${protocol}//${self.location.host}`;
+    const options = {
+      callTimeout: this.callTimeout,
+      pingInterval: this.pingInterval,
+      reconnectTimeout: this.reconnectTimeout,
+      generateId: this.generateId,
+    };
+    this.connection = new WebsocketTransport(this.url, options);
+    this.connection.message = async (data) => {
+      MetacomProxy.broadcast({ type: 'metacom', data });
+    };
+    this.connection.binary = async (input) => {
+      const data = await toByteView(input);
+      MetacomProxy.broadcast({ type: 'metacom', data });
+    };
+    return this.connection.open();
+  }
+
+  open() {
+    return this.ensureConnection();
+  }
+
+  close() {
+    if (this.connection) {
+      this.connection.close();
+      this.connection = null;
+    }
+  }
+
+  async handleMessage(event) {
+    const { type, clientId, data } = event.data;
+    if (type !== 'metacom' || data === undefined) return;
+    if (!this.clients.has(clientId)) {
+      this.clients.set(clientId, { clientId });
+    }
+    await this.ensureConnection();
+    if (!this.connection || !this.connection.connected) return;
+    this.connection.write(data);
+  }
+
+  static async broadcast(message, excludeClient) {
+    const clients = await self.clients.matchAll({
+      includeUncontrolled: true,
+      type: 'window',
+    });
+    for (const client of clients) {
+      if (excludeClient && client.id === excludeClient.id) continue;
+      client.postMessage(message);
+    }
+  }
+}
+
 Metacom.transport = {
   ws: WebsocketTransport,
   http: HttpTransport,
+  event: EventTransport,
 };
+
 export {
   Metacom,
   MetacomUnit,
+  MetacomProxy,
 };
-//#endregion

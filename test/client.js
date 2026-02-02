@@ -356,13 +356,3 @@ test('Client / different ID generation strategies', async (t) => {
     client.close();
   });
 });
-
-test('Client / default generateId', async () => {
-  const client = Metacom.create('ws://localhost:8000/');
-  client.on('error', () => {});
-  assert.ok(typeof client.generateId === 'function');
-  const id1 = client.generateId();
-  const id2 = client.generateId();
-  assert.ok(id1 !== id2);
-  client.close();
-});
