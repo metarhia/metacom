@@ -568,7 +568,7 @@ class MetacomProxy extends Emitter {
     this.generateId = options.generateId || metautil.generateId;
   }
 
-  async ensureConnection() {
+  async open() {
     if (this.connection) {
       return this.connection.connected
         ? Promise.resolve()
@@ -593,10 +593,6 @@ class MetacomProxy extends Emitter {
     return this.connection.open();
   }
 
-  open() {
-    return this.ensureConnection();
-  }
-
   close() {
     if (this.connection) {
       this.connection.close();
@@ -610,7 +606,7 @@ class MetacomProxy extends Emitter {
     if (!this.clients.has(clientId)) {
       this.clients.set(clientId, { clientId });
     }
-    await this.ensureConnection();
+    await this.open();
     if (!this.connection || !this.connection.connected) return;
     this.connection.write(data);
   }
