@@ -213,14 +213,19 @@ class MetacomUnit extends Emitter {
 
 class Metacom extends Emitter {
   static connections = new Set();
+  static initialized = false;
+  static isOnline = true;
 
   static online() {
+    Metacom.isOnline = true;
     for (const connection of Metacom.connections) {
       if (!connection.connected) connection.open();
     }
   }
 
-  static offline() {}
+  static offline() {
+    Metacom.isOnline = false;
+  }
 
   constructor(url, options = {}) {
     super(options);
@@ -236,6 +241,16 @@ class Metacom extends Emitter {
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.generateId = options.generateId || metautil.generateId;
+    if (!Metacom.initialized) {
+      if (typeof window !== 'undefined') {
+        window.addEventListener('online', Metacom.online);
+        window.addEventListener('offline', Metacom.offline);
+      } else if (typeof self !== 'undefined') {
+        self.addEventListener('online', Metacom.online);
+        self.addEventListener('offline', Metacom.offline);
+      }
+      Metacom.initialized = true;
+    }
     this.open();
   }
 
@@ -379,12 +394,6 @@ class Metacom extends Emitter {
   }
 }
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', Metacom.online);
-} else if (typeof self !== 'undefined') {
-  self.addEventListener('online', Metacom.online);
-}
-
 class WebsocketTransport extends Metacom {
   async open() {
     if (this.opening) return this.opening;
@@ -490,6 +499,15 @@ class EventTransport extends Metacom {
     if (this.connected) return Promise.resolve();
     this.active = true;
     Metacom.connections.add(this);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this.online);
+      window.addEventListener('offline', this.offline);
+    } else if (typeof self !== 'undefined') {
+      self.addEventListener('online', this.online);
+      self.addEventListener('offline', this.offline);
+    }
+
     this.opening = new Promise((resolve, reject) => {
       if (typeof navigator === 'undefined') {
         return void reject(new Error('Navigator not supported'));
@@ -500,8 +518,8 @@ class EventTransport extends Metacom {
       }
       serviceWorker.ready.then((registration) => {
         this.worker = registration.active;
-        const channel = new MessageChannel();
-        this.port = channel.port1;
+        const { port1, port2 } = new MessageChannel();
+        this.port = port1;
 
         this.port.addEventListener('message', (event) => {
           const { data } = event;
@@ -511,7 +529,7 @@ class EventTransport extends Metacom {
           }
         });
 
-        this.worker.postMessage({ type: 'metacom:connect' }, [channel.port2]);
+        this.worker.postMessage({ type: 'metacom:connect' }, [port2]);
         this.connected = true;
         resolve();
       });
@@ -526,9 +544,30 @@ class EventTransport extends Metacom {
       this.port.close();
       this.port = null;
     }
+    if (this.connected) {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', this.online);
+        window.removeEventListener('offline', this.offline);
+      } else if (typeof self !== 'undefined') {
+        self.removeEventListener('online', this.online);
+        self.removeEventListener('offline', this.offline);
+      }
+    }
     this.connected = false;
     this.worker = null;
     if (EventTransport.instance === this) EventTransport.instance = null;
+  }
+
+  online() {
+    if (this.worker) {
+      this.worker.postMessage({ type: 'metacom:online' });
+    }
+  }
+
+  offline() {
+    if (this.worker) {
+      this.worker.postMessage({ type: 'metacom:offline' });
+    }
   }
 
   write(data) {
@@ -553,13 +592,15 @@ class MetacomProxy extends Emitter {
     this.callTimeout = options.callTimeout || CALL_TIMEOUT;
     this.reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT;
     this.generateId = options.generateId || metautil.generateId;
+    if (typeof self !== 'undefined') {
+      self.addEventListener('message', (event) => this.handleMessage(event));
+    }
   }
 
   async open() {
     if (this.connection) {
-      return this.connection.connected
-        ? Promise.resolve()
-        : this.connection.open();
+      if (this.connection.connected) return Promise.resolve();
+      return this.connection.open();
     }
     const protocol = self.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.url = `${protocol}//${self.location.host}`;
@@ -570,11 +611,11 @@ class MetacomProxy extends Emitter {
     };
     this.connection = new WebsocketTransport(this.url, options);
     this.connection.message = async (data) => {
-      MetacomProxy.broadcast(data, this.ports);
+      this.broadcast(data);
     };
     this.connection.binary = async (input) => {
       const data = await toByteView(input);
-      MetacomProxy.broadcast(data, this.ports);
+      this.broadcast(data);
     };
     return this.connection.open();
   }
@@ -601,11 +642,15 @@ class MetacomProxy extends Emitter {
         this.connection.write(data);
       });
       port.start();
+    } else if (type === 'metacom:online') {
+      Metacom.online();
+    } else if (type === 'metacom:offline') {
+      Metacom.offline();
     }
   }
 
-  static broadcast(data, ports, excludePort = null) {
-    for (const port of ports.values()) {
+  broadcast(data, excludePort = null) {
+    for (const port of this.ports.values()) {
       if (port === excludePort) continue;
       port.postMessage(data);
     }
