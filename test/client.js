@@ -94,7 +94,10 @@ test('Client / calls', async (t) => {
   });
 
   await t.test('handles api errors', async () => {
-    await assert.rejects(client.api.test.error(), new Error('Error message'));
+    await assert.rejects(
+      client.api.test.error(),
+      (err) => err.message === 'Error message' && err.code === 400,
+    );
   });
 });
 
