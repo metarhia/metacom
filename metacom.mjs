@@ -290,14 +290,8 @@ class Metacom extends Emitter {
   }
 
   async message(data) {
-    if (data === '{}') return;
     this.lastActivity = Date.now();
-    let packet;
-    try {
-      packet = JSON.parse(data);
-    } catch {
-      return;
-    }
+    const packet = JSON.parse(data);
     const { type, id, name } = packet;
     if (type === 'event') {
       const [unit, eventName] = name.split('/');
@@ -308,7 +302,7 @@ class Metacom extends Emitter {
     if (!id) throw new Error('Packet structure error');
     if (type === 'callback') {
       const promised = this.calls.get(id);
-      if (!promised) return;
+      if (!promised) throw new Error(`Callback ${id} not found`);
       const [resolve, reject, timeout] = promised;
       this.calls.delete(id);
       clearTimeout(timeout);
@@ -321,13 +315,13 @@ class Metacom extends Emitter {
       const stream = this.streams.get(id);
       if (name && typeof name === 'string' && Number.isSafeInteger(size)) {
         if (stream) {
-          console.error(new Error(`Stream ${name} is already initialized`));
+          throw new Error(`Stream ${name} is already initialized`);
         } else {
           const stream = new MetaReadable(id, name, size);
           this.streams.set(id, stream);
         }
       } else if (!stream) {
-        console.error(new Error(`Stream ${id} is not initialized`));
+        throw new Error(`Stream ${id} is not initialized`);
       } else if (status === 'end') {
         await stream.close();
         this.streams.delete(id);
@@ -335,7 +329,7 @@ class Metacom extends Emitter {
         await stream.terminate();
         this.streams.delete(id);
       } else {
-        console.error(new Error('Stream packet structure error'));
+        throw new Error('Stream packet structure error');
       }
     }
   }
@@ -345,7 +339,7 @@ class Metacom extends Emitter {
     const { id, payload } = chunkDecode(byteView);
     const stream = this.streams.get(id);
     if (stream) await stream.push(payload);
-    else console.warn(`Stream ${id} is not initialized`);
+    else throw new Error(`Stream ${id} is not initialized`);
   }
 
   async load(...units) {
@@ -366,9 +360,9 @@ class Metacom extends Emitter {
   }
 
   scaffold(unit, ver) {
-    const id = this.generateId();
     const createMethod = (methodName) => {
       const method = async (args = {}) => {
+        const id = this.generateId();
         const unitName = unit + (ver ? '.' + ver : '');
         const target = unitName + '/' + methodName;
         if (this.opening) await this.opening;
@@ -590,14 +584,16 @@ class MetacomProxy extends Emitter {
     const { type } = event.data;
     if (type === 'metacom:connect') {
       const port = event.ports[0];
-      if (!port) return;
+      if (!port) throw new Error('MessagePort not provided');
       const portId = this.generateId();
       this.ports.set(portId, port);
       port.addEventListener('message', async (messageEvent) => {
         const { data } = messageEvent;
-        if (data === undefined) return;
+        if (data === undefined) throw new Error('Message data is undefined');
         await this.open();
-        if (!this.connection || !this.connection.connected) return;
+        if (!this.connection || !this.connection.connected) {
+          throw new Error('Not connected to server');
+        }
         this.connection.write(data);
       });
       port.start();
