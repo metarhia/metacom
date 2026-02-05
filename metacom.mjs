@@ -31,15 +31,6 @@ const chunkDecode = (chunk) => {
 
 export { chunkEncode, chunkDecode };
 
-const parsePacket = (data) => {
-  if (typeof data !== 'string') return null;
-  try {
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
-};
-
 // streams.js
 
 const PUSH_EVENT = Symbol();
@@ -193,6 +184,15 @@ class MetaWritable extends Emitter {
 export { MetaReadable, MetaWritable };
 
 // metacom.js
+
+const parsePacket = (data) => {
+  if (typeof data !== 'string') return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+};
 
 const CALL_TIMEOUT = 7 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
