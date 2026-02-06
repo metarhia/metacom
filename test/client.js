@@ -53,14 +53,13 @@ test('Client / calls', async (t) => {
       try {
         const result = await api[unit][name].handler();
         ws.send(JSON.stringify({ type: 'callback', id, result }));
-      } catch (/** @type any */ { message }) {
+      } catch ({ message }) {
         const packet = { type: 'callback', id, error: { code: 400, message } };
         ws.send(JSON.stringify(packet));
       }
     });
   });
 
-  /** @type Metacom */
   let client;
 
   t.after(() => void mockServer.close());
@@ -101,6 +100,83 @@ test('Client / calls', async (t) => {
   });
 });
 
+test('Client / handlePacket', async (t) => {
+  await t.test('throws on invalid JSON packet', async () => {
+    const client = Metacom.create('http://localhost:0/', {});
+    await client.opening;
+    await assert.rejects(
+      client.handlePacket('not json'),
+      /Invalid JSON packet/,
+    );
+    client.close();
+  });
+
+  await t.test('throws on non-string packet', async () => {
+    const client = Metacom.create('http://localhost:0/', {});
+    await client.opening;
+    await assert.rejects(client.handlePacket(null), /Invalid JSON packet/);
+    client.close();
+  });
+});
+
+test('Client / stale callback', async (t) => {
+  const api = {
+    system: {
+      introspect: { handler: async () => api },
+    },
+    test: {
+      test: {
+        handler: async () => {
+          await timers.setTimeout(10);
+          return { success: true };
+        },
+      },
+    },
+  };
+
+  const mockServer = new WebSocketServer({ port: 8010 });
+  mockServer.on('connection', (ws) => {
+    ws.on('message', async (raw) => {
+      const packet = metautil.jsonParse(raw) || {};
+      const { type, id, method } = packet;
+      const [unit, name] = method?.split('/') || [];
+      if (type !== 'call') return;
+      try {
+        const handler = api[unit]?.[name]?.handler;
+        const result = (handler ? await handler() : undefined) ?? { ok: true };
+        ws.send(JSON.stringify({ type: 'callback', id, result }));
+        ws.send(
+          JSON.stringify({
+            type: 'callback',
+            id: 'stale-id-not-in-calls',
+            result: null,
+          }),
+        );
+      } catch ({ message }) {
+        const errPacket = {
+          type: 'callback',
+          id,
+          error: { code: 400, message },
+        };
+        ws.send(JSON.stringify(errPacket));
+      }
+    });
+  });
+
+  t.after(() => void mockServer.close());
+
+  await t.test('ignores stale callback for unknown id', async () => {
+    const client = Metacom.create('ws://localhost:8010/', {
+      generateId: randomUUID,
+    });
+    await client.opening;
+    await client.load('test');
+    const result = await client.api.test.test();
+    assert.deepStrictEqual(result, { success: true });
+    client.close();
+  });
+});
+
 test('Client / events', async (t) => {
   const api = {
     system: {
@@ -138,7 +214,6 @@ test('Client / events', async (t) => {
     });
   });
 
-  /** @type Metacom */
   let client;
 
   t.after(() => void mockServer.close());
@@ -242,7 +317,6 @@ test('Client / stream', async (t) => {
     });
   });
 
-  /** @type Metacom */
   let client;
 
   t.after(() => void mockServer.close());
@@ -304,7 +378,7 @@ test('Client / different ID generation strategies', async (t) => {
       try {
         const result = await api[unit][name].handler();
         ws.send(JSON.stringify({ type: 'callback', id, result }));
-      } catch (/** @type any */ { message }) {
+      } catch ({ message }) {
         const packet = { type: 'callback', id, error: { code: 400, message } };
         ws.send(JSON.stringify(packet));
       }
