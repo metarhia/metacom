@@ -1,6 +1,7 @@
-import * as metautil from './metautil.js';
+// Copyright (c) 2018-2026 Metarhia contributors
+// Version 3.2.6 metacom MIT License
 
-const { Emitter } = metautil;
+import { Emitter, generateId as metautilGenerateId } from './metautil.js';
 
 // chunks-browser.js
 
@@ -28,8 +29,6 @@ const chunkDecode = (chunk) => {
   const payload = chunk.subarray(ID_LENGTH_BYTES + idLength);
   return { id, payload };
 };
-
-export { chunkEncode, chunkDecode };
 
 // streams.js
 
@@ -181,8 +180,6 @@ class MetaWritable extends Emitter {
   }
 }
 
-export { MetaReadable, MetaWritable };
-
 // metacom.js
 
 const parsePacket = (data) => {
@@ -258,7 +255,7 @@ class Metacom extends Emitter {
   lastActivity = Date.now();
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
-  generateId = metautil.generateId;
+  generateId = metautilGenerateId;
 
   constructor(url, options = {}) {
     super();
@@ -411,9 +408,11 @@ class WebsocketTransport extends Metacom {
     this.socket = socket;
     Metacom.connections.add(this);
 
+    const onError = (error) => this.emit('error', error);
     socket.addEventListener('message', ({ data }) => {
-      if (typeof data === 'string') this.handlePacket(data);
-      else this.binary(data);
+      const isString = typeof data === 'string';
+      const promise = isString ? this.handlePacket(data) : this.binary(data);
+      promise.catch(onError);
     });
 
     socket.addEventListener('close', () => {
@@ -558,7 +557,7 @@ class MetacomProxy extends Emitter {
   connection = null;
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
-  generateId = metautil.generateId;
+  generateId = metautilGenerateId;
 
   constructor(options = {}) {
     super();
@@ -661,4 +660,12 @@ Metacom.transport = {
 
 Metacom.initialize();
 
-export { Metacom, MetacomUnit, MetacomProxy };
+export {
+  chunkEncode,
+  chunkDecode,
+  MetaReadable,
+  MetaWritable,
+  Metacom,
+  MetacomUnit,
+  MetacomProxy,
+};
