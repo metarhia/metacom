@@ -14,7 +14,6 @@ const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {
   if (type === 'ExperimentalWarning') return;
   emitWarning(warning, type, ...args);
-  return;
 };
 
 test('Client / calls', async (t) => {
@@ -95,7 +94,7 @@ test('Client / calls', async (t) => {
   await t.test('handles api errors', async () => {
     await assert.rejects(
       client.api.test.error(),
-      (err) => err.message === 'Error message' && err.code === 400,
+      (error) => error.message === 'Error message' && error.code === 400,
     );
   });
 });
@@ -165,14 +164,18 @@ test('Client / stale callback', async (t) => {
 
   t.after(() => void mockServer.close());
 
-  await t.test('ignores stale callback for unknown id', async () => {
+  await t.test('throws on stale callback for unknown id', async () => {
     const client = Metacom.create('ws://localhost:8010/', {
       generateId: randomUUID,
     });
+    client.on('error', () => {});
+    const promise = new Promise((resolve) => client.once('error', resolve));
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
     assert.deepStrictEqual(result, { success: true });
+    const error = await promise;
+    assert.match(error.message, /Callback stale-id-not-in-calls not found/);
     client.close();
   });
 });

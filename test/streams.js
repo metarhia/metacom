@@ -14,7 +14,6 @@ const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {
   if (type === 'ExperimentalWarning') return;
   emitWarning(warning, type, ...args);
-  return;
 };
 
 const generatePacket = () => ({
