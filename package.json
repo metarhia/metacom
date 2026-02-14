@@ -67,7 +67,7 @@
     "@types/node": "^25.2.3",
     "@types/ws": "^8.18.1",
     "eslint": "^9.39.1",
-    "eslint-config-metarhia": "^9.1.6",
+    "eslint-config-metarhia": "^9.1.7",
     "metarhia-build": "^0.0.1",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3"
