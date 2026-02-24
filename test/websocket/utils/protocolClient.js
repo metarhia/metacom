@@ -158,7 +158,6 @@ class ProtocolClient extends EventEmitter {
     }
     // Unknown opcode: just emit the frame raw
     this.emit('frame', opcode, payload, { fin, masked });
-    return;
   }
 
   #handleContinuation({ fin, masked, payload }) {
