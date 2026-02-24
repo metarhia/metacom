@@ -18,7 +18,8 @@ test('Connection: should emit message on text frame', async () => {
 
   await new Promise((resolve) => {
     conn.on('message', (msg, isBinary) => {
-      assert.strictEqual(msg, 'hello');
+      assert.ok(Buffer.isBuffer(msg));
+      assert.ok(msg.equals(Buffer.from('hello')));
       assert.strictEqual(isBinary, false);
       resolve();
     });
