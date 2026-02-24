@@ -6,6 +6,7 @@ const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { Server } = require('../lib/server.js');
+const { URLSearchParams } = require('node:url');
 
 const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {
@@ -17,6 +18,7 @@ class ProcedureMock {
   constructor({ access, ...options }) {
     this.options = options;
     this.access = access;
+    this.protocols = options?.protocols || [];
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -38,6 +40,14 @@ test('Server / calls', async (t) => {
           return `Hello, ${name}`;
         },
       },
+      webhook: {
+        access: 'public',
+        protocols: ['http'],
+        handler: async ({ req }) => {
+          await timers.setTimeout(10);
+          return { req };
+        },
+      },
     },
   };
   const noop = () => {};
@@ -54,7 +64,6 @@ test('Server / calls', async (t) => {
     static: { constructor: { name: 'Static' } },
     auth: { saveSession: async () => {} },
     getMethod: (unit, _version, method) => new ProcedureMock(api[unit][method]),
-    getHook: noop,
   };
 
   let server;
@@ -81,6 +90,21 @@ test('Server / calls', async (t) => {
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');
     assert.strictEqual(response.result, `Hello, ${args.name}`);
+  });
+
+  await t.test('HTTP webhook handlers', async () => {
+    const [unit, method] = ['test', 'webhook'];
+    const parameters = { foo: 'bar' };
+    const query = new URLSearchParams(parameters).toString();
+    const url = `http://${options.host}:${options.port}/api/${unit}/${method}?${query}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    }).then((res) => res.json());
+
+    const { req } = response;
+    assert.strictEqual(req.method, 'GET');
+    assert.deepStrictEqual(req.parameters, parameters);
   });
 
   await t.test('WS RPC handles', async () => {

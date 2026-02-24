@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { ClientRequest, ServerResponse } from 'node:http';
+import { ClientRequest, IncomingHttpHeaders, ServerResponse } from 'node:http';
 import { Writable } from 'node:stream';
 import WebSocket from 'ws';
 import { Semaphore } from 'metautil';
@@ -132,6 +132,18 @@ export interface StreamPacket {
   size: number;
 }
 
+export interface WebHookPacket {
+  req: {
+    method: string;
+    headers: IncomingHttpHeaders;
+    parameters: Record<string, unknown> | {};
+    body: Record<string, unknown> | {};
+  };
+  res: {
+    redirect: (location: string) => void;
+  };
+}
+
 export class Server {
   application: object;
   options: Options;
@@ -147,21 +159,7 @@ export class Server {
   message(client: Client, data: string): void;
   rpc(client: Client, packet: CallPacket): Promise<void>;
   binary(client: Client, data: Buffer): void;
-  handleRpcPacket(client: Client, packet: CallPacket): void;
-  handleStreamPacket(client: Client, packet: StreamPacket): Promise<void>;
-  handleRequest(
-    client: Client,
-    transport: Transport,
-    data: Buffer,
-    application: object,
-  ): void;
-  hook(
-    client: Client,
-    proc: object,
-    packet: CallPacket,
-    verb: string,
-    headers: object,
-  ): Promise<void>;
+  webhook(client: Client, proc: Object, packet: WebHookPacket): Promise<void>;
   balancing(transport: Transport): void;
   closeClients(): void;
   close(): Promise<void>;
