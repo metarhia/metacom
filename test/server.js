@@ -92,7 +92,7 @@ test('Server / calls', async (t) => {
     assert.strictEqual(response.result, `Hello, ${args.name}`);
   });
 
-  await t.test('HTTP webhook handlers', async () => {
+  await t.test('handlers HTTP webhook', async () => {
     const [unit, method] = ['test', 'webhook'];
     const parameters = { foo: 'bar' };
     const query = new URLSearchParams(parameters).toString();
@@ -102,7 +102,7 @@ test('Server / calls', async (t) => {
       headers: { 'Content-Type': 'application/json' },
     }).then((res) => res.json());
 
-    const { req } = response;
+    const { result: { req } } = response;
     assert.strictEqual(req.method, 'GET');
     assert.deepStrictEqual(req.parameters, parameters);
   });
