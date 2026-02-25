@@ -102,7 +102,9 @@ test('Server / calls', async (t) => {
       headers: { 'Content-Type': 'application/json' },
     }).then((res) => res.json());
 
-    const { result: { req } } = response;
+    const {
+      result: { req },
+    } = response;
     assert.strictEqual(req.method, 'GET');
     assert.deepStrictEqual(req.parameters, parameters);
   });
