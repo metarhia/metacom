@@ -132,15 +132,19 @@ export interface StreamPacket {
   size: number;
 }
 
-export interface WebHookPacket {
-  req: {
-    method: string;
-    headers: IncomingHttpHeaders;
-    parameters: Record<string, unknown> | {};
-    body: Record<string, unknown> | {};
-  };
-  res: {
-    redirect: (location: string) => void;
+export interface WebhookPacket {
+  id: string;
+  method: string;
+  args: {
+    req: {
+      method: string;
+      headers: IncomingHttpHeaders;
+      parameters: Record<string, unknown> | {};
+      body: Record<string, unknown> | {};
+    };
+    res: {
+      redirect: (location: string) => void;
+    };
   };
 }
 
@@ -157,11 +161,12 @@ export class Server {
   init(): void;
   listen(): Promise<void>;
   message(client: Client, data: string): void;
-  rpc(client: Client, packet: CallPacket): Promise<void>;
+  static: (url: string, transport: Transport) => void;
+  procedure: (method: string) => Object;
+  invoke(client: Client, packet: CallPacket | WebhookPacket): Promise<void>;
   binary(client: Client, data: Buffer): void;
-  webhook(client: Client, proc: Object, packet: WebHookPacket): Promise<void>;
+  webhook(client: Client, transport: Transport, data: Buffer): Promise<void>;
   balancing(transport: Transport): void;
-  closeClients(): void;
   close(): Promise<void>;
 }
 
