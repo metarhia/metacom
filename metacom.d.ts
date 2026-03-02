@@ -147,21 +147,7 @@ export class Server {
   message(client: Client, data: string): void;
   rpc(client: Client, packet: CallPacket): Promise<void>;
   binary(client: Client, data: Buffer): void;
-  handleRpcPacket(client: Client, packet: CallPacket): void;
-  handleStreamPacket(client: Client, packet: StreamPacket): Promise<void>;
-  handleRequest(
-    client: Client,
-    transport: Transport,
-    data: Buffer,
-    application: object,
-  ): void;
-  hook(
-    client: Client,
-    proc: object,
-    packet: CallPacket,
-    verb: string,
-    headers: object,
-  ): Promise<void>;
+  stream(client: Client, packet: StreamPacket): Promise<void>;
   balancing(transport: Transport): void;
   closeClients(): void;
   close(): Promise<void>;
