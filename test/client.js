@@ -332,7 +332,7 @@ test('Client / stream', async (t) => {
 
   t.afterEach(async () => void client.close());
 
-  await t.test('handles file uploades', async () => {
+  await t.test('handles file uploads', async () => {
     const data = 'Some random data for upload to the server';
     const name = 'upload-stream';
     const blob = new Blob([data]);
@@ -371,7 +371,7 @@ test('Client / different ID generation strategies', async (t) => {
     },
   };
 
-  const mockServer = new WebSocketServer({ port: 8003 });
+  const mockServer = new WebSocketServer({ port: 8004 });
   mockServer.on('connection', (ws) => {
     ws.on('message', async (raw) => {
       const packet = metautil.jsonParse(raw) || {};
@@ -391,7 +391,7 @@ test('Client / different ID generation strategies', async (t) => {
   t.after(() => void mockServer.close());
 
   await t.test('works with UUID generation', async () => {
-    const client = Metacom.create('ws://localhost:8003/', {
+    const client = Metacom.create('ws://localhost:8004/', {
       generateId: randomUUID,
     });
     await client.opening;
@@ -403,7 +403,7 @@ test('Client / different ID generation strategies', async (t) => {
 
   await t.test('works with incremental IDs', async () => {
     let counter = 1;
-    const client = Metacom.create('ws://localhost:8003/', {
+    const client = Metacom.create('ws://localhost:8004/', {
       generateId: () => String(counter++),
     });
     await client.opening;
@@ -414,7 +414,7 @@ test('Client / different ID generation strategies', async (t) => {
   });
 
   await t.test('works with timestamp-based IDs', async () => {
-    const client = Metacom.create('ws://localhost:8003/', {
+    const client = Metacom.create('ws://localhost:8004/', {
       generateId: () =>
         `ts_${Date.now()}_${Math.random().toString(36).substring(2)}`,
     });
@@ -426,7 +426,7 @@ test('Client / different ID generation strategies', async (t) => {
   });
 
   await t.test('works with short random IDs', async () => {
-    const client = Metacom.create('ws://localhost:8003/', {
+    const client = Metacom.create('ws://localhost:8004/', {
       generateId: () => Math.random().toString(36).substring(2, 8),
     });
     await client.opening;
