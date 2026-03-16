@@ -1,7 +1,4 @@
-// Copyright (c) 2018-2026 Metarhia contributors
-// Version 3.2.6 metacom MIT License
-
-import { Emitter, generateId as metautilGenerateId } from './metautil.js';
+import { Emitter, generateUUID } from './metautil.js';
 
 // chunks-browser.js
 
@@ -55,10 +52,9 @@ class MetaReadable extends Emitter {
   }
 
   async push(data) {
-    if (this.queue.length > this.highWaterMark) {
+    while (this.queue.length > this.highWaterMark) {
       this.checkStreamLimits();
       await this.waitEvent(PULL_EVENT);
-      return this.push(data);
     }
     this.queue.push(data);
     if (this.queue.length === 1) this.emit(PUSH_EVENT);
@@ -80,7 +76,7 @@ class MetaReadable extends Emitter {
   }
 
   pipe(writable) {
-    this.finalize(writable);
+    this.finalize(writable).catch((error) => this.emit('error', error));
     return writable;
   }
 
@@ -193,7 +189,6 @@ const parsePacket = (data) => {
 
 const CALL_TIMEOUT = 7 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
-
 const toByteView = async (input) => {
   if (typeof input.arrayBuffer === 'function') {
     const buffer = await input.arrayBuffer();
@@ -255,7 +250,7 @@ class Metacom extends Emitter {
   lastActivity = Date.now();
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
-  generateId = metautilGenerateId;
+  generateId = generateUUID;
 
   constructor(url, options = {}) {
     super();
@@ -293,10 +288,8 @@ class Metacom extends Emitter {
     return {
       id: consumer.id,
       upload: async () => {
-        const reader = blob.stream().getReader();
-        let chunk;
-        while (!(chunk = await reader.read()).done) {
-          consumer.write(chunk.value);
+        for await (const chunk of blob.stream()) {
+          consumer.write(chunk);
         }
         consumer.end();
       },
@@ -309,7 +302,9 @@ class Metacom extends Emitter {
     if (!packet) throw new Error('Invalid JSON packet');
     const { type, id, name } = packet;
     if (type === 'event') {
-      const [unit, eventName] = name.split('/');
+      const parts = name.split('/');
+      const unit = parts[0];
+      const eventName = parts[1];
       const metacomUnit = this.api[unit];
       if (metacomUnit) metacomUnit.emit(eventName, packet.data);
       return;
@@ -318,7 +313,9 @@ class Metacom extends Emitter {
     if (type === 'callback') {
       const promised = this.calls.get(id);
       if (!promised) throw new Error(`Callback ${id} not found`);
-      const [resolve, reject, timeout] = promised;
+      const resolve = promised[0];
+      const reject = promised[1];
+      const timeout = promised[2];
       this.calls.delete(id);
       clearTimeout(timeout);
       if (packet.error) {
@@ -331,10 +328,9 @@ class Metacom extends Emitter {
       if (name && typeof name === 'string' && Number.isSafeInteger(size)) {
         if (stream) {
           throw new Error(`Stream ${name} is already initialized`);
-        } else {
-          const stream = new MetaReadable(id, name, size);
-          this.streams.set(id, stream);
         }
+        const readableStream = new MetaReadable(id, name, size);
+        this.streams.set(id, readableStream);
       } else if (!stream) {
         throw new Error(`Stream ${id} is not initialized`);
       } else if (status === 'end') {
@@ -476,11 +472,10 @@ class HttpTransport extends Metacom {
     this.lastActivity = Date.now();
     const body = JSON.stringify(data);
     const headers = { 'Content-Type': 'application/json' };
-    fetch(this.url, { method: 'POST', headers, body }).then((res) =>
-      res.text().then((packet) => {
-        this.handlePacket(packet);
-      }),
-    );
+    fetch(this.url, { method: 'POST', headers, body })
+      .then((res) => res.text())
+      .then((packet) => this.handlePacket(packet))
+      .catch((error) => this.emit('error', error));
   }
 }
 
@@ -516,8 +511,9 @@ class EventTransport extends Metacom {
   handleMessage(event) {
     const { data } = event;
     if (data === undefined) return;
-    if (typeof data === 'string') this.handlePacket(data);
-    else this.binary(data);
+    const isString = typeof data === 'string';
+    const promise = isString ? this.handlePacket(data) : this.binary(data);
+    promise.catch((error) => this.emit('error', error));
   }
 
   close() {
@@ -557,7 +553,7 @@ class MetacomProxy extends Emitter {
   connection = null;
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
-  generateId = metautilGenerateId;
+  generateId = generateUUID;
 
   constructor(options = {}) {
     super();
@@ -587,7 +583,7 @@ class MetacomProxy extends Emitter {
       generateId: this.generateId,
     };
     this.connection = new WebsocketTransport(url, opts);
-    this.connection.handlePacket = (data) => this.handlePacket(data);
+    this.connection.handlePacket = async (data) => this.handlePacket(data);
     this.connection.binary = async (input) => {
       const data = await toByteView(input);
       this.handlePacket(data);
@@ -627,6 +623,7 @@ class MetacomProxy extends Emitter {
       throw new Error('Not connected to server');
     }
     const packet = parsePacket(data);
+    if (!packet || !packet.id) throw new Error('Invalid JSON packet');
     this.pending.set(packet.id, port);
     this.connection.write(data);
   }
