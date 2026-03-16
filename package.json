@@ -68,8 +68,8 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9.39.1",
     "eslint-config-metarhia": "^9.1.7",
-    "metarhia-build": "^0.0.1",
-    "metaskills": "^1.0.1",
+    "metarhia-build": "^0.0.2",
+    "metaskills": "^1.0.3",
     "prettier": "^3.7.4",
     "typescript": "^5.9.3"
   }
