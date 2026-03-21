@@ -18,7 +18,7 @@ const { api } = metacom;
 try {
   await metacom.load('auth'); // Load `auth` interface
   await api.auth.status(); // Check session status
-} catch (err) {
+} catch (error) {
   await api.auth.signIn({ login: 'marcus', password: 'marcus' });
 }
 await metacom.load('example'); // Load `example` interface

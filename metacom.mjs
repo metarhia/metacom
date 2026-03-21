@@ -262,7 +262,7 @@ class Metacom extends Emitter {
     this.open(options);
   }
 
-  static create(url, options) {
+  static create(url, options = {}) {
     const { transport } = Metacom;
     if (options.worker) return transport.event.getInstance(url, options);
     const Transport = url.startsWith('ws') ? transport.ws : transport.http;
@@ -374,8 +374,8 @@ class Metacom extends Emitter {
     const createMethod = (methodName) => {
       const method = async (args = {}) => {
         const id = this.generateId();
-        const unitName = unit + (ver ? '.' + ver : '');
-        const target = unitName + '/' + methodName;
+        const unitName = `${unit}${ver ? `.${ver}` : ''}`;
+        const target = `${unitName}/${methodName}`;
         if (this.opening) await this.opening;
         const packet = { type: 'call', id, method: target, args };
         return new Promise((resolve, reject) => {
