@@ -170,6 +170,11 @@ export class Client extends EventEmitter {
 }
 
 export class ServerTransport extends EventEmitter {
+  static transport: {
+    http: typeof ServerHttpTransport;
+    ws: typeof ServerWsTransport;
+    event: typeof ServerEventTransport;
+  };
   server: Server;
   req: IncomingMessage;
   ip: string;
@@ -201,6 +206,12 @@ export class ServerHttpTransport extends ServerTransport {
 export class ServerWsTransport extends ServerTransport {
   connection: WebSocket;
   constructor(server: Server, req: IncomingMessage, connection: WebSocket);
+  write(data: string | Buffer): void;
+}
+
+export class ServerEventTransport extends ServerTransport {
+  connection: MessagePort;
+  constructor(server: Server, req: IncomingMessage, port: MessagePort);
   write(data: string | Buffer): void;
 }
 
