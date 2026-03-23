@@ -169,7 +169,7 @@ export class Client extends EventEmitter {
   destroy(): void;
 }
 
-export class Transport extends EventEmitter {
+export class ServerTransport extends EventEmitter {
   server: Server;
   req: IncomingMessage;
   ip: string;
@@ -182,7 +182,7 @@ export class Transport extends EventEmitter {
   close(): void;
 }
 
-export class HttpTransport extends Transport {
+export class ServerHttpTransport extends ServerTransport {
   res: ServerResponse;
   constructor(server: Server, req: IncomingMessage, res: ServerResponse);
   write(
@@ -198,7 +198,7 @@ export class HttpTransport extends Transport {
   removeSessionCookie(): void;
 }
 
-export class WsTransport extends Transport {
+export class ServerWsTransport extends ServerTransport {
   connection: WebSocket;
   constructor(server: Server, req: IncomingMessage, connection: WebSocket);
   write(data: string | Buffer): void;
@@ -237,7 +237,7 @@ export class Server {
   rpc(client: Client, packet: CallPacket): Promise<void>;
   stream(client: Client, packet: StreamPacket): Promise<void>;
   binary(client: Client, data: Uint8Array): void;
-  request(client: Client, transport: HttpTransport, data: Buffer): void;
+  request(client: Client, transport: ServerHttpTransport, data: Buffer): void;
   hook(
     client: Client,
     proc: object,
@@ -245,7 +245,7 @@ export class Server {
     verb: string,
     headers: object,
   ): Promise<void>;
-  balancing(transport: HttpTransport): void;
+  balancing(transport: ServerHttpTransport): void;
   closeClients(): void;
   close(): Promise<void>;
 }

@@ -432,7 +432,7 @@ class Metacom extends Emitter {
   }
 }
 
-class WsClientTransport extends ClientTransport {
+class ClientWsTransport extends ClientTransport {
   socket = null;
 
   async open() {
@@ -498,7 +498,7 @@ class WsClientTransport extends ClientTransport {
   }
 }
 
-class HttpClientTransport extends ClientTransport {
+class ClientHttpTransport extends ClientTransport {
   async open() {
     this.active = true;
     this.connected = true;
@@ -522,15 +522,15 @@ class HttpClientTransport extends ClientTransport {
   }
 }
 
-class EventClientTransport extends ClientTransport {
+class ClientEventTransport extends ClientTransport {
   static messagePort = null;
   static instance = null;
   worker = null;
 
   static getInstance(url, options = {}) {
-    if (EventClientTransport.instance) return EventClientTransport.instance;
-    const metacom = new Metacom(url, options, EventClientTransport);
-    EventClientTransport.instance = metacom;
+    if (ClientEventTransport.instance) return ClientEventTransport.instance;
+    const metacom = new Metacom(url, options, ClientEventTransport);
+    ClientEventTransport.instance = metacom;
     return metacom;
   }
 
@@ -543,7 +543,7 @@ class EventClientTransport extends ClientTransport {
     this.worker = worker;
     this.opening = new Promise((resolve) => {
       const { port1, port2 } = new MessageChannel();
-      EventClientTransport.messagePort = port1;
+      ClientEventTransport.messagePort = port1;
       port1.addEventListener('message', (event) => this.handleMessage(event));
       port1.start();
       this.worker.postMessage({ type: 'metacom:connect' }, [port2]);
@@ -580,9 +580,9 @@ class EventClientTransport extends ClientTransport {
   }
 
   write(data) {
-    if (!EventClientTransport.messagePort) throw new Error('Not connected');
+    if (!ClientEventTransport.messagePort) throw new Error('Not connected');
     this.metacom.lastActivity = Date.now();
-    EventClientTransport.messagePort.postMessage(data);
+    ClientEventTransport.messagePort.postMessage(data);
   }
 
   send(data) {
@@ -694,9 +694,9 @@ class MetacomProxy extends Emitter {
 }
 
 Metacom.transport = {
-  ws: WsClientTransport,
-  http: HttpClientTransport,
-  event: EventClientTransport,
+  ws: ClientWsTransport,
+  http: ClientHttpTransport,
+  event: ClientEventTransport,
 };
 
 Metacom.initialize();
