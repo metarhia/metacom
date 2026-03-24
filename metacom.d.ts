@@ -39,7 +39,12 @@ export class MetaWritable extends EventEmitter {
   id: string;
   name: string;
   size: number;
-  constructor(id: string, name: string, size: number, transport: Metacom);
+  constructor(
+    id: string,
+    name: string,
+    size: number,
+    transport: ServerWsTransport | ServerEventTransport,
+  );
   write(data: ArrayBufferView): boolean;
   end(): void;
   terminate(): void;
@@ -64,14 +69,12 @@ export class Metacom extends EventEmitter {
   static create(url: string, options?: MetacomOptions): Metacom;
 
   url: string;
-  socket: WebSocket;
   api: Record<string, MetacomUnit>;
   calls: Map<string, [Function, Function, NodeJS.Timeout]>;
   streams: Map<string, MetaReadable | MetaWritable>;
   active: boolean;
   connected: boolean;
   opening: Promise<void> | null;
-  lastActivity: number;
   callTimeout: number;
   reconnectTimeout: number;
   generateId: () => string;
@@ -152,7 +155,7 @@ export interface Auth {
 
 export class Client extends EventEmitter {
   ip: string | undefined;
-  session: Session;
+  session: Session | null;
   streams: Map<string, MetaReadable | MetaWritable>;
   error(code: number, options?: ErrorOptions): void;
   send(obj: object, code?: number): void;
@@ -169,17 +172,21 @@ export class Client extends EventEmitter {
   destroy(): void;
 }
 
+export interface TransportOptions {
+  headers?: Record<string, string>;
+  console?: Console;
+}
+
 export class ServerTransport extends EventEmitter {
   static transport: {
     http: typeof ServerHttpTransport;
     ws: typeof ServerWsTransport;
     event: typeof ServerEventTransport;
   };
-  server: Server;
   req: IncomingMessage;
   ip: string;
   headers: Record<string, string>;
-  constructor(server: Server, req: IncomingMessage);
+  constructor(req: IncomingMessage, options?: TransportOptions);
   error(code?: number, errorOptions?: ErrorOptions): void;
   log(code: number): void;
   send(obj: object, code?: number): void;
@@ -189,7 +196,11 @@ export class ServerTransport extends EventEmitter {
 
 export class ServerHttpTransport extends ServerTransport {
   res: ServerResponse;
-  constructor(server: Server, req: IncomingMessage, res: ServerResponse);
+  constructor(
+    req: IncomingMessage,
+    res: ServerResponse,
+    options?: TransportOptions,
+  );
   write(
     data: string | Buffer,
     httpCode?: number,
@@ -205,13 +216,21 @@ export class ServerHttpTransport extends ServerTransport {
 
 export class ServerWsTransport extends ServerTransport {
   connection: WebSocket;
-  constructor(server: Server, req: IncomingMessage, connection: WebSocket);
+  constructor(
+    req: IncomingMessage,
+    connection: WebSocket,
+    options?: TransportOptions,
+  );
   write(data: string | Buffer): void;
 }
 
 export class ServerEventTransport extends ServerTransport {
   connection: MessagePort;
-  constructor(server: Server, req: IncomingMessage, port: MessagePort);
+  constructor(
+    req: IncomingMessage,
+    port: MessagePort,
+    options?: TransportOptions,
+  );
   write(data: string | Buffer): void;
 }
 
@@ -242,6 +261,10 @@ export class Server {
   retry: number;
   generateId: () => string;
   constructor(application: object, options: Options);
+  addClient(transport: ServerTransport): Client;
+  handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void>;
+  handleWsConnection(req: IncomingMessage, connection: WebSocket): void;
+  handleEventConnection(req: IncomingMessage, port: MessagePort): void;
   init(): void;
   listen(): Promise<Server>;
   message(client: Client, data: Buffer | string): void;
@@ -274,7 +297,7 @@ export interface Context {
   client: Client;
   uuid: string;
   state: State;
-  session: Session;
+  session: Session | null;
 }
 
 export function chunkEncode(id: string, payload: Uint8Array): Uint8Array;
