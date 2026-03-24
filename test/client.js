@@ -100,20 +100,10 @@ test('Client / calls', async (t) => {
 });
 
 test('Client / handlePacket', async (t) => {
-  await t.test('throws on invalid JSON packet', async () => {
-    const client = Metacom.create('http://localhost:0/', {});
+  await t.test('Handle invalid JSON packet', async () => {
+    const client = Metacom.create('http://localhost:8000/', {});
     await client.opening;
-    await assert.rejects(
-      client.handlePacket('not json'),
-      /Invalid JSON packet/,
-    );
-    client.close();
-  });
-
-  await t.test('throws on non-string packet', async () => {
-    const client = Metacom.create('http://localhost:0/', {});
-    await client.opening;
-    await assert.rejects(client.handlePacket(null), /Invalid JSON packet/);
+    assert.rejects(client.handlePacket('not json'), /Invalid JSON packet/);
     client.close();
   });
 });

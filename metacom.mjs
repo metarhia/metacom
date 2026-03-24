@@ -1,4 +1,4 @@
-import { Emitter, generateUUID } from './metautil.js';
+import { Emitter, generateUUID, jsonParse } from './metautil.js';
 
 // chunks-browser.js
 
@@ -180,15 +180,6 @@ class MetaWritable extends Emitter {
 
 const CALL_TIMEOUT = 7 * 1000;
 const RECONNECT_TIMEOUT = 2 * 1000;
-
-const parsePacket = (data) => {
-  if (typeof data !== 'string') return null;
-  try {
-    return JSON.parse(data);
-  } catch {
-    return null;
-  }
-};
 
 const toByteView = async (input) => {
   if (typeof input.arrayBuffer === 'function') {
@@ -400,7 +391,7 @@ class Metacom extends Emitter {
   }
 
   async handlePacket(data) {
-    const packet = parsePacket(data);
+    const packet = jsonParse(data);
     if (!packet) throw new Error('Invalid JSON packet');
     const { type, id, name } = packet;
     if (type === 'event') {
@@ -733,14 +724,14 @@ class MetacomProxy extends Emitter {
     if (!this.connection || !this.connection.connected) {
       throw new Error('Not connected to server');
     }
-    const packet = parsePacket(data);
+    const packet = jsonParse(data);
     if (!packet || !packet.id) throw new Error('Invalid JSON packet');
     this.pending.set(packet.id, port);
     this.connection.write(data);
   }
 
   handlePacket(data) {
-    const packet = parsePacket(data);
+    const packet = jsonParse(data);
     if (!packet) {
       this.broadcast(data);
       return;
