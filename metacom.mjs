@@ -269,7 +269,6 @@ class Metacom extends Emitter {
   api = {};
   calls = new Map();
   streams = new Map();
-  lastActivity = Date.now();
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
   generateId = generateUUID;
@@ -332,9 +331,9 @@ class Metacom extends Emitter {
     });
 
     this.transport.on('message', (data) => {
-      const promise =
-        typeof data === 'string' ? this.handlePacket(data) : this.binary(data);
-      promise.catch((error) => this.emit('error', error));
+      const isBinary = typeof data !== 'string';
+      const processed = isBinary ? this.binary(data) : this.handlePacket(data);
+      processed.catch((error) => this.emit('error', error));
     });
   }
 
@@ -367,12 +366,10 @@ class Metacom extends Emitter {
   }
 
   write(data) {
-    this.lastActivity = Date.now();
     this.transport.write(data);
   }
 
   send(data) {
-    this.lastActivity = Date.now();
     this.transport.send(data);
   }
 
@@ -403,7 +400,6 @@ class Metacom extends Emitter {
   }
 
   async handlePacket(data) {
-    this.lastActivity = Date.now();
     const packet = parsePacket(data);
     if (!packet) throw new Error('Invalid JSON packet');
     const { type, id, name } = packet;
@@ -430,17 +426,19 @@ class Metacom extends Emitter {
       resolve(packet.result);
       return;
     }
-
     if (type !== 'stream') return;
-
     const { size, status } = packet;
     const stream = this.streams.get(id);
-
-    if (
-      typeof name === 'string' &&
-      name.length > 0 &&
-      Number.isSafeInteger(size)
-    ) {
+    if (status === undefined) {
+      if (typeof name !== 'string') {
+        throw new Error('Stream name must be string');
+      }
+      if (name.length === 0) {
+        throw new Error('Stream name must be non-empty');
+      }
+      if (!Number.isSafeInteger(size)) {
+        throw new Error('Stream size must be safe integer');
+      }
       if (stream) {
         throw new Error(`Stream ${name} is already initialized`);
       }
@@ -448,37 +446,29 @@ class Metacom extends Emitter {
       this.streams.set(id, readableStream);
       return;
     }
-
     if (!stream) {
       throw new Error(`Stream ${id} is not initialized`);
     }
-
     if (status === 'end') {
       await stream.close();
       this.streams.delete(id);
       return;
     }
-
     if (status === 'terminate') {
       await stream.terminate();
       this.streams.delete(id);
       return;
     }
-
     throw new Error('Stream packet structure error');
   }
 
   async binary(input) {
-    this.lastActivity = Date.now();
-
     const byteView = await toByteView(input);
     const { id, payload } = chunkDecode(byteView);
     const stream = this.streams.get(id);
-
     if (!stream) {
       throw new Error(`Stream ${id} is not initialized`);
     }
-
     await stream.push(payload);
   }
 
@@ -556,6 +546,7 @@ class ClientWsTransport extends ClientTransport {
         resolve();
       });
     });
+
     return this.opening;
   }
 
@@ -592,7 +583,6 @@ class ClientHttpTransport extends ClientTransport {
 
   write(data) {
     const headers = { 'Content-Type': 'application/json' };
-
     fetch(this.url, { method: 'POST', headers, body: data })
       .then((res) => res.text())
       .then((packet) => this.emit('message', packet))
