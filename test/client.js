@@ -2,11 +2,11 @@
 
 const timers = require('node:timers/promises');
 const { Blob } = require('node:buffer');
-const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { WebSocketServer } = require('ws');
 const metautil = require('metautil');
+const { randomUUID } = require('node:crypto');
 const { Metacom } = require('../lib/metacom.js');
 const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
 
@@ -64,10 +64,8 @@ test('Client / calls', async (t) => {
   t.after(() => void mockServer.close());
 
   t.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8000/', {
-      callTimeout: 300,
-      generateId: randomUUID,
-    });
+    const options = { callTimeout: 300 };
+    client = Metacom.create('ws://localhost:8000/', options);
     await client.opening;
     await client.load('test');
   });
@@ -155,19 +153,23 @@ test('Client / stale callback', async (t) => {
   t.after(() => void mockServer.close());
 
   await t.test('throws on stale callback for unknown id', async () => {
-    const client = Metacom.create('ws://localhost:8010/', {
-      generateId: randomUUID,
+    const client = Metacom.create('ws://localhost:8010/');
+    const promise1 = new Promise((resolve) => {
+      client.once('error', (error) => {
+        assert.match(error.message, /Callback stale-id-not-in-calls not found/);
+        resolve(error);
+      });
+      client.on('error', () => {});
     });
-    client.on('error', (error) => {
-      t.diagnostic(`Metacom client error: ${error.message}`);
-    });
-    const promise = new Promise((resolve) => client.once('error', resolve));
+    const promise2 = new Promise((resolve) => client.once('error', resolve));
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
     assert.deepStrictEqual(result, { success: true });
-    const error = await promise;
+    const error = await promise1;
     assert.match(error.message, /Callback stale-id-not-in-calls not found/);
+    const error2 = await promise2;
+    assert.match(error2.message, /Callback stale-id-not-in-calls not found/);
     client.close();
   });
 });
@@ -214,7 +216,7 @@ test('Client / events', async (t) => {
   t.after(() => void mockServer.close());
 
   t.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8001/', { generateId: randomUUID });
+    client = Metacom.create('ws://localhost:8001/');
     await client.opening;
     await client.load('test');
   });
@@ -317,7 +319,7 @@ test('Client / stream', async (t) => {
   t.after(() => void mockServer.close());
 
   t.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8002/', { generateId: randomUUID });
+    client = Metacom.create('ws://localhost:8002/');
     await client.opening;
     await client.load('test');
   });
@@ -383,44 +385,7 @@ test('Client / different ID generation strategies', async (t) => {
   t.after(() => void mockServer.close());
 
   await t.test('works with UUID generation', async () => {
-    const client = Metacom.create('ws://localhost:8004/', {
-      generateId: randomUUID,
-    });
-    await client.opening;
-    await client.load('test');
-    const result = await client.api.test.test();
-    assert.deepStrictEqual(result, { success: true });
-    client.close();
-  });
-
-  await t.test('works with incremental IDs', async () => {
-    let counter = 1;
-    const client = Metacom.create('ws://localhost:8004/', {
-      generateId: () => String(counter++),
-    });
-    await client.opening;
-    await client.load('test');
-    const result = await client.api.test.test();
-    assert.deepStrictEqual(result, { success: true });
-    client.close();
-  });
-
-  await t.test('works with timestamp-based IDs', async () => {
-    const client = Metacom.create('ws://localhost:8004/', {
-      generateId: () =>
-        `ts_${Date.now()}_${Math.random().toString(36).substring(2)}`,
-    });
-    await client.opening;
-    await client.load('test');
-    const result = await client.api.test.test();
-    assert.deepStrictEqual(result, { success: true });
-    client.close();
-  });
-
-  await t.test('works with short random IDs', async () => {
-    const client = Metacom.create('ws://localhost:8004/', {
-      generateId: () => Math.random().toString(36).substring(2, 8),
-    });
+    const client = Metacom.create('ws://localhost:8004/');
     await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
