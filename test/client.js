@@ -158,7 +158,9 @@ test('Client / stale callback', async (t) => {
     const client = Metacom.create('ws://localhost:8010/', {
       generateId: randomUUID,
     });
-    client.on('error', () => {});
+    client.on('error', (error) => {
+      t.diagnostic(`Metacom client error: ${error.message}`);
+    });
     const promise = new Promise((resolve) => client.once('error', resolve));
     await client.opening;
     await client.load('test');
