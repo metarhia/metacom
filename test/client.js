@@ -65,12 +65,11 @@ test('Client / calls', async (t) => {
 
   t.beforeEach(async () => {
     const options = { callTimeout: 300 };
-    client = Metacom.create('ws://localhost:8000/', options);
-    await client.opening;
+    client = await Metacom.connect('ws://localhost:8000/', options);
     await client.load('test');
   });
 
-  t.afterEach(async () => void client.close());
+  t.afterEach(() => void client.close());
 
   await t.test('handles simple api calls', async () => {
     const result = await client.api.test.test();
@@ -99,8 +98,7 @@ test('Client / calls', async (t) => {
 
 test('Client / handlePacket', async (t) => {
   await t.test('Handle invalid JSON packet', async () => {
-    const client = Metacom.create('http://localhost:8000/', {});
-    await client.opening;
+    const client = await Metacom.connect('http://localhost:8000/', {});
     assert.rejects(client.handlePacket('not json'), /Invalid JSON packet/);
     client.close();
   });
@@ -153,7 +151,7 @@ test('Client / stale callback', async (t) => {
   t.after(() => void mockServer.close());
 
   await t.test('throws on stale callback for unknown id', async () => {
-    const client = Metacom.create('ws://localhost:8010/');
+    const client = await Metacom.connect('ws://localhost:8010/');
     const promise1 = new Promise((resolve) => {
       client.once('error', (error) => {
         assert.match(error.message, /Callback stale-id-not-in-calls not found/);
@@ -162,7 +160,6 @@ test('Client / stale callback', async (t) => {
       client.on('error', () => {});
     });
     const promise2 = new Promise((resolve) => client.once('error', resolve));
-    await client.opening;
     await client.load('test');
     const result = await client.api.test.test();
     assert.deepStrictEqual(result, { success: true });
@@ -216,12 +213,11 @@ test('Client / events', async (t) => {
   t.after(() => void mockServer.close());
 
   t.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8001/');
-    await client.opening;
+    client = await Metacom.connect('ws://localhost:8001/');
     await client.load('test');
   });
 
-  t.afterEach(async () => void client.close());
+  t.afterEach(() => void client.close());
 
   await t.test('handles events from server', async () => {
     const ping = await new Promise((resolve) =>
@@ -319,12 +315,11 @@ test('Client / stream', async (t) => {
   t.after(() => void mockServer.close());
 
   t.beforeEach(async () => {
-    client = Metacom.create('ws://localhost:8002/');
-    await client.opening;
+    client = await Metacom.connect('ws://localhost:8002/');
     await client.load('test');
   });
 
-  t.afterEach(async () => void client.close());
+  t.afterEach(() => void client.close());
 
   await t.test('handles file uploads', async () => {
     const data = 'Some random data for upload to the server';
@@ -385,8 +380,7 @@ test('Client / different ID generation strategies', async (t) => {
   t.after(() => void mockServer.close());
 
   await t.test('works with UUID generation', async () => {
-    const client = Metacom.create('ws://localhost:8004/');
-    await client.opening;
+    const client = await Metacom.connect('ws://localhost:8004/');
     await client.load('test');
     const result = await client.api.test.test();
     assert.deepStrictEqual(result, { success: true });
