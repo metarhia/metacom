@@ -13,7 +13,7 @@ https://github.com/metarhia/Contracts/blob/master/doc/Metacom.md
 import { Metacom } from 'metacom';
 // const { Metacom } = require('metacom'); // for backend
 
-const metacom = Metacom.create('ws://domainname.com:8000');
+const metacom = await Metacom.connect('ws://domainname.com:8000');
 const { api } = metacom;
 try {
   await metacom.load('auth'); // Load `auth` interface
@@ -32,7 +32,7 @@ const result = api.example.methodName({ arg1, arg2 });
 Create `uploadFile` function on the client:
 
 ```js
-const metacom = Metacom.create('ws://example.com/api');
+const metacom = await Metacom.connect('ws://example.com/api');
 
 const uploadFile = async (file) => {
   // createBlobUploader creates streamId and inits file reader for convenience
@@ -69,7 +69,7 @@ async ({ streamId, name }) => {
 Create `downloadFile` function on the client:
 
 ```js
-const metacom = Metacom.create('ws://example.com/api');
+const metacom = await Metacom.connect('ws://example.com/api');
 
 const downloadFile = async (name) => {
   // Init backend file producer to get streamId
