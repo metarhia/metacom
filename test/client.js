@@ -42,8 +42,10 @@ test('Client / calls', async (t) => {
     },
   };
 
+  let serverWs = null;
   const mockServer = new WebSocketServer({ port: 8000 });
   mockServer.on('connection', (ws) => {
+    serverWs = ws;
     ws.on('message', async (raw) => {
       const packet = metautil.jsonParse(raw) || {};
       const { type, id, method } = packet;
@@ -94,13 +96,15 @@ test('Client / calls', async (t) => {
       (error) => error.message === 'Error message' && error.code === 400,
     );
   });
-});
 
-test('Client / handlePacket', async (t) => {
-  await t.test('Handle invalid JSON packet', async () => {
-    const client = await Metacom.connect('http://localhost:8000/', {});
-    assert.rejects(client.handlePacket('not json'), /Invalid JSON packet/);
-    client.close();
+  await t.test('emits error when server sends invalid JSON', async () => {
+    const errorPromise = new Promise((resolve) => {
+      client.once('error', resolve);
+    });
+    assert.ok(serverWs, 'expected WebSocket connection from mock server');
+    serverWs.send('not json');
+    const error = await errorPromise;
+    assert.match(error.message, /Invalid JSON packet/);
   });
 });
 

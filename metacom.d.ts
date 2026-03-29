@@ -43,12 +43,12 @@ export class MetaWritable extends Emitter {
   id: string;
   name: string;
   size: number;
-  transport: ServerTransport;
+  transport: ClientTransport | ServerTransport;
   constructor(
     id: string,
     name: string,
     size: number,
-    transport: ServerTransport,
+    transport: ClientTransport | ServerTransport,
   );
   write(data: ArrayBufferView): boolean;
   end(): void;
@@ -88,15 +88,8 @@ export class Metacom extends Emitter {
   };
 
   url: string;
-  transport: ClientTransport;
   api: Record<string, Emitter>;
-  calls: Map<string, [Function, Function, NodeJS.Timeout]>;
-  streams: Map<string, MetaReadable | MetaWritable>;
   readonly active: boolean;
-  callTimeout: number;
-  reconnectTimeout: number;
-  reconnectTimer: NodeJS.Timeout | null;
-  openOptions: MetacomOptions;
 
   constructor(
     url: string,
@@ -106,15 +99,9 @@ export class Metacom extends Emitter {
   open(options?: MetacomOptions): Promise<void>;
   close(): void;
   load(...units: Array<string>): Promise<void>;
-  scaffold(
-    unit: string,
-    ver?: string,
-  ): (methodName: string) => (args?: object) => Promise<unknown>;
   getStream(id: string): MetaReadable | MetaWritable;
   createStream(name: string, size: number): MetaWritable;
   createBlobUploader(blob: Blob): BlobUploader;
-  handlePacket(data: string): Promise<void>;
-  binary(input: ArrayBuffer | ArrayBufferView | Blob): Promise<void>;
   send(obj: object): void;
   write(data: string | ArrayBufferView): void;
 }
@@ -123,6 +110,10 @@ export interface MetacomOptions {
   callTimeout?: number;
   reconnectTimeout?: number;
   worker?: ServiceWorker;
+  packetHandler?: (data: string) => void | Promise<void>;
+  binaryHandler?: (
+    input: ArrayBuffer | ArrayBufferView | Blob,
+  ) => void | Promise<void>;
 }
 
 export class MetacomProxy extends Emitter {
