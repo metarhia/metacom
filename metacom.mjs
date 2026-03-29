@@ -196,30 +196,16 @@ class MetacomError extends Error {
   }
 }
 
-class MetacomUnit extends Emitter {
-  emit(...args) {
-    super.emit('*', ...args);
-    super.emit(...args);
-  }
-
-  post(...args) {
-    super.emit(...args);
-  }
-}
-
 class ClientTransport extends Emitter {
   active = false;
-  connected = false;
-  opening = null;
 
   constructor(url) {
     super();
     this.url = url;
   }
 
-  send(data) {
-    const payload = JSON.stringify(data);
-    this.write(payload);
+  send(obj) {
+    this.write(JSON.stringify(obj));
   }
 }
 
@@ -230,7 +216,7 @@ class Metacom extends Emitter {
   static online() {
     Metacom.isOnline = true;
     for (const connection of Metacom.connections) {
-      connection.transport.online?.();
+      connection.transport.online();
       if (!connection.connected && connection.active) {
         connection.open().catch((error) => connection.emit('error', error));
       }
@@ -240,7 +226,7 @@ class Metacom extends Emitter {
   static offline() {
     Metacom.isOnline = false;
     for (const connection of Metacom.connections) {
-      connection.transport.offline?.();
+      connection.transport.offline();
     }
   }
 
@@ -262,7 +248,6 @@ class Metacom extends Emitter {
   streams = new Map();
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
-  generateId = generateUUID;
   reconnectTimer = null;
   openOptions = {};
 
@@ -270,38 +255,28 @@ class Metacom extends Emitter {
     return this.transport.active;
   }
 
-  get connected() {
-    return this.transport.connected;
-  }
-
-  get opening() {
-    return this.transport.opening;
-  }
-
   constructor(url, transport, options = {}) {
     super();
-    const { callTimeout, reconnectTimeout, generateId } = options;
+    const { callTimeout, reconnectTimeout } = options;
     if (callTimeout) this.callTimeout = callTimeout;
     if (reconnectTimeout) this.reconnectTimeout = reconnectTimeout;
-    if (generateId) this.generateId = generateId;
     this.url = url;
     this.transport = transport;
     this.bindTransport();
   }
 
-  static create(url, options = {}) {
+  static async connect(url, options = {}) {
     if (options.worker) {
       const transport = Metacom.transport.event.getInstance(url);
       const metacom = new Metacom(url, transport, options);
-      metacom.open(options).catch((error) => metacom.emit('error', error));
+      await metacom.open(options);
       return metacom;
     }
-
     const isHttp = url.startsWith('http');
     const Transport = isHttp ? Metacom.transport.http : Metacom.transport.ws;
     const transport = new Transport(url);
     const metacom = new Metacom(url, transport, options);
-    metacom.open(options).catch((error) => metacom.emit('error', error));
+    await metacom.open(options);
     return metacom;
   }
 
@@ -329,24 +304,19 @@ class Metacom extends Emitter {
   }
 
   scheduleReconnect() {
-    if (!this.active) return;
-    if (this.connected) return;
-    if (!Metacom.isOnline) return;
+    if (this.active) return;
+    if (!Metacom.connections.has(this)) return;
     if (this.reconnectTimer) return;
-
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (!this.active || this.connected) return;
       this.open().catch((error) => this.emit('error', error));
     }, this.reconnectTimeout);
   }
 
-  open(options = this.openOptions) {
+  async open(options = this.openOptions) {
     this.openOptions = { ...this.openOptions, ...options };
-    this.transport.active = true;
     Metacom.connections.add(this);
-    if (!Metacom.isOnline) return Promise.resolve();
-    return this.transport.open(this.openOptions);
+    await this.transport.open(this.openOptions);
   }
 
   close() {
@@ -371,23 +341,21 @@ class Metacom extends Emitter {
   }
 
   createStream(name, size) {
-    const id = this.generateId();
+    const id = generateUUID();
     return new MetaWritable(id, name, size, this);
   }
 
   createBlobUploader(blob) {
-    const name = blob.name || 'blob';
-    const size = blob.size;
+    const { name = 'blob', size } = blob;
     const consumer = this.createStream(name, size);
-    return {
-      id: consumer.id,
-      upload: async () => {
-        for await (const chunk of blob.stream()) {
-          consumer.write(chunk);
-        }
-        consumer.end();
-      },
+    const { id } = consumer;
+    const upload = async () => {
+      for await (const chunk of blob.stream()) {
+        consumer.write(chunk);
+      }
+      consumer.end();
     };
+    return { id, upload };
   }
 
   async handlePacket(data) {
@@ -464,12 +432,13 @@ class Metacom extends Emitter {
   }
 
   async load(...units) {
+    if (!this.active) throw new Error('Not connected');
     const introspect = this.scaffold('system')('introspect');
     const introspection = await introspect(units);
     const available = Object.keys(introspection);
     for (const unit of units) {
       if (!available.includes(unit)) continue;
-      const methods = new MetacomUnit();
+      const methods = new Emitter();
       const instance = introspection[unit];
       const request = this.scaffold(unit);
       const methodNames = Object.keys(instance);
@@ -483,10 +452,9 @@ class Metacom extends Emitter {
   scaffold(unit, ver) {
     const createMethod = (methodName) => {
       const method = async (args = {}) => {
-        const id = this.generateId();
+        const id = generateUUID();
         const unitName = `${unit}${ver ? `.${ver}` : ''}`;
         const target = `${unitName}/${methodName}`;
-        if (this.opening) await this.opening;
         const packet = { type: 'call', id, method: target, args };
         return new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
@@ -505,70 +473,64 @@ class Metacom extends Emitter {
 }
 
 class ClientWsTransport extends ClientTransport {
-  socket = null;
+  #socket = null;
+  #opening = null;
 
   async open() {
-    if (this.opening) return this.opening;
-    if (this.connected) return Promise.resolve();
-    const socket = new WebSocket(this.url);
-    this.active = true;
-    this.socket = socket;
-    socket.addEventListener('message', ({ data }) => {
-      this.emit('message', data);
-    });
-
-    socket.addEventListener('close', () => {
-      this.opening = null;
-      this.connected = false;
-      this.socket = null;
-      this.emit('close');
-    });
-
-    socket.addEventListener('error', (error) => {
-      this.emit('error', error);
-      socket.close();
-    });
-
-    this.opening = new Promise((resolve) => {
-      socket.addEventListener('open', () => {
-        this.opening = null;
-        this.connected = true;
+    if (this.active) return Promise.resolve();
+    if (this.#opening) return this.#opening;
+    const opening = new Promise((resolve, reject) => {
+      const socket = new WebSocket(this.url);
+      this.#socket = socket;
+      const onClose = (error) => {
+        this.#socket = null;
+        if (this.#opening) {
+          this.#opening = null;
+          this.emit('error', error);
+          return void reject(new Error('Connection closed'));
+        } else {
+          this.active = false;
+          this.emit('close', error);
+        }
+      };
+      const onOpen = () => {
+        this.active = true;
         this.emit('open');
+        this.#opening = null;
         resolve();
+      };
+      socket.addEventListener('open', onOpen, { once: true });
+      socket.addEventListener('close', onClose, { once: true });
+      socket.addEventListener('error', onClose, { once: true });
+      socket.addEventListener('message', ({ data }) => {
+        this.emit('message', data);
       });
     });
-
-    return this.opening;
+    this.#opening = opening;
+    return opening;
   }
 
   close() {
-    this.active = false;
-    if (!this.socket) return;
-    this.socket.close();
-    this.socket = null;
+    if (!this.active) return;
+    this.#socket.close();
   }
 
   write(data) {
-    if (!this.connected || !this.socket) {
-      throw new Error('Not connected');
-    }
-    this.socket.send(data);
+    if (!this.active) throw new Error('Not connected');
+    this.#socket.send(data);
   }
 }
 
 class ClientHttpTransport extends ClientTransport {
   async open() {
-    if (this.connected) return Promise.resolve();
+    if (this.active) return;
     this.active = true;
-    this.connected = true;
     this.emit('open');
-    return Promise.resolve();
   }
 
   close() {
-    if (!this.active && !this.connected) return;
+    if (!this.active) return;
     this.active = false;
-    this.connected = false;
     this.emit('close');
   }
 
@@ -584,8 +546,8 @@ class ClientHttpTransport extends ClientTransport {
 class ClientEventTransport extends ClientTransport {
   static instance = null;
 
-  messagePort = null;
-  worker = null;
+  #port = null;
+  #worker = null;
 
   static getInstance(url) {
     if (ClientEventTransport.instance) {
@@ -597,51 +559,40 @@ class ClientEventTransport extends ClientTransport {
   }
 
   async open(options = {}) {
-    if (this.opening) return this.opening;
-    if (this.connected) return Promise.resolve();
-    const worker = options.worker || this.worker;
+    if (this.active) return;
+    const worker = options.worker || this.#worker;
     if (!worker) throw new Error('Service Worker not provided');
-    this.active = true;
-    this.worker = worker;
-    this.opening = new Promise((resolve) => {
-      const { port1, port2 } = new MessageChannel();
-      this.messagePort = port1;
-      port1.addEventListener('message', ({ data }) => {
-        if (data === undefined) return;
-        this.emit('message', data);
-      });
-      port1.start();
-      this.worker.postMessage({ type: 'metacom:connect' }, [port2]);
-      this.connected = true;
-      this.opening = null;
-      this.emit('open');
-      resolve();
+    this.#worker = worker;
+    const { port1, port2 } = new MessageChannel();
+    this.#port = port1;
+    port1.addEventListener('message', ({ data }) => {
+      if (data === undefined) return;
+      this.emit('message', data);
     });
-    return this.opening;
+    port1.start();
+    this.#worker.postMessage({ type: 'metacom:connect' }, [port2]);
+    this.active = true;
+    this.emit('open');
   }
 
   close() {
     this.active = false;
-    this.connected = false;
-    this.opening = null;
-    if (this.messagePort) {
-      this.messagePort.close?.();
-      this.messagePort = null;
-    }
+    this.#port.close();
+    this.#port = null;
     this.emit('close');
   }
 
   online() {
-    if (this.worker) this.worker.postMessage({ type: 'metacom:online' });
+    if (this.#worker) this.#worker.postMessage({ type: 'metacom:online' });
   }
 
   offline() {
-    if (this.worker) this.worker.postMessage({ type: 'metacom:offline' });
+    if (this.#worker) this.#worker.postMessage({ type: 'metacom:offline' });
   }
 
   write(data) {
-    if (!this.messagePort) throw new Error('Not connected');
-    this.messagePort.postMessage(data);
+    if (!this.#port) throw new Error('Not connected');
+    this.#port.postMessage(data);
   }
 }
 
@@ -651,14 +602,12 @@ class MetacomProxy extends Emitter {
   connection = null;
   callTimeout = CALL_TIMEOUT;
   reconnectTimeout = RECONNECT_TIMEOUT;
-  generateId = generateUUID;
 
   constructor(options = {}) {
     super();
-    const { callTimeout, reconnectTimeout, generateId } = options;
+    const { callTimeout, reconnectTimeout } = options;
     if (callTimeout) this.callTimeout = callTimeout;
     if (reconnectTimeout) this.reconnectTimeout = reconnectTimeout;
-    if (generateId) this.generateId = generateId;
     if (typeof self === 'undefined') {
       throw new Error('MetacomProxy must run in ServiceWorker context');
     }
@@ -679,7 +628,6 @@ class MetacomProxy extends Emitter {
     const metacomOptions = {
       callTimeout: this.callTimeout,
       reconnectTimeout: this.reconnectTimeout,
-      generateId: this.generateId,
     };
     this.connection = new Metacom(url, transport, metacomOptions);
     this.connection.handlePacket = async (data) => this.handlePacket(data);
@@ -777,6 +725,5 @@ export {
   MetaReadable,
   MetaWritable,
   Metacom,
-  MetacomUnit,
   MetacomProxy,
 };
