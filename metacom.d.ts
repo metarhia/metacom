@@ -39,8 +39,6 @@ export class MetaReadable extends Emitter {
   [Symbol.asyncIterator](): AsyncIterableIterator<ArrayBufferView>;
 }
 
-export interface Transport extends ServerTransport {}
-
 export class MetaWritable extends Emitter {
   id: string;
   name: string;
@@ -62,18 +60,16 @@ export interface BlobUploader {
   upload(): Promise<void>;
 }
 
-export interface MetacomTransport {
+export class ClientTransport extends Emitter {
   url: string;
   active: boolean;
-  connected: boolean;
-  opening: Promise<void> | null;
-  on(event: string, listener: (...args: Array<unknown>) => void): void;
+  constructor(url: string);
   open(options?: MetacomOptions): Promise<void>;
   close(): void;
-  send(data: object): void;
+  send(obj: object): void;
   write(data: string | ArrayBufferView): void;
-  online?(): void;
-  offline?(): void;
+  online(): void;
+  offline(): void;
 }
 
 export class Metacom extends Emitter {
@@ -82,23 +78,21 @@ export class Metacom extends Emitter {
   static online(): void;
   static offline(): void;
   static initialize(): void;
-  static create(url: string, options?: MetacomOptions): Metacom;
+  static connect(url: string, options?: MetacomOptions): Promise<Metacom>;
   static transport: {
-    ws: new (url: string) => MetacomTransport;
-    http: new (url: string) => MetacomTransport;
+    ws: new (url: string) => ClientTransport;
+    http: new (url: string) => ClientTransport;
     event: {
-      getInstance(url: string): MetacomTransport;
+      getInstance(url: string): ClientTransport;
     };
   };
 
   url: string;
-  transport: MetacomTransport;
+  transport: ClientTransport;
   api: Record<string, Emitter>;
   calls: Map<string, [Function, Function, NodeJS.Timeout]>;
   streams: Map<string, MetaReadable | MetaWritable>;
   readonly active: boolean;
-  readonly connected: boolean;
-  readonly opening: Promise<void> | null;
   callTimeout: number;
   reconnectTimeout: number;
   reconnectTimer: NodeJS.Timeout | null;
@@ -106,7 +100,7 @@ export class Metacom extends Emitter {
 
   constructor(
     url: string,
-    transport: MetacomTransport,
+    transport: ClientTransport,
     options?: MetacomOptions,
   );
   open(options?: MetacomOptions): Promise<void>;
@@ -116,12 +110,12 @@ export class Metacom extends Emitter {
     unit: string,
     ver?: string,
   ): (methodName: string) => (args?: object) => Promise<unknown>;
-  getStream(id: string): MetaReadable;
+  getStream(id: string): MetaReadable | MetaWritable;
   createStream(name: string, size: number): MetaWritable;
   createBlobUploader(blob: Blob): BlobUploader;
-  handlePacket(data: string | Buffer | Uint8Array): Promise<void>;
-  binary(input: ArrayBuffer | Uint8Array | Blob): Promise<void>;
-  send(data: object): void;
+  handlePacket(data: string): Promise<void>;
+  binary(input: ArrayBuffer | ArrayBufferView | Blob): Promise<void>;
+  send(obj: object): void;
   write(data: string | ArrayBufferView): void;
 }
 
@@ -143,8 +137,8 @@ export class MetacomProxy extends Emitter {
   close(): void;
   handleEvent(event: MessageEvent): Promise<void>;
   handleMessage(event: MessageEvent, port: MessagePort): Promise<void>;
-  handlePacket(data: string | Uint8Array): void;
-  broadcast(data: string | Uint8Array, excludePort?: MessagePort): void;
+  handlePacket(data: string): void;
+  broadcast(data: unknown, excludePort?: MessagePort | null): void;
 }
 
 export interface ApplicationContext {
@@ -225,6 +219,7 @@ export class ServerTransport extends Emitter {
   req: IncomingMessage;
   ip: string;
   headers: Record<string, string>;
+  console: Console;
   constructor(req: IncomingMessage, options?: TransportOptions);
   error(code?: number, errorOptions?: ErrorOptions): void;
   log(code: number): void;
