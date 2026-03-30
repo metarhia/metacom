@@ -278,38 +278,12 @@ export interface StreamPacket {
 export class Server {
   context: ApplicationContext;
   options: Options;
-  balancer: boolean;
-  console: Console;
-  headers: Record<string, string>;
   httpServer: HttpServer;
   wsServer: WebSocketServer | null;
   clients: Set<Client>;
-  retry: number;
   constructor(context: ApplicationContext, options: Options);
-  addClient(transport: ServerTransport): Client;
-  handleHttpRequest(req: IncomingMessage, res: ServerResponse): Promise<void>;
-  handleWsConnection(req: IncomingMessage, connection: WebSocket): void;
   handleEventConnection(req: IncomingMessage, port: MessagePort): void;
-  init(): void;
   listen(): Promise<Server>;
-  message(client: Client, data: Buffer | string): void;
-  rpc(client: Client, packet: CallPacket): Promise<void>;
-  stream(client: Client, packet: StreamPacket): Promise<void>;
-  binary(client: Client, data: Uint8Array): void;
-  request(
-    client: Client,
-    transport: ServerHttpTransport,
-    data: string | Buffer,
-  ): void;
-  hook(
-    client: Client,
-    proc: object,
-    packet: CallPacket,
-    verb: string,
-    headers: Record<string, string | string[] | undefined>,
-  ): Promise<void>;
-  balancing(transport: ServerHttpTransport): void;
-  closeClients(): void;
   close(): Promise<void>;
 }
 
