@@ -250,8 +250,7 @@ class Metacom extends Emitter {
   #reconnectTimeout = RECONNECT_TIMEOUT;
   #reconnectTimer = null;
   #openOptions = {};
-  #packetHandler = null;
-  #binaryHandler = null;
+  #proxyPacket = null;
 
   get active() {
     return this.#transport.active;
@@ -259,12 +258,10 @@ class Metacom extends Emitter {
 
   constructor(url, transport, options = {}) {
     super();
-    const { callTimeout, reconnectTimeout, packetHandler, binaryHandler } =
-      options;
+    const { callTimeout, reconnectTimeout, proxy } = options;
     if (callTimeout) this.#callTimeout = callTimeout;
     if (reconnectTimeout) this.#reconnectTimeout = reconnectTimeout;
-    if (packetHandler) this.#packetHandler = packetHandler;
-    if (binaryHandler) this.#binaryHandler = binaryHandler;
+    if (proxy) this.#proxyPacket = proxy;
     this.url = url;
     this.#transport = transport;
     this.#bindTransport();
@@ -302,15 +299,9 @@ class Metacom extends Emitter {
     });
 
     this.#transport.on('message', (data) => {
-      const isBinary = typeof data !== 'string';
-      const runText = this.#packetHandler
-        ? (d) => this.#packetHandler(d)
-        : (d) => this.#handlePacket(d);
-      const runBin = this.#binaryHandler
-        ? (d) => this.#binaryHandler(d)
-        : (d) => this.#binary(d);
-      const processed = isBinary ? runBin(data) : runText(data);
-      processed.catch((error) => this.emit('error', error));
+      const escalate = (error) => this.emit('error', error);
+      if (typeof data === 'string') this.#handlePacket(data).catch(escalate);
+      else this.#handleBinary(data).catch(escalate);
     });
   }
 
@@ -370,6 +361,7 @@ class Metacom extends Emitter {
   }
 
   async #handlePacket(data) {
+    if (this.#proxyPacket) return void this.#proxyPacket(data);
     const packet = jsonParse(data);
     if (!packet) throw new Error('Invalid JSON packet');
     const { type, id, name } = packet;
@@ -396,19 +388,13 @@ class Metacom extends Emitter {
       resolve(packet.result);
       return;
     }
-    if (type !== 'stream') return;
-    const { size, status } = packet;
+    if (type === 'stream') await this.#handleStream(packet);
+  }
+
+  async #handleStream(packet) {
+    const { id, name, size, status } = packet;
     const stream = this.#streams.get(id);
     if (status === undefined) {
-      if (typeof name !== 'string') {
-        throw new Error('Stream name must be string');
-      }
-      if (name.length === 0) {
-        throw new Error('Stream name must be non-empty');
-      }
-      if (!Number.isSafeInteger(size)) {
-        throw new Error('Stream size must be safe integer');
-      }
       if (stream) {
         throw new Error(`Stream ${name} is already initialized`);
       }
@@ -416,23 +402,17 @@ class Metacom extends Emitter {
       this.#streams.set(id, readableStream);
       return;
     }
-    if (!stream) {
-      throw new Error(`Stream ${id} is not initialized`);
-    }
+    if (!stream) throw new Error(`Stream ${id} is not initialized`);
     if (status === 'end') {
       await stream.close();
       this.#streams.delete(id);
-      return;
-    }
-    if (status === 'terminate') {
+    } else if (status === 'terminate') {
       await stream.terminate();
       this.#streams.delete(id);
-      return;
     }
-    throw new Error('Stream packet structure error');
   }
 
-  async #binary(input) {
+  async #handleBinary(input) {
     const byteView = await toByteView(input);
     const { id, payload } = chunkDecode(byteView);
     const stream = this.#streams.get(id);
@@ -640,11 +620,7 @@ class MetacomProxy extends Emitter {
     const metacomOptions = {
       callTimeout: this.#callTimeout,
       reconnectTimeout: this.#reconnectTimeout,
-      packetHandler: async (data) => this.#handlePacket(data),
-      binaryHandler: async (input) => {
-        const data = await toByteView(input);
-        this.#handlePacket(data);
-      },
+      proxy: async (data) => this.#proxyPacket(data),
     };
     this.#connection = new Metacom(url, transport, metacomOptions);
     await this.#connection.open(options);
@@ -656,7 +632,7 @@ class MetacomProxy extends Emitter {
     this.#connection = null;
   }
 
-  async #handleEvent(event) {
+  #handleEvent(event) {
     const { type } = event.data;
     if (type === 'metacom:connect') {
       const port = event.ports[0];
@@ -668,13 +644,9 @@ class MetacomProxy extends Emitter {
       port.start();
       return;
     }
-    if (type === 'metacom:online') {
-      Metacom.online();
-      return;
-    }
-    if (type === 'metacom:offline') {
-      Metacom.offline();
-    }
+    if (type === 'metacom:online') Metacom.online();
+    else if (type === 'metacom:offline') Metacom.offline();
+    else throw new Error(`Unknown event: ${type}`);
   }
 
   async #handleMessage(event, port) {
@@ -690,29 +662,18 @@ class MetacomProxy extends Emitter {
     this.#connection.write(data);
   }
 
-  #handlePacket(data) {
+  #proxyPacket(data) {
+    if (typeof data !== 'string') return void this.#broadcast(data);
     const packet = jsonParse(data);
-    if (!packet) {
-      this.#broadcast(data);
-      return;
-    }
+    if (!packet) return void this.#broadcast(data);
     const { type, id, status } = packet;
-    if (type === 'event') {
-      this.#broadcast(data);
-      return;
-    }
+    if (type === 'event') return void this.#broadcast(data);
     const port = this.#pending.get(id);
-    if (!port) {
-      this.#broadcast(data);
-      return;
-    }
+    if (!port) return void this.#broadcast(data);
     port.postMessage(data);
-    const isCallback = type === 'callback';
-    const isStreamEnd = type === 'stream' && status === 'end';
-    const isStreamTerminate = type === 'stream' && status === 'terminate';
-    if (isCallback || isStreamEnd || isStreamTerminate) {
-      this.#pending.delete(id);
-    }
+    if (type === 'callback') return void this.#pending.delete(id);
+    if (type !== 'stream') return;
+    if (status === 'end' || status === 'terminate') this.#pending.delete(id);
   }
 
   #broadcast(obj, excludePort = null) {
