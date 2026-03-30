@@ -674,10 +674,10 @@ class MetacomProxy extends Emitter {
     if (status === 'end' || status === 'terminate') this.#pending.delete(id);
   }
 
-  #broadcast(obj, excludePort = null) {
+  #broadcast(data, excludePort = null) {
     for (const port of this.#ports) {
       if (port === excludePort) continue;
-      port.postMessage(obj);
+      port.postMessage(data);
     }
   }
 }
