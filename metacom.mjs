@@ -249,8 +249,8 @@ class Metacom extends Emitter {
   #callTimeout = CALL_TIMEOUT;
   #reconnectTimeout = RECONNECT_TIMEOUT;
   #reconnectTimer = null;
-  #openOptions = {};
   #proxyPacket = null;
+  #options = {};
 
   get active() {
     return this.#transport.active;
@@ -264,6 +264,7 @@ class Metacom extends Emitter {
     if (proxy) this.#proxyPacket = proxy;
     this.url = url;
     this.#transport = transport;
+    this.#options = options;
     this.#bindTransport();
   }
 
@@ -271,14 +272,14 @@ class Metacom extends Emitter {
     if (options.worker) {
       const transport = Metacom.transport.event.getInstance(url);
       const metacom = new Metacom(url, transport, options);
-      await metacom.open(options);
+      await metacom.open();
       return metacom;
     }
     const isHttp = url.startsWith('http');
     const Transport = isHttp ? Metacom.transport.http : Metacom.transport.ws;
     const transport = new Transport(url);
     const metacom = new Metacom(url, transport, options);
-    await metacom.open(options);
+    await metacom.open();
     return metacom;
   }
 
@@ -315,10 +316,9 @@ class Metacom extends Emitter {
     }, this.#reconnectTimeout);
   }
 
-  async open(options = this.#openOptions) {
-    this.#openOptions = { ...this.#openOptions, ...options };
+  async open() {
     Metacom.connections.add(this);
-    await this.#transport.open(this.#openOptions);
+    await this.#transport.open(this.#options);
   }
 
   close() {
@@ -608,20 +608,20 @@ class MetacomProxy extends Emitter {
     });
   }
 
-  async open(options = {}) {
+  async open() {
     if (this.#connection) {
       if (this.#connection.connected) return;
-      await this.#connection.open(options);
+      await this.#connection.open();
       return;
     }
     const protocol = self.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${protocol}//${self.location.host}`;
-    const metacomOptions = {
+    const options = {
       callTimeout: this.#callTimeout,
       reconnectTimeout: this.#reconnectTimeout,
-      proxy: async (data) => this.#proxyPacket(data),
+      proxy: (data) => this.#proxyPacket(data),
     };
-    this.#connection = await Metacom.connect(url, metacomOptions);
+    this.#connection = await Metacom.connect(url, options);
   }
 
   close() {

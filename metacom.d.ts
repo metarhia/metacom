@@ -96,7 +96,7 @@ export class Metacom extends Emitter {
     transport: ClientTransport,
     options?: MetacomOptions,
   );
-  open(options?: MetacomOptions): Promise<void>;
+  open(): Promise<void>;
   close(): void;
   load(...units: Array<string>): Promise<void>;
   getStream(id: string): MetaReadable | MetaWritable;
@@ -124,7 +124,7 @@ export class MetacomProxy extends Emitter {
   reconnectTimeout: number;
 
   constructor(options?: MetacomOptions);
-  open(options?: MetacomOptions): Promise<void>;
+  open(): Promise<void>;
   close(): void;
 }
 
