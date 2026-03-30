@@ -3,6 +3,43 @@
 const { MessageChannel } = require('node:worker_threads');
 const { test } = require('node:test');
 const assert = require('node:assert');
+
+class MockWebSocket {
+  static last = null;
+
+  constructor() {
+    MockWebSocket.last = this;
+    this._listeners = new Map();
+    queueMicrotask(() => this._emit('open'));
+  }
+
+  addEventListener(type, fn) {
+    if (!this._listeners.has(type)) this._listeners.set(type, []);
+    this._listeners.get(type).push(fn);
+  }
+
+  _emit(type, payload) {
+    for (const fn of this._listeners.get(type) || []) {
+      if (type === 'message') fn({ data: payload });
+      else fn(payload);
+    }
+  }
+
+  dispatchMessage(data) {
+    this._emit('message', data);
+  }
+
+  send() {
+    this._emit('send');
+  }
+
+  close() {
+    this._emit('close');
+  }
+}
+
+globalThis.WebSocket = MockWebSocket;
+
 const { Metacom, MetacomProxy } = require('../lib/metacom.js');
 
 const { emitWarning } = process;
@@ -66,8 +103,6 @@ test('MetacomProxy', async (t) => {
       data: { type: 'metacom:connect' },
       ports: [port2],
     });
-    assert.strictEqual(proxy.ports.size, 1);
-    assert(proxy.ports.has(port2));
     proxy.close();
     port1.close();
     port2.close();
@@ -92,7 +127,8 @@ test('MetacomProxy', async (t) => {
     ch2.port1.onmessage = (e) => received.push({ port: 2, data: e.data });
     ch1.port1.start();
     ch2.port1.start();
-    proxy.broadcast('payload');
+    await proxy.open();
+    MockWebSocket.last.dispatchMessage('payload');
     await new Promise((r) => setImmediate(r));
     assert.strictEqual(received.length, 2);
     assert.strictEqual(received[0].data, 'payload');

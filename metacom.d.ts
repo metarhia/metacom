@@ -126,10 +126,6 @@ export class MetacomProxy extends Emitter {
   constructor(options?: MetacomOptions);
   open(options?: MetacomOptions): Promise<void>;
   close(): void;
-  handleEvent(event: MessageEvent): Promise<void>;
-  handleMessage(event: MessageEvent, port: MessagePort): Promise<void>;
-  handlePacket(data: string): void;
-  broadcast(data: unknown, excludePort?: MessagePort | null): void;
 }
 
 export interface ApplicationContext {
