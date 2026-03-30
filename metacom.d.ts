@@ -12,6 +12,10 @@ export class MetacomError extends Error {
   constructor(options: { message: string; code: number });
 }
 
+export interface ReadableOptions {
+  highWaterMark?: number;
+}
+
 export class MetaReadable extends Emitter {
   id: string;
   name: string;
@@ -25,9 +29,7 @@ export class MetaReadable extends Emitter {
     id: string,
     name: string,
     size: number,
-    options?: {
-      highWaterMark?: number;
-    },
+    options?: ReadableOptions,
   );
   push(data: ArrayBufferView): Promise<ArrayBufferView>;
   finalize(writable: Writable): Promise<void>;
@@ -39,17 +41,17 @@ export class MetaReadable extends Emitter {
   [Symbol.asyncIterator](): AsyncIterableIterator<ArrayBufferView>;
 }
 
+export interface Transport {
+  send(obj: object): void;
+  write(data: string | ArrayBufferView): void;
+}
+
 export class MetaWritable extends Emitter {
   id: string;
   name: string;
   size: number;
-  transport: ClientTransport | ServerTransport;
-  constructor(
-    id: string,
-    name: string,
-    size: number,
-    transport: ClientTransport | ServerTransport,
-  );
+  transport: Transport;
+  constructor(id: string, name: string, size: number, transport: Transport);
   write(data: ArrayBufferView): boolean;
   end(): void;
   terminate(): void;
@@ -80,10 +82,10 @@ export class Metacom extends Emitter {
   static initialize(): void;
   static connect(url: string, options?: MetacomOptions): Promise<Metacom>;
   static transport: {
-    ws: new (url: string) => ClientTransport;
-    http: new (url: string) => ClientTransport;
+    ws: new (url: string) => Transport;
+    http: new (url: string) => Transport;
     event: {
-      getInstance(url: string): ClientTransport;
+      getInstance(url: string): Transport;
     };
   };
 
@@ -91,11 +93,7 @@ export class Metacom extends Emitter {
   api: Record<string, Emitter>;
   readonly active: boolean;
 
-  constructor(
-    url: string,
-    transport: ClientTransport,
-    options?: MetacomOptions,
-  );
+  constructor(url: string, transport: Transport, options?: MetacomOptions);
   open(): Promise<void>;
   close(): void;
   load(...units: Array<string>): Promise<void>;
@@ -117,12 +115,6 @@ export interface MetacomOptions {
 }
 
 export class MetacomProxy extends Emitter {
-  ports: Set<MessagePort>;
-  pending: Map<string, MessagePort>;
-  connection: Metacom;
-  callTimeout: number;
-  reconnectTimeout: number;
-
   constructor(options?: MetacomOptions);
   open(): Promise<void>;
   close(): void;
@@ -133,7 +125,7 @@ export interface ApplicationContext {
   auth: Auth;
   static: {
     constructor: { name: string };
-    serve(path: string, transport: ServerHttpTransport): void;
+    serve(path: string, transport: Transport): void;
   };
   getMethod(unit: string, version: string, methodName: string): object | null;
   getHook(unit: string): object | null;
@@ -205,7 +197,6 @@ export class ServerTransport extends Emitter {
   };
   req: IncomingMessage;
   ip: string;
-  headers: Record<string, string>;
   console: Console;
   constructor(req: IncomingMessage, options?: TransportOptions);
   error(code?: number, errorOptions?: ErrorOptions): void;
@@ -217,6 +208,7 @@ export class ServerTransport extends Emitter {
 
 export class ServerHttpTransport extends ServerTransport {
   res: ServerResponse;
+  headers: Record<string, string>;
   constructor(
     req: IncomingMessage,
     res: ServerResponse,
@@ -251,12 +243,8 @@ export class ServerWsTransport extends ServerTransport {
 }
 
 export class ServerEventTransport extends ServerTransport {
-  connection: MessagePort;
-  constructor(
-    req: IncomingMessage,
-    port: MessagePort,
-    options?: TransportOptions,
-  );
+  port: MessagePort;
+  constructor(port: MessagePort, options?: TransportOptions);
   write(data: string | Buffer): void;
 }
 
@@ -276,19 +264,15 @@ export interface StreamPacket {
 }
 
 export class Server {
-  context: ApplicationContext;
-  options: Options;
   httpServer: HttpServer;
   wsServer: WebSocketServer | null;
-  clients: Set<Client>;
   constructor(context: ApplicationContext, options: Options);
-  handleEventConnection(req: IncomingMessage, port: MessagePort): void;
   listen(): Promise<Server>;
   close(): Promise<void>;
 }
 
 export interface State {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Session {
