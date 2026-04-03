@@ -149,8 +149,6 @@ export interface Options {
 export interface ErrorOptions {
   id?: string;
   error?: Error;
-  httpCode?: number;
-  pass?: boolean;
 }
 
 export interface Auth {
@@ -166,11 +164,11 @@ export interface Auth {
 export type EventName = PropertyKey;
 
 export class Client extends Emitter {
-  ip: string | undefined;
+  source: string;
   session: Session | null;
   streams: Map<string, MetaReadable | MetaWritable>;
   error(code: number, options?: ErrorOptions): void;
-  send(obj: object, code?: number): void;
+  send(obj: object, options?: { code?: number; method?: string }): void;
   createContext(): Context;
   emit(name: EventName, data: unknown): Promise<void>;
   sendEvent(name: string, data?: unknown): void;
@@ -186,7 +184,6 @@ export class Client extends Emitter {
 
 export interface TransportOptions {
   headers?: Record<string, string>;
-  console?: Console;
 }
 
 export class ServerTransport extends Emitter {
@@ -195,18 +192,14 @@ export class ServerTransport extends Emitter {
     ws: typeof ServerWsTransport;
     event: typeof ServerEventTransport;
   };
-  req: IncomingMessage;
-  ip: string;
-  console: Console;
-  constructor(req: IncomingMessage, options?: TransportOptions);
-  error(code?: number, errorOptions?: ErrorOptions): void;
-  log(code: number): void;
+  source: string;
+  constructor(source: string);
+  error(code?: number, options?: ErrorOptions): void;
   send(obj: object, code?: number): void;
-  write(data: string | Buffer, code?: number, ext?: string): void;
-  close(): void;
 }
 
 export class ServerHttpTransport extends ServerTransport {
+  req: IncomingMessage;
   res: ServerResponse;
   headers: Record<string, string>;
   constructor(
@@ -214,18 +207,7 @@ export class ServerHttpTransport extends ServerTransport {
     res: ServerResponse,
     options?: TransportOptions,
   );
-  write(
-    data: string | Buffer,
-    httpCode?: number,
-    ext?: string,
-    options?: {
-      start?: number;
-      end?: number;
-      size?: number | string;
-      contentEncoding?: string;
-    },
-  ): void;
-  redirect(location: string): void;
+  write(data: string | Buffer, httpCode?: number): void;
   options(): void;
   getCookies(): Record<string, string>;
   sendSessionCookie(token: string): void;
@@ -234,17 +216,13 @@ export class ServerHttpTransport extends ServerTransport {
 
 export class ServerWsTransport extends ServerTransport {
   connection: WebSocket;
-  constructor(
-    req: IncomingMessage,
-    connection: WebSocket,
-    options?: TransportOptions,
-  );
+  constructor(req: IncomingMessage, connection: WebSocket);
   write(data: string | Buffer): void;
 }
 
 export class ServerEventTransport extends ServerTransport {
   port: MessagePort;
-  constructor(port: MessagePort, options?: TransportOptions);
+  constructor(port: MessagePort);
   write(data: string | Buffer): void;
 }
 
