@@ -128,7 +128,6 @@ export interface ApplicationContext {
     serve(path: string, transport: Transport): void;
   };
   getMethod(unit: string, version: string, methodName: string): object | null;
-  getHook(unit: string): object | null;
 }
 
 export interface Options {

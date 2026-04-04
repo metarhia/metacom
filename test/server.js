@@ -54,7 +54,6 @@ test('Server / calls', async (t) => {
     static: { constructor: { name: 'Static' } },
     auth: { saveSession: async () => {} },
     getMethod: (unit, _version, method) => new ProcedureMock(api[unit][method]),
-    getHook: noop,
   };
 
   let server;
