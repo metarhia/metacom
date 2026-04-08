@@ -2,6 +2,29 @@
 
 ## [Unreleased][unreleased]
 
+## [4.0.0][] - 2026-03-27
+
+- Breaking: Protocol specs changed
+- Changed RPC and stream packet identifiers from numbers to strings
+- Removed legacy empty ping/pong handling for WebSocket
+- Added `MetacomProxy` for Service Workers
+- Added `ServerEventTransport` for server-side event channels
+- Added `contentEncoding` option to HTTP transport
+- Added `protectedCall` helper and expanded error-handling
+- Refactored transports: split Metacom into connection and transport
+- Decoupled `Session` and `Client` from `Server`
+- Unified browser and Node.js client implementations
+- Switched packet JSON parsing to `metautil.jsonParse`
+- Improved error handling, typings, and test coverage
+- Removed `MetacomUnit` and related `generateId`
+- Refactored error handling, logging and reply
+- Export buildHeaders to use in impress
+- Balancer functionality moved to impress
+- Remove static server from metacom, moved to impress
+- Make many fields/methods private to protect internals
+- Changed creational contracts: create/open to async connect/open
+- Removed class `MetacomUnit`
+
 ## [3.2.6][] - 2025-09-20
 
 - Migrate tests from metatests to Node.js native test runner
@@ -294,7 +317,8 @@ Module stub v0.0.0 and all before 1.0.0 are experiments with syntactic and
 binary structures and multiple different ideas originated from JSTP and old
 protocols like USP and CLEAR.
 
-[unreleased]: https://github.com/metarhia/metacom/compare/v3.2.6...HEAD
+[unreleased]: https://github.com/metarhia/metacom/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/metarhia/metacom/compare/v3.2.6...v4.0.0
 [3.2.6]: https://github.com/metarhia/metacom/compare/v3.2.5...v3.2.6
 [3.2.5]: https://github.com/metarhia/metacom/compare/v3.2.4...v3.2.5
 [3.2.4]: https://github.com/metarhia/metacom/compare/v3.2.3...v3.2.4
