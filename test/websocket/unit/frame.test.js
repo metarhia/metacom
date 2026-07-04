@@ -21,7 +21,7 @@ test('Frame: mask and unmask payload', () => {
   const payload = Buffer.from('mask-test');
   const frame = Frame.text(payload);
 
-  frame.maskPayload(Buffer.from([1, 2, 3, 4]));
+  frame.maskPayload();
   const maskedPayload = Buffer.from(frame.payload);
 
   frame.unmaskPayload();

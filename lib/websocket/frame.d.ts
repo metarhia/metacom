@@ -40,8 +40,7 @@ export declare class Frame {
 
   static close(code?: number | null, reason?: string): Frame;
 
-  static normalClose(isClient?: boolean): Buffer;
-  static errorClose(type: string, subtype?: string, isClient?: boolean): Buffer;
+  static errorClose(type: string, isClient?: boolean): Buffer;
   static protocolErrorClose(type: string, isClient?: boolean): Buffer;
 
   unmaskPayload(): void;
@@ -55,8 +54,6 @@ export declare class Frame {
   get header(): Buffer;
 
   get isControlFrame(): boolean;
-  get isValidControlFrame(): boolean;
-  get isValidDataFrame(): boolean;
 
   getCloseDetails(): Result<{ code: number | null; reason: string }>;
 }
