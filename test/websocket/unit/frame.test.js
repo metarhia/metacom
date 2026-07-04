@@ -62,3 +62,13 @@ test('Frame: extended 64-bit length', () => {
   assert.strictEqual(parsedFrame.payload.length, size);
   assert.deepStrictEqual(parsedFrame.payload, data);
 });
+
+test('Frame: truncates close reason to 123 bytes', () => {
+  const reason = 'x'.repeat(200);
+  const frame = Frame.close(1000, reason);
+
+  assert.strictEqual(frame.payload.length, 2 + 123);
+  const parsed = FrameParser.parse(frame.toBuffer()).value.frame;
+  const check = FrameParser.checkControlFrame(parsed);
+  assert.strictEqual(check.error, null);
+});

@@ -425,3 +425,58 @@ test('handshake: Connection header token matching is case-insensitive and allows
   assert.strictEqual(code, 101);
   await new Promise((resolve) => httpServer.close(resolve));
 });
+
+test('handshake: rejects upgrade when path does not match', async () => {
+  const httpServer = http.createServer();
+  const tinyWsServer = new WebsocketServer({
+    server: httpServer,
+    path: '/api',
+  });
+  tinyWsServer.on('connection', () => {});
+
+  await new Promise((resolve) => httpServer.listen(0, resolve));
+  const port = httpServer.address().port;
+
+  const res = await ProtocolClient.attemptHandshake({
+    host: 'localhost',
+    port,
+    path: '/',
+    headers: {
+      Upgrade: 'websocket',
+      Connection: 'Upgrade',
+      'Sec-WebSocket-Version': '13',
+      'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+    },
+    timeoutMs: 600,
+  });
+
+  assert.strictEqual(parseStatusCode(res.statusLine), 404);
+  await new Promise((resolve) => httpServer.close(resolve));
+});
+
+test('handshake: verifyClient can reject upgrade', async () => {
+  const httpServer = http.createServer();
+  const tinyWsServer = new WebsocketServer({
+    server: httpServer,
+    verifyClient: () => false,
+  });
+  tinyWsServer.on('connection', () => {});
+
+  await new Promise((resolve) => httpServer.listen(0, resolve));
+  const port = httpServer.address().port;
+
+  const res = await ProtocolClient.attemptHandshake({
+    host: 'localhost',
+    port,
+    headers: {
+      Upgrade: 'websocket',
+      Connection: 'Upgrade',
+      'Sec-WebSocket-Version': '13',
+      'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+    },
+    timeoutMs: 600,
+  });
+
+  assert.strictEqual(parseStatusCode(res.statusLine), 403);
+  await new Promise((resolve) => httpServer.close(resolve));
+});
