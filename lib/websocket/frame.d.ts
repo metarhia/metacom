@@ -31,29 +31,18 @@ export declare class Frame {
   ): Frame;
 
   static ping(payload?: string | Buffer): Frame;
-
   static pong(payload?: string | Buffer): Frame;
-
-  static emptyPingBuffer(isClient?: boolean): Buffer;
-
-  static emptyPongBuffer(isClient?: boolean): Buffer;
-
+  static emptyClientPingBuffer(): Buffer;
+  static emptyClientPongBuffer(): Buffer;
   static close(code?: number | null, reason?: string): Frame;
-
   static errorClose(type: string, isClient?: boolean): Buffer;
   static protocolErrorClose(type: string, isClient?: boolean): Buffer;
 
   unmaskPayload(): void;
-
   maskPayload(): void;
-
   toString(): string;
-
   toBuffer(): Buffer;
-
   get header(): Buffer;
-
   get isControlFrame(): boolean;
-
   getCloseDetails(): Result<{ code: number | null; reason: string }>;
 }
