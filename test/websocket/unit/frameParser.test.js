@@ -7,11 +7,15 @@ const ws = require('#ws');
 const { OPCODES, PARSE_ERR_CODES } = ws;
 const { Frame, FrameParser } = ws;
 
+const FIN = 0x80;
+const LEN_64_BIT = 127;
+
 // eslint-disable-next-line max-len
 test('FrameParser: returns parse error when payload length exceeds MAX_SAFE_INTEGER', () => {
   const buffer = Buffer.alloc(14);
-  buffer[0] = 0x80 | OPCODES.BINARY;
-  buffer[1] = 127;
+  buffer[0] = FIN | OPCODES.BINARY;
+  buffer[1] = LEN_64_BIT;
+  assert.strictEqual(buffer[0] & FIN, FIN);
 
   const bigValue = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
   buffer.writeUInt32BE(Number(bigValue >> 32n), 2);
@@ -52,7 +56,7 @@ test('FrameParser: parses masked frame and Frame.unmaskPayload recovers original
   const res = FrameParser.parse(buf);
   assert.ok(res.value, 'expected a value');
   const parsed = res.value.frame;
-  // frame should be marked masked; after unmask we get original text
+  assert.strictEqual(parsed.fin, true);
   assert.strictEqual(parsed.masked, true);
   parsed.unmaskPayload();
   assert.strictEqual(parsed.toString(), msg);

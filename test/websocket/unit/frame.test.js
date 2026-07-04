@@ -22,9 +22,12 @@ test('Frame: mask and unmask payload', () => {
   const frame = Frame.text(payload);
 
   frame.maskPayload();
+  assert.strictEqual(frame.masked, true);
+  assert.strictEqual(frame.mask.length, 4);
   const maskedPayload = Buffer.from(frame.payload);
 
   frame.unmaskPayload();
+  assert.strictEqual(frame.masked, false);
   assert.strictEqual(frame.toString(), 'mask-test');
 
   assert.notDeepStrictEqual(maskedPayload, frame.payload);
