@@ -6,6 +6,14 @@ const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { Server } = require('../lib/server.js');
+const { ProtocolClient } = require('./websocket/utils/protocolClient.js');
+
+const parseStatusCode = (statusLine) => {
+  if (!statusLine) return null;
+  const parts = statusLine.split(' ');
+  const code = parseInt(parts[1], 10);
+  return Number.isFinite(code) ? code : null;
+};
 
 const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {
@@ -94,5 +102,35 @@ test('Server / calls', async (t) => {
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');
     assert.strictEqual(response.result, `Hello, ${args.name}`);
+  });
+
+  await t.test('WS RPC handles on /api path', async () => {
+    const id = randomUUID();
+    const args = { name: 'Max' };
+    const packet = { type: 'call', id, method: 'test/hello', args };
+    const socket = new WebSocket(`ws://${options.host}:${options.port}/api`);
+    await new Promise((res) => socket.on('open', res));
+    socket.send(JSON.stringify(packet));
+    const resPacket = await new Promise((res) => socket.on('message', res));
+    const response = JSON.parse(resPacket);
+    assert.strictEqual(response.id, id);
+    assert.strictEqual(response.type, 'callback');
+    assert.strictEqual(response.result, `Hello, ${args.name}`);
+  });
+
+  await t.test('rejects websocket upgrade on invalid path', async () => {
+    const res = await ProtocolClient.attemptHandshake({
+      host: options.host,
+      port: options.port,
+      path: '/invalid',
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+      },
+      timeoutMs: 600,
+    });
+    assert.strictEqual(parseStatusCode(res.statusLine), 403);
   });
 });

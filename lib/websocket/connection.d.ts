@@ -19,7 +19,7 @@ export declare class Connection {
 
   on(
     event: 'message',
-    listener: (data: string | Buffer, isBinary: boolean) => void,
+    listener: (data: Buffer, isBinary: boolean) => void,
   ): this;
   on(event: 'error', listener: (error: Error) => void): this;
   on(event: 'close', listener: () => void): this;

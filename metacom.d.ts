@@ -143,6 +143,7 @@ export interface Options {
   SNICallback?: Function;
   timeouts?: { bind: number };
   retry?: number;
+  websocketPath?: string;
 }
 
 export interface ErrorOptions {
