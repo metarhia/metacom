@@ -61,7 +61,7 @@
     "fix": "eslint . --fix && prettier --write \"**/*.js\" \"**/*.mjs\" \"**/*.ts\" \"**/*.json\" \"**/*.md\""
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "metautil": "^5.4.0"
