@@ -1,11 +1,13 @@
+import { EventEmitter } from 'node:events';
 import {
   IncomingMessage,
   Server as HttpServer,
   ServerResponse,
 } from 'node:http';
+import { Server as HttpsServer } from 'node:https';
+import { Socket } from 'node:net';
 import { Readable, Writable } from 'node:stream';
 import { Emitter } from 'metautil';
-import WebSocket, { WebSocketServer } from 'ws';
 
 export class MetacomError extends Error {
   code: number;
@@ -215,8 +217,8 @@ export class ServerHttpTransport extends ServerTransport {
 }
 
 export class ServerWsTransport extends ServerTransport {
-  connection: WebSocket;
-  constructor(req: IncomingMessage, connection: WebSocket);
+  connection: Connection;
+  constructor(req: IncomingMessage, connection: Connection);
   write(data: string | Buffer): void;
 }
 
@@ -243,10 +245,92 @@ export interface StreamPacket {
 
 export class Server {
   httpServer: HttpServer;
-  wsServer: WebSocketServer | null;
+  wsServer: WebsocketServer | null;
   constructor(context: ApplicationContext, options: Options);
   listen(): Promise<Server>;
   close(): Promise<void>;
+}
+
+export declare const MAGIC: string;
+export declare const CLOSE_TIMEOUT: number;
+
+export declare const OPCODES: {
+  readonly CONTINUATION: 0x00;
+  readonly TEXT: 0x01;
+  readonly BINARY: 0x02;
+  readonly CLOSE: 0x08;
+  readonly PING: 0x09;
+  readonly PONG: 0x0a;
+};
+
+export declare const CLOSE_CODES: {
+  readonly NORMAL_CLOSE: 1000;
+  readonly GOING_AWAY: 1001;
+  readonly PROTOCOL_ERROR: 1002;
+  readonly UNSUPPORTED_DATA: 1003;
+  readonly RESERVED: 1004;
+  readonly NO_CODE_RECEIVED: 1005;
+  readonly CONNECTION_CLOSED_ABNORMALLY: 1006;
+  readonly INVALID_PAYLOAD: 1007;
+  readonly POLICY_VIOLATED: 1008;
+  readonly MESSAGE_TOO_BIG: 1009;
+  readonly MANDATORY_EXTENSION: 1010;
+  readonly INTERNAL_SERVER_ERROR: 1011;
+  readonly TLS_HANDSHAKE: 1015;
+};
+
+export interface VerifyClientInfo {
+  req: IncomingMessage;
+  socket: Socket;
+  head: Buffer;
+}
+
+export interface WebsocketServerOptions {
+  server: HttpServer | HttpsServer;
+  pingInterval?: number;
+  maxBuffer?: number;
+  closeTimeout?: number;
+  path?: string;
+  verifyClient?: (info: VerifyClientInfo) => boolean;
+}
+
+export declare class WebsocketServer extends EventEmitter {
+  constructor(options: WebsocketServerOptions);
+
+  on(
+    event: 'connection',
+    listener: (ws: Connection, req: IncomingMessage) => void,
+  ): this;
+
+  on(event: 'error', listener: (error: Error) => void): this;
+  on(event: 'close', listener: () => void): this;
+  on(event: string | symbol, listener: (...args: unknown[]) => void): this;
+}
+
+export interface ConnectionOptions {
+  isClient?: boolean;
+  maxBuffer?: number;
+  closeTimeout?: number;
+}
+
+export declare class Connection extends EventEmitter {
+  constructor(socket: Socket, head: Buffer, options?: ConnectionOptions);
+
+  send(data: string | Buffer): boolean;
+  sendText(message: string): boolean;
+  sendBinary(buffer: Buffer): boolean;
+  sendPing(payload?: Buffer | string): boolean;
+  sendPong(payload?: Buffer | string): boolean;
+  sendClose(code?: number, reason?: string): boolean;
+  terminate(): void;
+
+  on(
+    event: 'message',
+    listener: (data: Buffer, isBinary: boolean) => void,
+  ): this;
+  on(event: 'error', listener: (error: Error) => void): this;
+  on(event: 'close', listener: () => void): this;
+  on(event: 'pong', listener: (payload: Buffer) => void): this;
 }
 
 export interface State {
