@@ -4,6 +4,8 @@ import { EventEmitter } from 'node:events';
 
 import type { Connection } from './connection.js';
 
+export declare const MAGIC: string;
+
 export interface VerifyClientInfo {
   req: IncomingMessage;
   socket: import('net').Socket;

@@ -1,5 +1,7 @@
 import { Socket } from 'node:net';
 
+export declare const CLOSE_TIMEOUT: number;
+
 export interface ConnectionOptions {
   isClient?: boolean;
   maxBuffer?: number;

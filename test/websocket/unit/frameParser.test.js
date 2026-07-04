@@ -4,14 +4,14 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const ws = require('#ws');
-const { FINAL_FRAME, LEN_64_BIT, OPCODES, PARSE_ERR_CODES } = ws;
+const { OPCODES, PARSE_ERR_CODES } = ws;
 const { Frame, FrameParser } = ws;
 
 // eslint-disable-next-line max-len
 test('FrameParser: returns parse error when payload length exceeds MAX_SAFE_INTEGER', () => {
   const buffer = Buffer.alloc(14);
-  buffer[0] = FINAL_FRAME & OPCODES.BINARY;
-  buffer[1] = LEN_64_BIT;
+  buffer[0] = 0x80 & OPCODES.BINARY;
+  buffer[1] = 127;
 
   const bigValue = BigInt(Number.MAX_SAFE_INTEGER) + 1n;
   buffer.writeUInt32BE(Number(bigValue >> 32n), 2);
