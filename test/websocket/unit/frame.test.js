@@ -4,9 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 
-const { Frame } = require('../../../lib/websocket/frame.js');
-const { OPCODES } = require('../../../lib/websocket/constants.js');
-const { FrameParser } = require('../../../lib/websocket/frameParser.js');
+const { Frame, FrameParser, OPCODES } = require('#ws');
 
 test('Frame: create and parse text frame', () => {
   const message = 'Hello tinyWS';

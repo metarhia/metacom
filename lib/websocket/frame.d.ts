@@ -1,4 +1,4 @@
-import { Result } from './utils/result.js';
+import { Result } from './result.js';
 
 export interface FrameParseResult {
   frame: Frame;

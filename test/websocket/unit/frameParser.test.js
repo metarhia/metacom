@@ -3,16 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const {
-  OPCODES,
-  FINAL_FRAME,
-  LEN_64_BIT,
-} = require('../../../lib/websocket/constants.js');
-const {
-  FrameParser,
-  PARSE_ERR_CODES,
-} = require('../../../lib/websocket/frameParser.js');
-const { Frame } = require('../../../lib/websocket/frame.js');
+const ws = require('#ws');
+const { FINAL_FRAME, LEN_64_BIT, OPCODES, PARSE_ERR_CODES } = ws;
+const { Frame, FrameParser } = ws;
 
 // eslint-disable-next-line max-len
 test('FrameParser: returns parse error when payload length exceeds MAX_SAFE_INTEGER', () => {

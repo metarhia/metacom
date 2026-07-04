@@ -5,9 +5,8 @@ const assert = require('node:assert');
 const http = require('node:http');
 const crypto = require('node:crypto');
 
-const { MAGIC } = require('../../../../lib/websocket/constants.js');
+const { MAGIC, WebsocketServer } = require('#ws');
 const { ProtocolClient } = require('../../utils/protocolClient.js');
-const { WebsocketServer } = require('../../../../lib/websocket/server.js');
 
 function parseStatusCode(statusLine) {
   if (!statusLine) return null;

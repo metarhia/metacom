@@ -4,12 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
 
-const { WebsocketServer } = require('../../../../lib/websocket/server.js');
+const { WebsocketServer, CLOSE_CODES, OPCODES } = require('#ws');
 const { ProtocolClient } = require('../../utils/protocolClient.js');
-const {
-  CLOSE_CODES,
-  OPCODES,
-} = require('../../../../lib/websocket/constants.js');
 
 async function startServer(onConn) {
   const httpServer = http.createServer();

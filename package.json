@@ -37,6 +37,10 @@
   },
   "main": "metacom.js",
   "types": "metacom.d.ts",
+  "imports": {
+    "#metacom": "./metacom.js",
+    "#ws": "./lib/websocket/ws.js"
+  },
   "browser": {
     "./metacom.js": "./metacom.mjs"
   },

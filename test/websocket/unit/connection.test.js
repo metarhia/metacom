@@ -3,14 +3,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { Connection } = require('../../../lib/websocket/connection.js');
-const { Frame } = require('../../../lib/websocket/frame.js');
-const {
-  OPCODES,
-  CLOSE_TIMEOUT,
-  CLOSE_CODES,
-} = require('../../../lib/websocket/constants.js');
-const { FrameParser } = require('../../../lib/websocket/frameParser.js');
+const ws = require('#ws');
+const { Connection, Frame, FrameParser } = ws;
+const { OPCODES, CLOSE_TIMEOUT, CLOSE_CODES } = ws;
 const { MockSocket } = require('../utils/mockSocket.js');
 
 test('Connection: should emit message on text frame', async () => {

@@ -1,4 +1,4 @@
-import type { Result } from './utils/result.js';
+import type { Result } from './result.js';
 import type { Frame } from './frame.js';
 
 export class ParseError extends Error {
