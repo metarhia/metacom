@@ -1,7 +1,6 @@
 'use strict';
 
 const timers = require('node:timers/promises');
-const { WebSocket } = require('ws');
 const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -94,11 +93,12 @@ test('Server / calls', async (t) => {
     const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
-    const socket = new WebSocket(`ws://${options.host}:${options.port}`);
-    await new Promise((res) => socket.on('open', res));
+    const socket = new ProtocolClient(`ws://${options.host}:${options.port}`);
+    await new Promise((res) => socket.once('open', res));
     socket.send(JSON.stringify(packet));
-    const resPacket = await new Promise((res) => socket.on('message', res));
-    const response = JSON.parse(resPacket);
+    const resPacket = await new Promise((res) => socket.once('message', res));
+    const response = JSON.parse(resPacket.toString());
+    socket.close();
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');
     assert.strictEqual(response.result, `Hello, ${args.name}`);
@@ -108,11 +108,14 @@ test('Server / calls', async (t) => {
     const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
-    const socket = new WebSocket(`ws://${options.host}:${options.port}/api`);
-    await new Promise((res) => socket.on('open', res));
+    const socket = new ProtocolClient(
+      `ws://${options.host}:${options.port}/api`,
+    );
+    await new Promise((res) => socket.once('open', res));
     socket.send(JSON.stringify(packet));
-    const resPacket = await new Promise((res) => socket.on('message', res));
-    const response = JSON.parse(resPacket);
+    const resPacket = await new Promise((res) => socket.once('message', res));
+    const response = JSON.parse(resPacket.toString());
+    socket.close();
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');
     assert.strictEqual(response.result, `Hello, ${args.name}`);

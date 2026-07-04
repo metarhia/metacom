@@ -1,11 +1,12 @@
 'use strict';
 
+const http = require('node:http');
 const timers = require('node:timers/promises');
 const { Blob } = require('node:buffer');
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { WebSocketServer } = require('ws');
 const metautil = require('metautil');
+const { WebsocketServer } = require('#ws');
 const { randomUUID } = require('node:crypto');
 const { Metacom } = require('../lib/metacom.js');
 const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
@@ -15,6 +16,17 @@ process.emitWarning = (warning, type, ...args) => {
   if (type === 'ExperimentalWarning') return;
   emitWarning(warning, type, ...args);
 };
+
+const createWsServer = () => {
+  const httpServer = http.createServer();
+  const wsServer = new WebsocketServer({ server: httpServer });
+  return { httpServer, wsServer };
+};
+
+const listen = (httpServer, port) =>
+  new Promise((resolve, reject) => {
+    httpServer.listen(port, (error) => (error ? reject(error) : resolve()));
+  });
 
 test('Client / calls', async (t) => {
   const api = {
@@ -43,11 +55,12 @@ test('Client / calls', async (t) => {
   };
 
   let serverWs = null;
-  const mockServer = new WebSocketServer({ port: 8000 });
+  const { httpServer, wsServer: mockServer } = createWsServer();
+  await listen(httpServer, 8000);
   mockServer.on('connection', (ws) => {
     serverWs = ws;
     ws.on('message', async (raw) => {
-      const packet = metautil.jsonParse(raw) || {};
+      const packet = metautil.jsonParse(raw.toString()) || {};
       const { type, id, method } = packet;
       const [unit, name] = method.split('/');
       if (type !== 'call') return;
@@ -63,7 +76,7 @@ test('Client / calls', async (t) => {
 
   let client;
 
-  t.after(() => void mockServer.close());
+  t.after(() => void httpServer.close());
 
   t.beforeEach(async () => {
     const options = { callTimeout: 300 };
@@ -123,10 +136,11 @@ test('Client / stale callback', async (t) => {
     },
   };
 
-  const mockServer = new WebSocketServer({ port: 8010 });
+  const { httpServer, wsServer: mockServer } = createWsServer();
+  await listen(httpServer, 8010);
   mockServer.on('connection', (ws) => {
     ws.on('message', async (raw) => {
-      const packet = metautil.jsonParse(raw) || {};
+      const packet = metautil.jsonParse(raw.toString()) || {};
       const { type, id, method } = packet;
       const [unit, name] = method?.split('/') || [];
       if (type !== 'call') return;
@@ -152,7 +166,7 @@ test('Client / stale callback', async (t) => {
     });
   });
 
-  t.after(() => void mockServer.close());
+  t.after(() => void httpServer.close());
 
   await t.test('throws on stale callback for unknown id', async () => {
     const client = await Metacom.connect('ws://localhost:8010/');
@@ -190,7 +204,8 @@ test('Client / events', async (t) => {
     },
   };
 
-  const mockServer = new WebSocketServer({ port: 8001 });
+  const { httpServer, wsServer: mockServer } = createWsServer();
+  await listen(httpServer, 8001);
   mockServer.on('connection', (ws) => {
     const pingInterval = setInterval(() => {
       const packet = { type: 'event', name: 'test/ping', data: { ping: true } };
@@ -198,7 +213,7 @@ test('Client / events', async (t) => {
     }, 100);
     ws.on('close', () => void clearInterval(pingInterval));
     ws.on('message', async (raw) => {
-      const packet = metautil.jsonParse(raw) || {};
+      const packet = metautil.jsonParse(raw.toString()) || {};
       if (packet.type === 'call' && packet.method === 'system/introspect') {
         const introspection = { type: 'callback', id: packet.id, result: api };
         ws.send(JSON.stringify(introspection));
@@ -214,7 +229,7 @@ test('Client / events', async (t) => {
 
   let client;
 
-  t.after(() => void mockServer.close());
+  t.after(() => void httpServer.close());
 
   t.beforeEach(async () => {
     client = await Metacom.connect('ws://localhost:8001/');
@@ -249,7 +264,7 @@ test('Client / stream', async (t) => {
     const reader = blob.stream().getReader();
     let chunk;
     while (!(chunk = await reader.read()).done) {
-      ws.send(chunkEncode(id, chunk.value));
+      ws.sendBinary(Buffer.from(chunkEncode(id, chunk.value)));
     }
     ws.send(JSON.stringify(endPacket));
   };
@@ -291,7 +306,8 @@ test('Client / stream', async (t) => {
     },
   };
 
-  const mockServer = new WebSocketServer({ port: 8002 });
+  const { httpServer, wsServer: mockServer } = createWsServer();
+  await listen(httpServer, 8002);
   mockServer.on('connection', (ws) => {
     const pingInterval = setInterval(() => {
       const packet = { type: 'event', name: 'test/ping', data: { ping: true } };
@@ -300,7 +316,7 @@ test('Client / stream', async (t) => {
     ws.on('close', () => void clearInterval(pingInterval));
     ws.on('message', async (raw, isBinary) => {
       if (isBinary) return void handleBinary(new Uint8Array(raw));
-      const packet = metautil.jsonParse(raw) || {};
+      const packet = metautil.jsonParse(raw.toString()) || {};
       if (packet.type === 'call' && packet.method === 'system/introspect') {
         const introspection = { type: 'callback', id: packet.id, result: api };
         return void ws.send(JSON.stringify(introspection));
@@ -316,7 +332,7 @@ test('Client / stream', async (t) => {
 
   let client;
 
-  t.after(() => void mockServer.close());
+  t.after(() => void httpServer.close());
 
   t.beforeEach(async () => {
     client = await Metacom.connect('ws://localhost:8002/');
@@ -364,10 +380,11 @@ test('Client / different ID generation strategies', async (t) => {
     },
   };
 
-  const mockServer = new WebSocketServer({ port: 8004 });
+  const { httpServer, wsServer: mockServer } = createWsServer();
+  await listen(httpServer, 8004);
   mockServer.on('connection', (ws) => {
     ws.on('message', async (raw) => {
-      const packet = metautil.jsonParse(raw) || {};
+      const packet = metautil.jsonParse(raw.toString()) || {};
       const { type, id, method } = packet;
       const [unit, name] = method.split('/');
       if (type !== 'call') return;
@@ -381,7 +398,7 @@ test('Client / different ID generation strategies', async (t) => {
     });
   });
 
-  t.after(() => void mockServer.close());
+  t.after(() => void httpServer.close());
 
   await t.test('works with UUID generation', async () => {
     const client = await Metacom.connect('ws://localhost:8004/');
