@@ -4,6 +4,7 @@ const { Readable } = require('node:stream');
 const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
+
 const metautil = require('metautil');
 const { MetaReadable, MetaWritable } = require('../lib/streams.js');
 const { chunkEncode, chunkDecode } = require('../lib/chunks.js');

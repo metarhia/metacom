@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const http = require('node:http');
 
 const { WebsocketServer, CLOSE_CODES, OPCODES } = require('#ws');
-const { ProtocolClient } = require('../../utils/protocolClient.js');
+const { ProtocolClient } = require('./protocolClient.js');
 
 async function startServer(onConn) {
   const httpServer = http.createServer();
@@ -238,8 +238,7 @@ test('frames: CLOSE with empty payload -> client sees 1005', async () => {
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: fragmented text with invalid UTF-8 in continuation -> close 1007', async () => {
+test('frames: fragmented text, bad UTF-8 in continuation -> 1007', async () => {
   const { httpServer, port } = await startServer((conn) =>
     conn.on('error', () => {}),
   );
@@ -265,8 +264,7 @@ test('frames: fragmented text with invalid UTF-8 in continuation -> close 1007',
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: send BINARY during TEXT fragmentation -> close 1002', async () => {
+test('frames: BINARY during TEXT fragmentation -> close 1002', async () => {
   const { httpServer, port } = await startServer((conn) =>
     conn.on('error', () => {}),
   );
@@ -351,8 +349,7 @@ test('frames: CONTINUATION without started message -> close 1002', async () => {
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: interleaved ping during TEXT fragmentation -> pong echoed and message assembled', async () => {
+test('frames: ping during TEXT fragmentation -> pong + message', async () => {
   // Echo server to verify assembled message
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
@@ -394,8 +391,7 @@ test('frames: interleaved ping during TEXT fragmentation -> pong echoed and mess
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: TEXT length boundaries 125 and 126 are accepted and echoed', async () => {
+test('frames: TEXT length 125 and 126 accepted and echoed', async () => {
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
     conn.on('message', (msg) => conn.send(String(msg)));
@@ -422,8 +418,7 @@ test('frames: TEXT length boundaries 125 and 126 are accepted and echoed', async
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: 64-bit length with unsafe high bits -> close 1009 MESSAGE_TOO_BIG', async () => {
+test('frames: 64-bit length unsafe high bits -> close 1009', async () => {
   const { httpServer, port } = await startServer((conn) =>
     conn.on('error', () => {}),
   );
@@ -477,8 +472,7 @@ test('frames: user close (3001 "user") echoed back', async () => {
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: chunked TCP — split header and payload (TEXT) — echoed back', async () => {
+test('frames: chunked TCP — split header/payload TEXT echoed', async () => {
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
     conn.on('message', (msg) => conn.send(String(msg)));
@@ -491,7 +485,9 @@ test('frames: chunked TCP — split header and payload (TEXT) — echoed back', 
   const b0 = fin | opcode; // 0x81
   const mask = Buffer.from([0x11, 0x22, 0x33, 0x44]);
   const masked = Buffer.alloc(payload.length);
-  for (let i = 0; i < payload.length; i++) masked[i] = payload[i] ^ mask[i % 4];
+  for (let i = 0; i < payload.length; i++) {
+    masked[i] = payload[i] ^ mask[i % 4];
+  }
   const b1 = 0x80 | payload.length; // MASK + len (<126)
 
   const received = await new Promise((resolve) => {
@@ -524,8 +520,7 @@ test('frames: chunked TCP — split header and payload (TEXT) — echoed back', 
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: chunked TCP — 16-bit length (126) with split header — echoed back', async () => {
+test('frames: chunked TCP — 16-bit length 126, split header', async () => {
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
     conn.on('message', (msg) => conn.send(String(msg)));
@@ -542,7 +537,9 @@ test('frames: chunked TCP — 16-bit length (126) with split header — echoed b
   const lenLo = payload.length & 0xff;
   const mask = Buffer.from([0xde, 0xad, 0xbe, 0xef]);
   const masked = Buffer.alloc(payload.length);
-  for (let i = 0; i < payload.length; i++) masked[i] = payload[i] ^ mask[i % 4];
+  for (let i = 0; i < payload.length; i++) {
+    masked[i] = payload[i] ^ mask[i % 4];
+  }
 
   const received = await new Promise((resolve) => {
     client.on('message', (buf) => {
@@ -616,8 +613,7 @@ test('frames: server-initiated close (1000 "srv")', async () => {
   await new Promise((r) => httpServer.close(r));
 });
 
-// eslint-disable-next-line max-len
-test('frames: server ping -> client replies pong, server receives', async () => {
+test('frames: server ping -> client pong, server receives', async () => {
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
     conn.on('pong', (buf) => {
