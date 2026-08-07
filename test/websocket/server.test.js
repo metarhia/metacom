@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const http = require('node:http');
 
 const { WebsocketServer } = require('#ws');
-const { ProtocolClient } = require('../utils/protocolClient.js');
+const { ProtocolClient } = require('./protocolClient.js');
 
 test('WebsocketServer: accepts new connection after socket error', async () => {
   const httpServer = http.createServer();

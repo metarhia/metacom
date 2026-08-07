@@ -5,9 +5,10 @@ const timers = require('node:timers/promises');
 const { Blob } = require('node:buffer');
 const { test } = require('node:test');
 const assert = require('node:assert');
+const { randomUUID } = require('node:crypto');
+
 const metautil = require('metautil');
 const { WebsocketServer } = require('#ws');
-const { randomUUID } = require('node:crypto');
 const { Metacom } = require('../lib/metacom.js');
 const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
 

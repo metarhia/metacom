@@ -6,7 +6,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 
 const { MAGIC, WebsocketServer } = require('#ws');
-const { ProtocolClient } = require('../../utils/protocolClient.js');
+const { ProtocolClient } = require('./protocolClient.js');
 
 function parseStatusCode(statusLine) {
   if (!statusLine) return null;
@@ -103,102 +103,93 @@ test('handshake: negative cases', async (t) => {
     await new Promise((resolve) => httpServer.close(resolve));
   });
 
-  await t.test(
-    'unsupported Sec-WebSocket-Version -> should not upgrade',
-    async () => {
-      const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer({ server: httpServer });
-      tinyWsServer.on('connection', () => {});
+  await t.test('bad Sec-WebSocket-Version -> should not upgrade', async () => {
+    const httpServer = http.createServer();
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
+    tinyWsServer.on('connection', () => {});
 
-      await new Promise((resolve) => httpServer.listen(0, resolve));
-      const port = httpServer.address().port;
+    await new Promise((resolve) => httpServer.listen(0, resolve));
+    const port = httpServer.address().port;
 
-      const res = await ProtocolClient.attemptHandshake({
-        host: 'localhost',
-        port,
-        headers: {
-          Upgrade: 'websocket',
-          Connection: 'Upgrade',
-          'Sec-WebSocket-Version': '12',
-          'Sec-WebSocket-Key': 'dGVzdC1rZXk=',
-        },
-        timeoutMs: 250,
-      });
+    const res = await ProtocolClient.attemptHandshake({
+      host: 'localhost',
+      port,
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Version': '12',
+        'Sec-WebSocket-Key': 'dGVzdC1rZXk=',
+      },
+      timeoutMs: 250,
+    });
 
-      const code = parseStatusCode(res.statusLine);
-      assert.ok(
-        res.statusLine === '' || code !== 101,
-        `expected no upgrade, got: ${res.statusLine}`,
-      );
+    const code = parseStatusCode(res.statusLine);
+    assert.ok(
+      res.statusLine === '' || code !== 101,
+      `expected no upgrade, got: ${res.statusLine}`,
+    );
 
-      await new Promise((resolve) => httpServer.close(resolve));
-    },
-  );
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
 
-  await t.test(
-    'invalid Sec-WebSocket-Key (not base64) -> should not upgrade',
-    async () => {
-      const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer({ server: httpServer });
-      tinyWsServer.on('connection', () => {});
+  await t.test('Sec-WebSocket-Key not base64 -> no upgrade', async () => {
+    const httpServer = http.createServer();
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
+    tinyWsServer.on('connection', () => {});
 
-      await new Promise((resolve) => httpServer.listen(0, resolve));
-      const port = httpServer.address().port;
+    await new Promise((resolve) => httpServer.listen(0, resolve));
+    const port = httpServer.address().port;
 
-      const res = await ProtocolClient.attemptHandshake({
-        host: 'localhost',
-        port,
-        headers: {
-          Upgrade: 'websocket',
-          Connection: 'Upgrade',
-          'Sec-WebSocket-Version': '13',
-          'Sec-WebSocket-Key': '%%%not-base64%%%',
-        },
-        timeoutMs: 250,
-      });
+    const res = await ProtocolClient.attemptHandshake({
+      host: 'localhost',
+      port,
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': '%%%not-base64%%%',
+      },
+      timeoutMs: 250,
+    });
 
-      const code = parseStatusCode(res.statusLine);
-      assert.ok(
-        res.statusLine === '' || code !== 101,
-        `expected no upgrade, got: ${res.statusLine}`,
-      );
+    const code = parseStatusCode(res.statusLine);
+    assert.ok(
+      res.statusLine === '' || code !== 101,
+      `expected no upgrade, got: ${res.statusLine}`,
+    );
 
-      await new Promise((resolve) => httpServer.close(resolve));
-    },
-  );
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
 
-  await t.test(
-    'invalid Sec-WebSocket-Key length -> should not upgrade',
-    async () => {
-      const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer({ server: httpServer });
-      tinyWsServer.on('connection', () => {});
+  await t.test('Sec-WebSocket-Key too short -> no upgrade', async () => {
+    const httpServer = http.createServer();
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
+    tinyWsServer.on('connection', () => {});
 
-      await new Promise((resolve) => httpServer.listen(0, resolve));
-      const port = httpServer.address().port;
+    await new Promise((resolve) => httpServer.listen(0, resolve));
+    const port = httpServer.address().port;
 
-      const res = await ProtocolClient.attemptHandshake({
-        host: 'localhost',
-        port,
-        headers: {
-          Upgrade: 'websocket',
-          Connection: 'Upgrade',
-          'Sec-WebSocket-Version': '13',
-          // base64 is valid, but lower than 16 bytes after decoding
-          'Sec-WebSocket-Key': Buffer.from('short').toString('base64'),
-        },
-        timeoutMs: 250,
-      });
+    const res = await ProtocolClient.attemptHandshake({
+      host: 'localhost',
+      port,
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Version': '13',
+        // base64 is valid, but lower than 16 bytes after decoding
+        'Sec-WebSocket-Key': Buffer.from('short').toString('base64'),
+      },
+      timeoutMs: 250,
+    });
 
-      const code = parseStatusCode(res.statusLine);
-      assert.ok(
-        res.statusLine === '' || code !== 101,
-        `expected no upgrade, got: ${res.statusLine}`,
-      );
+    const code = parseStatusCode(res.statusLine);
+    assert.ok(
+      res.statusLine === '' || code !== 101,
+      `expected no upgrade, got: ${res.statusLine}`,
+    );
 
-      await new Promise((resolve) => httpServer.close(resolve));
-    },
-  );
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
 
   await t.test('wrong Upgrade token value -> should not upgrade', async () => {
     const httpServer = http.createServer();
@@ -229,72 +220,64 @@ test('handshake: negative cases', async (t) => {
     await new Promise((resolve) => httpServer.close(resolve));
   });
 
-  await t.test(
-    'Connection header without Upgrade token -> should not upgrade',
-    async () => {
-      const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer({ server: httpServer });
-      tinyWsServer.on('connection', () => {});
+  await t.test('Connection without Upgrade token -> no upgrade', async () => {
+    const httpServer = http.createServer();
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
+    tinyWsServer.on('connection', () => {});
 
-      await new Promise((resolve) => httpServer.listen(0, resolve));
-      const port = httpServer.address().port;
+    await new Promise((resolve) => httpServer.listen(0, resolve));
+    const port = httpServer.address().port;
 
-      const res = await ProtocolClient.attemptHandshake({
-        host: 'localhost',
-        port,
-        headers: {
-          Upgrade: 'websocket',
-          Connection: 'keep-alive',
-          'Sec-WebSocket-Version': '13',
-          'Sec-WebSocket-Key':
-            Buffer.from('0123456789abcdef').toString('base64'),
-        },
-        timeoutMs: 250,
-      });
+    const res = await ProtocolClient.attemptHandshake({
+      host: 'localhost',
+      port,
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'keep-alive',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+      },
+      timeoutMs: 250,
+    });
 
-      const code = parseStatusCode(res.statusLine);
-      assert.ok(
-        res.statusLine === '' || code !== 101,
-        `expected no upgrade, got: ${res.statusLine}`,
-      );
+    const code = parseStatusCode(res.statusLine);
+    assert.ok(
+      res.statusLine === '' || code !== 101,
+      `expected no upgrade, got: ${res.statusLine}`,
+    );
 
-      await new Promise((resolve) => httpServer.close(resolve));
-    },
-  );
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
 
-  await t.test(
-    'missing Host header (HTTP/1.1 requires Host) -> should not upgrade',
-    async () => {
-      const httpServer = http.createServer();
-      const tinyWsServer = new WebsocketServer({ server: httpServer });
-      tinyWsServer.on('connection', () => {});
+  await t.test('missing Host header -> should not upgrade', async () => {
+    const httpServer = http.createServer();
+    const tinyWsServer = new WebsocketServer({ server: httpServer });
+    tinyWsServer.on('connection', () => {});
 
-      await new Promise((resolve) => httpServer.listen(0, resolve));
-      const port = httpServer.address().port;
+    await new Promise((resolve) => httpServer.listen(0, resolve));
+    const port = httpServer.address().port;
 
-      const res = await ProtocolClient.attemptHandshake({
-        host: 'localhost',
-        port,
-        includeHost: false,
-        headers: {
-          Upgrade: 'websocket',
-          Connection: 'Upgrade',
-          'Sec-WebSocket-Version': '13',
-          'Sec-WebSocket-Key':
-            Buffer.from('0123456789abcdef').toString('base64'),
-        },
-        timeoutMs: 250,
-      });
+    const res = await ProtocolClient.attemptHandshake({
+      host: 'localhost',
+      port,
+      includeHost: false,
+      headers: {
+        Upgrade: 'websocket',
+        Connection: 'Upgrade',
+        'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': Buffer.from('0123456789abcdef').toString('base64'),
+      },
+      timeoutMs: 250,
+    });
 
-      const code = parseStatusCode(res.statusLine);
-      assert.ok(
-        res.statusLine === '' || code !== 101,
-        `expected no upgrade, got: ${res.statusLine}`,
-      );
+    const code = parseStatusCode(res.statusLine);
+    assert.ok(
+      res.statusLine === '' || code !== 101,
+      `expected no upgrade, got: ${res.statusLine}`,
+    );
 
-      await new Promise((resolve) => httpServer.close(resolve));
-    },
-  );
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
 
   await t.test('wrong HTTP method (POST) -> should not upgrade', async () => {
     const httpServer = http.createServer();
@@ -357,8 +340,7 @@ test('handshake: negative cases', async (t) => {
   });
 });
 
-// eslint-disable-next-line max-len
-test('handshake: Sec-WebSocket-Accept is correct and no subprotocol by default', async () => {
+test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
   const httpServer = http.createServer();
   const tinyWsServer = new WebsocketServer({ server: httpServer });
   // Terminate immediately to avoid waiting for heartbeat timeouts
@@ -397,8 +379,7 @@ test('handshake: Sec-WebSocket-Accept is correct and no subprotocol by default',
   await new Promise((resolve) => httpServer.close(resolve));
 });
 
-// eslint-disable-next-line max-len
-test('handshake: Connection header token matching is case-insensitive and allows multiple', async () => {
+test('handshake: Connection token match is case-insensitive', async () => {
   const httpServer = http.createServer();
   const tinyWsServer = new WebsocketServer({ server: httpServer });
   // Terminate immediately to avoid waiting for heartbeat timeouts

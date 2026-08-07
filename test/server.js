@@ -4,8 +4,9 @@ const timers = require('node:timers/promises');
 const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
+
 const { Server } = require('../lib/server.js');
-const { ProtocolClient } = require('./websocket/utils/protocolClient.js');
+const { ProtocolClient } = require('./websocket/protocolClient.js');
 
 const parseStatusCode = (statusLine) => {
   if (!statusLine) return null;
@@ -78,11 +79,12 @@ test('Server / calls', async (t) => {
     const id = randomUUID();
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
-    const response = await fetch(`http://${options.host}:${options.port}/api`, {
+    const res = await fetch(`http://${options.host}:${options.port}/api`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(packet),
-    }).then((res) => res.json());
+    });
+    const response = await res.json();
 
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');

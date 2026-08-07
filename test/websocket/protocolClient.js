@@ -1,8 +1,9 @@
 'use strict';
 
+const { EventEmitter } = require('node:events');
+
 const net = require('net');
 const crypto = require('crypto');
-const { EventEmitter } = require('node:events');
 
 const TWO_32 = 4294967296;
 

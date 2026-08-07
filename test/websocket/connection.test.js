@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const ws = require('#ws');
 const { Connection, Frame, FrameParser } = ws;
 const { OPCODES, CLOSE_TIMEOUT, CLOSE_CODES } = ws;
-const { MockSocket } = require('../utils/mockSocket.js');
+const { MockSocket } = require('./mockSocket.js');
 
 test('Connection: should emit message on text frame', async () => {
   const socket = new MockSocket();

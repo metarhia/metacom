@@ -10,8 +10,7 @@ const { Frame, FrameParser } = ws;
 const FIN = 0x80;
 const LEN_64_BIT = 127;
 
-// eslint-disable-next-line max-len
-test('FrameParser: returns parse error when payload length exceeds MAX_SAFE_INTEGER', () => {
+test('FrameParser: payload length > MAX_SAFE_INTEGER -> error', () => {
   const buffer = Buffer.alloc(14);
   buffer[0] = FIN | OPCODES.BINARY;
   buffer[1] = LEN_64_BIT;
@@ -29,16 +28,14 @@ test('FrameParser: returns parse error when payload length exceeds MAX_SAFE_INTE
   assert.strictEqual(result.error.code, PARSE_ERR_CODES.MESSAGE_TOO_BIG);
 });
 
-// eslint-disable-next-line max-len
-test('FrameParser: returns empty result when buffer smaller than header', () => {
+test('FrameParser: empty result when buffer smaller than header', () => {
   const buf = Buffer.alloc(1); // less than 2 bytes header
   const res = FrameParser.parse(buf);
   assert.strictEqual(res.value, null);
   assert.strictEqual(res.error, null);
 });
 
-// eslint-disable-next-line max-len
-test('FrameParser: returns empty when mask bit set but mask bytes missing', () => {
+test('FrameParser: empty when mask set but mask bytes missing', () => {
   // 0x81 = FIN + TEXT opcode, 0x80 = MASK bit set + 0 payload length
   const buf = Buffer.from([0x81, 0x80]);
   const res = FrameParser.parse(buf);
@@ -46,8 +43,7 @@ test('FrameParser: returns empty when mask bit set but mask bytes missing', () =
   assert.strictEqual(res.error, null);
 });
 
-// eslint-disable-next-line max-len
-test('FrameParser: parses masked frame and Frame.unmaskPayload recovers original', () => {
+test('FrameParser: masked frame, unmaskPayload recovers original', () => {
   const msg = 'ok';
   const frame = Frame.text(msg);
   frame.maskPayload();
@@ -65,8 +61,7 @@ test('FrameParser: parses masked frame and Frame.unmaskPayload recovers original
   assert.strictEqual(res.value.bytesUsed, expectedBytes);
 });
 
-// eslint-disable-next-line max-len
-test('FrameParser: parses first of two concatenated frames and returns correct bytesUsed', () => {
+test('FrameParser: first of two concatenated frames, bytesUsed', () => {
   const f1 = Frame.text('first');
   const f2 = Frame.text('second');
   const buf = Buffer.concat([f1.toBuffer(), f2.toBuffer()]);
