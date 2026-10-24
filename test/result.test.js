@@ -107,3 +107,25 @@ test('Result: value and error getters are read-only', () => {
     r.value = 99;
   });
 });
+
+test('Result.fail: defaults to an Error instance', () => {
+  const r = Result.fail();
+  assert.ok(r.error instanceof Error);
+  assert.equal(r.value, null);
+  assert.equal(r.ok, false);
+});
+
+test('Result.fromAsync: wraps resolved value', async () => {
+  const r = await Result.fromAsync(async () => 42);
+  assert.equal(r.value, 42);
+  assert.equal(r.ok, true);
+});
+
+test('Result.fromAsync: catches rejection', async () => {
+  const err = new Error('boom');
+  const r = await Result.fromAsync(async () => {
+    throw err;
+  });
+  assert.strictEqual(r.error, err);
+  assert.equal(r.ok, false);
+});
