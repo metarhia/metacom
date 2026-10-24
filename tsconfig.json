@@ -8,5 +8,5 @@
     "preserveWatchOutput": true,
     "esModuleInterop": true
   },
-  "include": ["*.d.ts"]
+  "include": ["*.d.ts", "types-check.ts"]
 }

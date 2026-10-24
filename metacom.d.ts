@@ -6,7 +6,7 @@ import {
 } from 'node:http';
 import { Server as HttpsServer } from 'node:https';
 import { Socket } from 'node:net';
-import { Readable, Writable } from 'node:stream';
+import { Writable } from 'node:stream';
 import { Emitter } from 'metautil';
 
 export class MetacomError extends Error {
@@ -48,6 +48,19 @@ export interface Transport {
   write(data: string | ArrayBufferView): void;
 }
 
+export interface MetacomPacket {
+  type: string;
+  id?: string;
+  method?: string;
+  args?: object;
+  name?: string;
+  data?: unknown;
+  result?: unknown;
+  error?: { message: string; code: number };
+  status?: 'end' | 'terminate';
+  size?: number;
+}
+
 export class MetaWritable extends Emitter {
   id: string;
   name: string;
@@ -64,6 +77,32 @@ export interface BlobUploader {
   upload(): Promise<void>;
 }
 
+export interface TransportCapabilities {
+  duplex: boolean;
+  streams: boolean;
+  events: boolean;
+}
+
+export interface TransportAdapter {
+  Client: new (url: string) => ClientTransport;
+  Server: (new (...args: unknown[]) => ServerTransport) & {
+    capabilities: TransportCapabilities;
+  };
+  capabilities: TransportCapabilities;
+  attach?: (
+    httpServer: HttpServer | HttpsServer,
+    options: object,
+    onConnection: (transport: ServerTransport) => void,
+  ) => unknown;
+}
+
+export function registerTransport(
+  name: string,
+  adapter: TransportAdapter,
+): void;
+export function getTransport(name: string): TransportAdapter;
+export function allTransports(): IterableIterator<[string, TransportAdapter]>;
+
 export class ClientTransport extends Emitter {
   url: string;
   active: boolean;
@@ -76,6 +115,19 @@ export class ClientTransport extends Emitter {
   offline(): void;
 }
 
+export class ClientWsTransport extends ClientTransport {}
+
+export class ClientHttpTransport extends ClientTransport {}
+
+export class ClientEventTransport extends ClientTransport {
+  static instance: ClientEventTransport | null;
+  static getInstance(url: string): ClientEventTransport;
+}
+
+export function buildHeaders(
+  cors?: { origin?: string } | null,
+): Record<string, string>;
+
 export class Metacom extends Emitter {
   static connections: Set<Metacom>;
   static isOnline: boolean;
@@ -84,11 +136,9 @@ export class Metacom extends Emitter {
   static initialize(): void;
   static connect(url: string, options?: MetacomOptions): Promise<Metacom>;
   static transport: {
-    ws: new (url: string) => Transport;
-    http: new (url: string) => Transport;
-    event: {
-      getInstance(url: string): Transport;
-    };
+    ws: typeof ClientWsTransport;
+    http: typeof ClientHttpTransport;
+    event: typeof ClientEventTransport;
   };
 
   url: string;
@@ -110,16 +160,53 @@ export interface MetacomOptions {
   callTimeout?: number;
   reconnectTimeout?: number;
   worker?: ServiceWorker;
-  packetHandler?: (data: string) => void | Promise<void>;
-  binaryHandler?: (
-    input: ArrayBuffer | ArrayBufferView | Blob,
-  ) => void | Promise<void>;
+  proxy?: (data: string) => void;
 }
 
 export class MetacomProxy extends Emitter {
   constructor(options?: MetacomOptions);
   open(): Promise<void>;
   close(): void;
+}
+
+export class ServerTransport extends Emitter {
+  source: string;
+  constructor(source: string);
+  close(): void;
+  error(code?: number, options?: ErrorOptions): void;
+  send(obj: object, code?: number): void;
+  write(data: string | Buffer, code?: number): void;
+}
+
+export class ServerHttpTransport extends ServerTransport {
+  static capabilities: TransportCapabilities;
+  req: IncomingMessage;
+  res: ServerResponse;
+  headers: Record<string, string>;
+  constructor(
+    req: IncomingMessage,
+    res: ServerResponse,
+    options?: TransportOptions,
+  );
+  write(data: string | Buffer, httpCode?: number): void;
+  options(): void;
+  getCookies(): Record<string, string>;
+  sendSessionCookie(token: string): void;
+  removeSessionCookie(): void;
+}
+
+export class ServerWsTransport extends ServerTransport {
+  static capabilities: TransportCapabilities;
+  connection: Connection;
+  constructor(req: IncomingMessage, connection: Connection);
+  write(data: string | Buffer): void;
+}
+
+export class ServerEventTransport extends ServerTransport {
+  static capabilities: TransportCapabilities;
+  port: MessagePort;
+  constructor(port: MessagePort);
+  write(data: string | Buffer): void;
 }
 
 export interface ApplicationContext {
@@ -142,7 +229,10 @@ export interface Options {
   nagle?: boolean;
   key?: string;
   cert?: string;
-  SNICallback?: Function;
+  SNICallback?: (
+    servername: string,
+    callback: (error: Error | null, context?: object) => void,
+  ) => void;
   timeouts?: { bind: number };
   retry?: number;
   websocketPath?: string;
@@ -151,6 +241,10 @@ export interface Options {
 export interface ErrorOptions {
   id?: string;
   error?: Error;
+}
+
+export interface TransportOptions {
+  headers?: Record<string, string>;
 }
 
 export interface Auth {
@@ -169,6 +263,7 @@ export class Client extends Emitter {
   source: string;
   session: Session | null;
   streams: Map<string, MetaReadable | MetaWritable>;
+  constructor(transport: ServerTransport, context: ApplicationContext);
   error(code: number, options?: ErrorOptions): void;
   send(obj: object, options?: { code?: number; method?: string }): void;
   createContext(): Context;
@@ -184,48 +279,30 @@ export class Client extends Emitter {
   destroy(): void;
 }
 
-export interface TransportOptions {
-  headers?: Record<string, string>;
+export class Server {
+  httpServer: HttpServer;
+  wsServer: WebsocketServer | null;
+  constructor(context: ApplicationContext, options: Options);
+  listen(): Promise<Server>;
+  close(): Promise<void>;
 }
 
-export class ServerTransport extends Emitter {
-  static transport: {
-    http: typeof ServerHttpTransport;
-    ws: typeof ServerWsTransport;
-    event: typeof ServerEventTransport;
-  };
-  source: string;
-  constructor(source: string);
-  error(code?: number, options?: ErrorOptions): void;
-  send(obj: object, code?: number): void;
+export interface State {
+  [key: string]: unknown;
 }
 
-export class ServerHttpTransport extends ServerTransport {
-  req: IncomingMessage;
-  res: ServerResponse;
-  headers: Record<string, string>;
-  constructor(
-    req: IncomingMessage,
-    res: ServerResponse,
-    options?: TransportOptions,
-  );
-  write(data: string | Buffer, httpCode?: number): void;
-  options(): void;
-  getCookies(): Record<string, string>;
-  sendSessionCookie(token: string): void;
-  removeSessionCookie(): void;
+export class Session {
+  token: string;
+  state: State;
+  constructor(token: string, data: State, context: ApplicationContext);
 }
 
-export class ServerWsTransport extends ServerTransport {
-  connection: Connection;
-  constructor(req: IncomingMessage, connection: Connection);
-  write(data: string | Buffer): void;
-}
-
-export class ServerEventTransport extends ServerTransport {
-  port: MessagePort;
-  constructor(port: MessagePort);
-  write(data: string | Buffer): void;
+export class Context {
+  client: Client;
+  uuid: string;
+  state: Record<string, unknown>;
+  session: Session | null;
+  constructor(client: Client);
 }
 
 export interface CallPacket {
@@ -243,13 +320,16 @@ export interface StreamPacket {
   status?: 'end' | 'terminate';
 }
 
-export class Server {
-  httpServer: HttpServer;
-  wsServer: WebsocketServer | null;
-  constructor(context: ApplicationContext, options: Options);
-  listen(): Promise<Server>;
-  close(): Promise<void>;
-}
+export function createProxy<T extends object>(
+  data: T,
+  save?: (data: T) => void,
+): T;
+
+export function chunkEncode(id: string, payload: Uint8Array): Uint8Array;
+export function chunkDecode(chunk: Uint8Array): {
+  id: string;
+  payload: Uint8Array;
+};
 
 export declare const MAGIC: string;
 export declare const CLOSE_TIMEOUT: number;
@@ -313,6 +393,72 @@ export interface ConnectionOptions {
   closeTimeout?: number;
 }
 
+export interface Result<T> {
+  readonly value: T | null;
+  readonly error: Error | null;
+  readonly ok: boolean;
+  unwrap(defaultValue?: T): T;
+  map<U>(fn: (value: T) => U): Result<U>;
+}
+
+export interface CloseDetails {
+  code: number | null;
+  reason: string;
+}
+
+export interface ParsedFrame {
+  frame: Frame;
+  bytesUsed: number;
+}
+
+export declare class Frame {
+  fin: boolean;
+  rsv: number;
+  opcode: number;
+  masked: boolean;
+  payload: Buffer;
+  mask: Buffer | null;
+  constructor(
+    fin: boolean,
+    opcode: number,
+    masked: boolean,
+    payload: Buffer,
+    mask?: Buffer | null,
+    rsv?: number,
+  );
+  static text(message: string, fin?: boolean, masked?: boolean): Frame;
+  static binary(
+    buffer: Buffer | ArrayBufferView,
+    fin?: boolean,
+    masked?: boolean,
+  ): Frame;
+  static ping(payload?: Buffer | string): Frame;
+  static pong(payload?: Buffer | string): Frame;
+  static emptyClientPingBuffer(): Buffer;
+  static emptyClientPongBuffer(): Buffer;
+  static errorClose(type: string, isClient?: boolean): Buffer;
+  static protocolErrorClose(type: string, isClient?: boolean): Buffer;
+  static isProtocolErrorType(type: string): boolean;
+  static close(code?: number | null, reason?: string): Frame;
+  unmaskPayload(): void;
+  maskPayload(): void;
+  toString(): string | null;
+  getCloseDetails(): Result<CloseDetails>;
+  get header(): Buffer;
+  toBuffer(): Buffer;
+  get isControlFrame(): boolean;
+}
+
+export declare class ParseError extends Error {
+  code: string;
+  constructor(code: string, message: string);
+}
+
+export declare function parse(buffer: Buffer): Result<ParsedFrame | null>;
+export declare function expectedFrameLength(buffer: Buffer): number;
+export declare function checkControlFrame(frame: Frame): Result<boolean>;
+export declare function checkDataFrame(frame: Frame): Result<boolean>;
+
 export declare class Connection extends EventEmitter {
   constructor(socket: Socket, head: Buffer, options?: ConnectionOptions);
 
@@ -332,30 +478,3 @@ export declare class Connection extends EventEmitter {
   on(event: 'close', listener: () => void): this;
   on(event: 'pong', listener: (payload: Buffer) => void): this;
 }
-
-export interface State {
-  [key: string]: unknown;
-}
-
-export interface Session {
-  token: string;
-  state: State;
-}
-
-export interface Context {
-  client: Client;
-  uuid: string;
-  state: Record<string, unknown>;
-  session: Session | null;
-}
-
-export function createProxy<T extends object>(
-  data: T,
-  save?: (data: T) => void,
-): T;
-
-export function chunkEncode(id: string, payload: Uint8Array): Uint8Array;
-export function chunkDecode(chunk: Uint8Array): {
-  id: string;
-  payload: Uint8Array;
-};
