@@ -350,19 +350,15 @@ export declare const OPCODES: {
 };
 
 export declare const CLOSE_CODES: {
-  readonly NORMAL_CLOSE: 1000;
-  readonly GOING_AWAY: 1001;
-  readonly PROTOCOL_ERROR: 1002;
-  readonly UNSUPPORTED_DATA: 1003;
-  readonly RESERVED: 1004;
-  readonly NO_CODE_RECEIVED: 1005;
-  readonly CONNECTION_CLOSED_ABNORMALLY: 1006;
-  readonly INVALID_PAYLOAD: 1007;
-  readonly POLICY_VIOLATED: 1008;
-  readonly MESSAGE_TOO_BIG: 1009;
-  readonly MANDATORY_EXTENSION: 1010;
-  readonly INTERNAL_SERVER_ERROR: 1011;
-  readonly TLS_HANDSHAKE: 1015;
+  readonly 'Normal closure': 1000;
+  readonly 'Going away': 1001;
+  readonly 'Protocol error': 1002;
+  readonly 'Unsupported data': 1003;
+  readonly 'Invalid payload data': 1007;
+  readonly 'Policy violation': 1008;
+  readonly 'Message too big': 1009;
+  readonly 'Mandatory extension': 1010;
+  readonly 'Internal error': 1011;
 };
 
 export interface VerifyClientInfo {
@@ -461,9 +457,9 @@ export declare class ParseError extends Error {
 }
 
 export declare function parse(buffer: Buffer): Result<ParsedFrame | null>;
-export declare function expectedFrameLength(buffer: Buffer): number;
-export declare function checkControlFrame(frame: Frame): Result<boolean>;
-export declare function checkDataFrame(frame: Frame): Result<boolean>;
+export declare function frameLength(buffer: Buffer): number;
+export declare function checkControl(frame: Frame): Result<boolean>;
+export declare function checkData(frame: Frame): Result<boolean>;
 
 export declare class Connection extends EventEmitter {
   constructor(socket: Socket, head: Buffer, options?: ConnectionOptions);
@@ -473,7 +469,7 @@ export declare class Connection extends EventEmitter {
   sendBinary(buffer: Buffer): boolean;
   sendPing(payload?: Buffer | string): boolean;
   sendPong(payload?: Buffer | string): boolean;
-  sendClose(code?: number, reason?: string): boolean;
+  sendClose(reason?: string, code?: number): boolean;
   terminate(): void;
 
   on(

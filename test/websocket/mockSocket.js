@@ -20,9 +20,11 @@ class MockSocket extends EventEmitter {
   uncork() {
     this.#isCorked = false;
     if (this.#pendingWrites.length) {
-      const combined = Buffer.isBuffer(this.#pendingWrites[0])
-        ? Buffer.concat(this.#pendingWrites)
-        : this.#pendingWrites.join('');
+      let combined = this.#pendingWrites.join('');
+      const first = this.#pendingWrites[0];
+      if (Buffer.isBuffer(first)) {
+        combined = Buffer.concat(this.#pendingWrites);
+      }
       this.write(combined);
       this.#pendingWrites.length = 0;
     }

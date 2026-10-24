@@ -5,8 +5,8 @@ const assert = require('node:assert');
 
 const ws = require('#ws');
 const { OPCODES } = ws;
-const { Frame, parse, expectedFrameLength } = ws;
-const { checkControlFrame, checkDataFrame } = ws;
+const { Frame, parse, frameLength } = ws;
+const { checkControl, checkData } = ws;
 
 const FIN = 0x80;
 const LEN_64_BIT = 127;
@@ -25,11 +25,11 @@ test('FrameParser: payload length > MAX_SAFE_INTEGER -> error', () => {
   const result = parse(buffer);
   assert.ok(result.error, 'Expected parse result to contain an error');
   assert.strictEqual(result.error.name, 'ParseError');
-  assert.strictEqual(result.error.code, 'MESSAGE_TOO_BIG');
+  assert.strictEqual(result.error.code, 'Message too big');
 });
 
 test('FrameParser: empty result when buffer smaller than header', () => {
-  const buf = Buffer.alloc(1); // less than 2 bytes header
+  const buf = Buffer.alloc(1);
   const res = parse(buf);
   assert.strictEqual(res.value, null);
   assert.strictEqual(res.error, null);
@@ -73,60 +73,60 @@ test('FrameParser: first of two concatenated frames, bytesUsed', () => {
   assert.strictEqual(res.value.bytesUsed, f1.toBuffer().length);
 });
 
-test('expectedFrameLength: needs 2 bytes for header', () => {
-  assert.strictEqual(expectedFrameLength(Buffer.alloc(0)), 2);
-  assert.strictEqual(expectedFrameLength(Buffer.alloc(1)), 2);
+test('frameLength: needs 2 bytes for header', () => {
+  assert.strictEqual(frameLength(Buffer.alloc(0)), 2);
+  assert.strictEqual(frameLength(Buffer.alloc(1)), 2);
 });
 
-test('expectedFrameLength: short unmasked and masked frames', () => {
+test('frameLength: short unmasked and masked frames', () => {
   const unmasked = Frame.text('hello').toBuffer();
-  assert.strictEqual(expectedFrameLength(unmasked), unmasked.length);
+  assert.strictEqual(frameLength(unmasked), unmasked.length);
   const frame = Frame.text('hello');
   frame.maskPayload();
   const masked = frame.toBuffer();
-  assert.strictEqual(expectedFrameLength(masked), masked.length);
-  assert.strictEqual(expectedFrameLength(masked.subarray(0, 3)), 2 + 4 + 5);
+  assert.strictEqual(frameLength(masked), masked.length);
+  assert.strictEqual(frameLength(masked.subarray(0, 3)), 2 + 4 + 5);
 });
 
-test('expectedFrameLength: 16-bit length frame', () => {
+test('frameLength: 16-bit length frame', () => {
   const buf = Frame.binary(Buffer.alloc(300)).toBuffer();
-  assert.strictEqual(expectedFrameLength(buf.subarray(0, 2)), 4);
-  assert.strictEqual(expectedFrameLength(buf.subarray(0, 4)), buf.length);
+  assert.strictEqual(frameLength(buf.subarray(0, 2)), 4);
+  assert.strictEqual(frameLength(buf.subarray(0, 4)), buf.length);
 });
 
-test('expectedFrameLength: 64-bit length frame', () => {
+test('frameLength: 64-bit length frame', () => {
   const buf = Frame.binary(Buffer.alloc(70000)).toBuffer();
-  assert.strictEqual(expectedFrameLength(buf.subarray(0, 2)), 10);
-  assert.strictEqual(expectedFrameLength(buf.subarray(0, 10)), buf.length);
+  assert.strictEqual(frameLength(buf.subarray(0, 2)), 10);
+  assert.strictEqual(frameLength(buf.subarray(0, 10)), buf.length);
 });
 
-test('expectedFrameLength: oversized frame reports current length', () => {
+test('frameLength: oversized frame reports current length', () => {
   const buffer = Buffer.alloc(10);
   buffer[0] = FIN | OPCODES.BINARY;
   buffer[1] = LEN_64_BIT;
   buffer.writeUInt32BE(0xffffffff, 2);
-  assert.strictEqual(expectedFrameLength(buffer), buffer.length);
+  assert.strictEqual(frameLength(buffer), buffer.length);
 });
 
-test('checkControlFrame: rejects too long control frame', () => {
+test('checkControl: rejects too long control frame', () => {
   const frame = new Frame(true, OPCODES.PING, false, Buffer.alloc(126));
-  const { error } = checkControlFrame(frame);
+  const { error } = checkControl(frame);
   assert.strictEqual(error.code, 'CTRL_TOO_LONG');
 });
 
-test('checkControlFrame: rejects invalid close code', () => {
+test('checkControl: rejects invalid close code', () => {
   const payload = Buffer.alloc(2);
   payload.writeUInt16BE(1005);
   const frame = new Frame(true, OPCODES.CLOSE, false, payload);
-  const { error } = checkControlFrame(frame);
+  const { error } = checkControl(frame);
   assert.strictEqual(error.code, 'COMMON');
 });
 
-test('checkDataFrame: rejects invalid UTF-8 in final text frame', () => {
+test('checkData: rejects invalid UTF-8 in final text frame', () => {
   const payload = Buffer.from([0xff, 0xfe]);
   const frame = new Frame(true, OPCODES.TEXT, false, payload);
-  const { error } = checkDataFrame(frame);
-  assert.strictEqual(error.code, 'INVALID_PAYLOAD');
+  const { error } = checkData(frame);
+  assert.strictEqual(error.code, 'Invalid payload data');
 });
 
 test('Frame: mask defaults to null', () => {

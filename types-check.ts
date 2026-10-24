@@ -29,7 +29,6 @@ import type {
   TransportCapabilities,
 } from './metacom.js';
 
-// Compile-time checks for public API surface
 type Assert<T extends true> = T;
 
 type _ClientTransportOpen = Assert<

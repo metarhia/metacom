@@ -32,7 +32,6 @@ class ProtocolClient extends EventEmitter {
     this._closeSent = false;
     this._fragments = null; // { opcode, chunks: Buffer[] }
 
-    // Handlers dispatch map: { [opcode]: handler }
     this.#handlers = {
       0x0: this.#handleContinuation,
       0x1: this.#handleText,
@@ -157,7 +156,6 @@ class ProtocolClient extends EventEmitter {
       handler.call(this, { opcode, fin, masked, payload });
       return;
     }
-    // Unknown opcode: just emit the frame raw
     this.emit('frame', opcode, payload, { fin, masked });
   }
 
@@ -269,15 +267,12 @@ class ProtocolClient extends EventEmitter {
     this._sendFrame(0x9, Buffer.from(payload), opts);
   }
 
-  // Convenience: send string as text, Buffer/TypedArray/ArrayBuffer as binary;
-  // others stringified
   send(data, opts) {
     if (typeof data === 'string') return this.sendText(data, opts);
     if (Buffer.isBuffer(data)) return this.sendBinary(data, opts);
     if (data && ArrayBuffer.isView(data)) {
-      const view = data; // TypedArray/DataView
       return this.sendBinary(
-        Buffer.from(view.buffer, view.byteOffset, view.byteLength),
+        Buffer.from(data.buffer, data.byteOffset, data.byteLength),
         opts,
       );
     }
@@ -298,10 +293,6 @@ class ProtocolClient extends EventEmitter {
     this.socket.end();
   }
 
-  // Attempts an HTTP Upgrade handshake with custom headers.
-  // Options: { host, port, path, headers, method, httpVersion,
-  // includeHost, timeoutMs }
-  // Returns { statusLine, headers, raw, socketClosed }
   static attemptHandshake({
     host = 'localhost',
     port,

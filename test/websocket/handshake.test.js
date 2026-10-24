@@ -34,7 +34,6 @@ test('handshake: successful upgrade', async () => {
 
   assert.strictEqual(opened, true);
 
-  // Close client and wait for its socket to finish before closing the server
   await new Promise((resolve) => {
     client.on('close', () => resolve());
     client.close();
@@ -349,7 +348,6 @@ test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
   await new Promise((resolve) => httpServer.listen(0, resolve));
   const port = httpServer.address().port;
 
-  // Do a raw handshake to inspect headers
   const key = Buffer.from('0123456789abcdef').toString('base64');
   const res = await ProtocolClient.attemptHandshake({
     host: 'localhost',
@@ -363,7 +361,6 @@ test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
     timeoutMs: 600,
   });
 
-  // Compute expected accept
   const expected = crypto
     .createHash('sha1')
     .update(key)
@@ -373,7 +370,6 @@ test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
   const code = parseStatusCode(res.statusLine);
   assert.strictEqual(code, 101);
   assert.strictEqual(res.headers['sec-websocket-accept'], expected);
-  // No subprotocol unless negotiated
   assert.strictEqual(res.headers['sec-websocket-protocol'], undefined);
 
   await new Promise((resolve) => httpServer.close(resolve));

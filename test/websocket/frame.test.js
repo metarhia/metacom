@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 
-const { Frame, parse, checkControlFrame, OPCODES } = require('#ws');
+const { Frame, parse, checkControl, OPCODES } = require('#ws');
 
 test('Frame: create and parse text frame', () => {
   const message = 'Hello tinyWS';
@@ -44,7 +44,7 @@ test('Frame: create binary frame', () => {
 });
 
 test('Frame: extended 16-bit length', () => {
-  const data = Buffer.alloc(200, 0x42); //B
+  const data = Buffer.alloc(200, 0x42);
   const frame = Frame.binary(data);
   const buffer = frame.toBuffer();
   const parsedFrame = parse(buffer).value.frame;
@@ -55,7 +55,7 @@ test('Frame: extended 16-bit length', () => {
 
 test('Frame: extended 64-bit length', () => {
   const size = 70 * 1024;
-  const data = Buffer.alloc(size, 0x42); //B
+  const data = Buffer.alloc(size, 0x42);
   const frame = Frame.binary(data);
   const buffer = frame.toBuffer();
   const parsedFrame = parse(buffer).value.frame;
@@ -70,7 +70,7 @@ test('Frame: truncates close reason to 123 bytes', () => {
 
   assert.strictEqual(frame.payload.length, 2 + 123);
   const parsed = parse(frame.toBuffer()).value.frame;
-  const check = checkControlFrame(parsed);
+  const check = checkControl(parsed);
   assert.strictEqual(check.error, null);
 });
 
@@ -130,7 +130,7 @@ test('Frame: emptyClientPingBuffer randomises the mask on each call', () => {
 });
 
 test('Frame: errorClose returns a Buffer with correct close code', () => {
-  const buf = Frame.errorClose('MESSAGE_TOO_BIG');
+  const buf = Frame.errorClose('Message too big');
   assert.ok(Buffer.isBuffer(buf));
   const code = buf.readUInt16BE(2);
   assert.strictEqual(code, 1009);

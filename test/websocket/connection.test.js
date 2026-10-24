@@ -65,7 +65,7 @@ test('Connection: sendClose triggers socket end after CLOSE_TIMEOUT', () => {
   const sock = new MockSocket();
   const conn = new Connection(sock, Buffer.alloc(0), { closeTimeout: 100 });
 
-  conn.sendClose(1000, 'bye');
+  conn.sendClose('bye', 1000);
 
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -99,7 +99,7 @@ test('Connection: rejects fragmented message exceeding maxBuffer', () => {
   assert.strictEqual(closeFrame.opcode, OPCODES.CLOSE);
   assert.strictEqual(
     closeFrame.payload.readUInt16BE(0),
-    CLOSE_CODES.MESSAGE_TOO_BIG,
+    CLOSE_CODES['Message too big'],
   );
 });
 
@@ -112,7 +112,7 @@ test('Connection: ignores data frames after sending close', async () => {
     messages++;
   });
 
-  conn.sendClose(1000, 'bye');
+  conn.sendClose('bye', 1000);
 
   const text = Frame.text('late');
   text.maskPayload();
@@ -126,7 +126,7 @@ test('Connection: responds to ping during close handshake', () => {
   const socket = new MockSocket();
   const conn = new Connection(socket, Buffer.alloc(0), { closeTimeout: 50 });
 
-  conn.sendClose(1000, 'bye');
+  conn.sendClose('bye', 1000);
 
   const ping = Frame.ping();
   ping.maskPayload();

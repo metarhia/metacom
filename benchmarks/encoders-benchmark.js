@@ -70,62 +70,53 @@ const runBenchmarks = () => {
 
     const results = {};
 
-    // Warmup
     for (let i = 0; i < WARMUP_ITERATIONS; i++) {
       nodeEncoders.chunkEncode(testCase.id, testCase.payload);
       browserEncoders.chunkEncode(testCase.id, testCase.payload);
     }
 
-    // Node encode
     results.nodeEncode = benchmark(
       'Node encode',
       () => nodeEncoders.chunkEncode(testCase.id, testCase.payload),
       ITERATIONS,
     );
 
-    // Browser encode
     results.browserEncode = benchmark(
       'Browser encode',
       () => browserEncoders.chunkEncode(testCase.id, testCase.payload),
       ITERATIONS,
     );
 
-    // Prepare chunks for decode tests
     const nodeChunk = nodeEncoders.chunkEncode(testCase.id, testCase.payload);
     const browserChunk = browserEncoders.chunkEncode(
       testCase.id,
       testCase.payload,
     );
 
-    // Node decode (same origin)
     results.nodeDecode = benchmark(
       'Node decode',
       () => nodeEncoders.chunkDecode(nodeChunk),
       ITERATIONS,
     );
 
-    // Browser decode (same origin)
     results.browserDecode = benchmark(
       'Browser decode',
       () => browserEncoders.chunkDecode(browserChunk),
       ITERATIONS,
     );
 
-    // Cross-compatibility: Browser encode → Node decode
     results.browserToNode = benchmark(
       'Browser→Node decode',
       () => nodeEncoders.chunkDecode(browserChunk),
       ITERATIONS,
     );
 
-    // Cross-compatibility: Node encode → Browser decode
     results.nodeToBrowser = benchmark(
       'Node→Browser decode',
       () => browserEncoders.chunkDecode(nodeChunk),
       ITERATIONS,
     );
 
-    // Node round-trip (same origin)
     results.nodeRoundTrip = benchmark(
       'Node round-trip',
       () => {
@@ -135,7 +126,6 @@ const runBenchmarks = () => {
       ITERATIONS,
     );
 
-    // Browser round-trip (same origin)
     results.browserRoundTrip = benchmark(
       'Browser round-trip',
       () => {
@@ -148,7 +138,6 @@ const runBenchmarks = () => {
       ITERATIONS,
     );
 
-    // Print results
     console.log();
     console.log('  Encoding:');
     console.log(
@@ -234,7 +223,6 @@ const runBenchmarks = () => {
     console.log();
   }
 
-  // Summary
   console.log('Summary:');
   console.log('  - Both implementations use identical encoding format');
   console.log('  - Cross-compatibility is fully supported');
