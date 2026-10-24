@@ -108,6 +108,22 @@ test('Chunk / chunkDecode', async (t) => {
     assert.strictEqual(id, originalId);
     assert.deepStrictEqual(payload, originalPayload);
   });
+
+  await t.test('decodes Buffer input', () => {
+    const chunk = Buffer.from(chunkEncode('buf-id', new Uint8Array([1, 2])));
+    const { id, payload } = chunkDecode(chunk);
+    assert.strictEqual(id, 'buf-id');
+    assert.deepStrictEqual([...payload], [1, 2]);
+  });
+
+  await t.test('decodes subarray with non-zero byteOffset', () => {
+    const encoded = chunkEncode('off', new Uint8Array([5, 6, 7]));
+    const backing = new Uint8Array(encoded.length + 4);
+    backing.set(encoded, 4);
+    const { id, payload } = chunkDecode(backing.subarray(4));
+    assert.strictEqual(id, 'off');
+    assert.deepStrictEqual([...payload], [5, 6, 7]);
+  });
 });
 
 test('Chunk / encode-decode', async (t) => {

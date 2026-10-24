@@ -7,7 +7,7 @@ const assert = require('node:assert');
 
 const metautil = require('metautil');
 const { MetaReadable, MetaWritable } = require('../lib/streams.js');
-const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
+const { chunkDecode } = require('../lib/chunks.js');
 
 const UINT_8_MAX = 255;
 
@@ -47,56 +47,6 @@ const populateStream = (stream) => ({
     Readable.from(buffer)
       .on('data', (chunk) => stream.push(chunk))
       .on('end', () => stream.stop()),
-});
-
-test('Chunk / encode / decode', async (t) => {
-  await t.test('round-trip', () => {
-    const { id } = generatePacket();
-    const dataView = generateDataView();
-    const chunkView = chunkEncode(id, dataView);
-    assert.strictEqual(typeof chunkView, 'object');
-    assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
-    const decoded = chunkDecode(chunkView);
-    assert.strictEqual(decoded.id, id);
-    assert.deepStrictEqual(decoded.payload, dataView);
-  });
-
-  await t.test('with different ID lengths', () => {
-    const testCases = [
-      'short',
-      'medium_length_id',
-      'very_long_identifier_for_testing_purposes',
-      randomUUID(),
-      'a',
-      '123456789012345678901234567890123456789012345678901234567890',
-    ];
-
-    for (const id of testCases) {
-      const dataView = generateDataView();
-      const chunkView = chunkEncode(id, dataView);
-      assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
-      const decoded = chunkDecode(chunkView);
-      assert.strictEqual(decoded.id, id);
-      assert.deepStrictEqual(decoded.payload, dataView);
-    }
-  });
-
-  await t.test('validation for ID length limit', () => {
-    const maxId = 'a'.repeat(255);
-    const dataView = generateDataView();
-
-    const chunkView = chunkEncode(maxId, dataView);
-    assert.strictEqual(chunkView.constructor.name, 'Uint8Array');
-    const decoded = chunkDecode(chunkView);
-    assert.strictEqual(decoded.id, maxId);
-    assert.deepStrictEqual(decoded.payload, dataView);
-
-    const tooLongId = 'a'.repeat(256);
-
-    assert.throws(() => {
-      chunkEncode(tooLongId, dataView);
-    }, /ID length 256 exceeds maximum of 255 characters/);
-  });
 });
 
 test('MetaWritable', async (t) => {
