@@ -155,7 +155,7 @@ for (const [name, adapter] of allTransports()) {
     });
 
     // eslint-disable-next-line max-len
-    test(`Transport adapter '${name}': attach accepts (httpServer, options, onConnection)`, () => {
+    test(`Transport adapter '${name}': attach accepts (server, options, onConnection)`, () => {
       assert.equal(
         adapter.attach.length,
         3,
