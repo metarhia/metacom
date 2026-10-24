@@ -90,10 +90,16 @@ export interface TransportAdapter {
   };
   capabilities: TransportCapabilities;
   attach?: (
-    httpServer: HttpServer | HttpsServer,
-    options: object,
+    server: Server,
+    options: TransportAttachOptions,
     onConnection: (transport: ServerTransport) => void,
   ) => unknown;
+}
+
+export interface TransportAttachOptions {
+  headers: Record<string, string>;
+  path?: string;
+  verifyClient?: (info: { req: IncomingMessage }) => boolean;
 }
 
 export function registerTransport(
@@ -279,8 +285,8 @@ export class Client extends Emitter {
   destroy(): void;
 }
 
-export class Server {
-  httpServer: HttpServer;
+export class Server extends Emitter {
+  httpServer: HttpServer | HttpsServer;
   wsServer: WebsocketServer | null;
   constructor(context: ApplicationContext, options: Options);
   listen(): Promise<Server>;
