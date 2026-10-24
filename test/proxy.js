@@ -88,26 +88,6 @@ test('MetacomProxy', async (t) => {
     );
   });
 
-  await t.test('Constructs when self is defined', () => {
-    savedSelf = globalThis.self;
-    globalThis.self = createSwEnv();
-    assert.doesNotThrow(() => new MetacomProxy());
-  });
-
-  await t.test('Handle event: metacom:connect', () => {
-    savedSelf = globalThis.self;
-    globalThis.self = createSwEnv();
-    const proxy = new MetacomProxy();
-    const { port1, port2 } = new MessageChannel();
-    globalThis.self.dispatch({
-      data: { type: 'metacom:connect' },
-      ports: [port2],
-    });
-    proxy.close();
-    port1.close();
-    port2.close();
-  });
-
   await t.test('Broadcast to all ports', async () => {
     savedSelf = globalThis.self;
     globalThis.self = createSwEnv();

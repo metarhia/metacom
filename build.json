@@ -1,3 +1,11 @@
 {
-  "order": ["chunks-browser.js", "streams.js", "metacom.js"]
+  "order": [
+    "client-transport.js",
+    "client-ws.js",
+    "client-http.js",
+    "client-event.js",
+    "chunks-browser.js",
+    "streams.js",
+    "metacom.js"
+  ]
 }
