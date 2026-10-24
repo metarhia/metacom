@@ -205,3 +205,86 @@ test('Integration / Metacom client with Server', async (t) => {
     assert.strictEqual(await blob.text(), 'hello from server');
   });
 });
+
+test('Integration / WebSocket session restoration', async (t) => {
+  const accountId = '11';
+  const memoryToken = randomUUID();
+  const storedToken = randomUUID();
+  const storedSessions = new Map([[storedToken, { accountId }]]);
+  const api = {
+    auth: {
+      signin: {
+        handler: async (_args, context) => {
+          context.client.startSession(memoryToken, { accountId });
+          return { status: 'logged', token: memoryToken };
+        },
+      },
+      restore: {
+        handler: async ({ token }, context) => {
+          const isRestored = context.client.restoreSession(token);
+          if (isRestored) return { status: 'logged' };
+          const data = storedSessions.get(token);
+          if (!data) return { status: 'not logged' };
+          context.client.initializeSession(token, data);
+          return { status: 'logged' };
+        },
+      },
+    },
+    test: {
+      whoami: {
+        access: 'private',
+        handler: async (_args, context) => context.session.state.accountId,
+      },
+    },
+  };
+  const { server, port } = await createServer(api);
+  t.after(() => server.close());
+
+  const connect = async (testContext) => {
+    const client = await Metacom.connect(`ws://127.0.0.1:${port}/api`);
+    testContext.after(() => void client.close());
+    await client.load('auth', 'test');
+    return client;
+  };
+
+  await t.test('restores a cached session', async (t) => {
+    const original = await connect(t);
+    const signInResult = await original.api.auth.signin();
+    assert.deepStrictEqual(signInResult, {
+      status: 'logged',
+      token: memoryToken,
+    });
+    assert.strictEqual(await original.api.test.whoami(), accountId);
+
+    const client = await connect(t);
+    await assert.rejects(
+      client.api.test.whoami(),
+      (error) => error.code === 403,
+    );
+    const result = await client.api.auth.restore({ token: signInResult.token });
+    assert.deepStrictEqual(result, { status: 'logged' });
+    assert.strictEqual(await client.api.test.whoami(), accountId);
+    assert.strictEqual(await original.api.test.whoami(), accountId);
+  });
+
+  await t.test('restores a session from application storage', async (t) => {
+    const client = await connect(t);
+    await assert.rejects(
+      client.api.test.whoami(),
+      (error) => error.code === 403,
+    );
+    const result = await client.api.auth.restore({ token: storedToken });
+    assert.deepStrictEqual(result, { status: 'logged' });
+    assert.strictEqual(await client.api.test.whoami(), accountId);
+  });
+
+  await t.test('rejects an unknown session token', async (t) => {
+    const client = await connect(t);
+    const result = await client.api.auth.restore({ token: randomUUID() });
+    assert.deepStrictEqual(result, { status: 'not logged' });
+    await assert.rejects(
+      client.api.test.whoami(),
+      (error) => error.code === 403,
+    );
+  });
+});

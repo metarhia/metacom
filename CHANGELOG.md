@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Document session state access and restoration from application storage
+- Add WebSocket integration tests for session restoration
+
 ## [3.2.6][] - 2025-09-20
 
 - Migrate tests from metatests to Node.js native test runner
