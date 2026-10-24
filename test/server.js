@@ -96,9 +96,13 @@ test('Server / calls', async (t) => {
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
     const socket = new ProtocolClient(`ws://${options.host}:${options.port}`);
-    await new Promise((res) => socket.once('open', res));
+    await new Promise((res) => {
+      socket.once('open', res);
+    });
     socket.send(JSON.stringify(packet));
-    const resPacket = await new Promise((res) => socket.once('message', res));
+    const resPacket = await new Promise((res) => {
+      socket.once('message', res);
+    });
     const response = JSON.parse(resPacket.toString());
     socket.close();
     assert.strictEqual(response.id, id);
@@ -113,9 +117,13 @@ test('Server / calls', async (t) => {
     const socket = new ProtocolClient(
       `ws://${options.host}:${options.port}/api`,
     );
-    await new Promise((res) => socket.once('open', res));
+    await new Promise((res) => {
+      socket.once('open', res);
+    });
     socket.send(JSON.stringify(packet));
-    const resPacket = await new Promise((res) => socket.once('message', res));
+    const resPacket = await new Promise((res) => {
+      socket.once('message', res);
+    });
     const response = JSON.parse(resPacket.toString());
     socket.close();
     assert.strictEqual(response.id, id);

@@ -173,7 +173,9 @@ test('Integration / Metacom client with Server', async (t) => {
     const client = await Metacom.connect(`ws://127.0.0.1:${port}/`);
     t.after(() => void client.close());
     await client.load('test');
-    const ping = new Promise((resolve) => client.api.test.on('ping', resolve));
+    const ping = new Promise((resolve) => {
+      client.api.test.on('ping', resolve);
+    });
     const result = await client.api.test.notify();
     assert.deepStrictEqual(result, { ok: true });
     assert.deepStrictEqual(await ping, { ping: true });

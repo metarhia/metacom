@@ -109,7 +109,9 @@ test('MetacomProxy', async (t) => {
     ch2.port1.start();
     await proxy.open();
     MockWebSocket.last.dispatchMessage('payload');
-    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => {
+      setImmediate(r);
+    });
     assert.strictEqual(received.length, 2);
     assert.strictEqual(received[0].data, 'payload');
     assert.strictEqual(received[1].data, 'payload');

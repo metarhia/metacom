@@ -293,7 +293,9 @@ class MetaReadable extends Emitter {
   }
 
   waitEvent(event) {
-    return new Promise((resolve) => this.once(event, resolve));
+    return new Promise((resolve) => {
+      this.once(event, resolve);
+    });
   }
 
   async *[Symbol.asyncIterator]() {

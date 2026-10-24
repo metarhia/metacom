@@ -15,13 +15,18 @@ async function startServer(onConn) {
     pingInterval: 60_000,
   });
   if (onConn) tinyWsServer.on('connection', onConn);
-  await new Promise((r) => httpServer.listen(0, r));
+  await new Promise((r) => {
+    httpServer.listen(0, r);
+  });
   const port = httpServer.address().port;
   return { httpServer, port };
 }
 
 // micro-delay to preserve TCP chunking behavior without slowing tests
-const delay = () => new Promise((r) => process.nextTick(r));
+const delay = () =>
+  new Promise((r) => {
+    process.nextTick(r);
+  });
 
 test('frames: unmasked data frame from client -> close 1002', async () => {
   const { httpServer, port } = await startServer((conn) =>
@@ -42,7 +47,9 @@ test('frames: unmasked data frame from client -> close 1002', async () => {
     `unexpected reason: ${result.reason}`,
   );
 
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: RSV bits set -> close 1002 with RSV reason', async () => {
@@ -72,7 +79,9 @@ test('frames: RSV bits set -> close 1002 with RSV reason', async () => {
     `unexpected reason: ${result.reason}`,
   );
 
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: control frame too long (ping >125) -> close 1002', async () => {
@@ -94,7 +103,9 @@ test('frames: control frame too long (ping >125) -> close 1002', async () => {
     `unexpected reason: ${result.reason}`,
   );
 
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: fragmented control (ping with FIN=0) -> close 1002', async () => {
@@ -119,7 +130,9 @@ test('frames: fragmented control (ping with FIN=0) -> close 1002', async () => {
     `unexpected reason: ${result.reason}`,
   );
 
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: unknown data opcode (0x3) -> close 1002', async () => {
@@ -136,7 +149,9 @@ test('frames: unknown data opcode (0x3) -> close 1002', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: invalid UTF-8 in single text frame -> close 1007', async () => {
@@ -160,7 +175,9 @@ test('frames: invalid UTF-8 in single text frame -> close 1007', async () => {
     `unexpected reason: ${result.reason}`,
   );
 
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: CLOSE with 1 byte payload -> close 1002', async () => {
@@ -177,7 +194,9 @@ test('frames: CLOSE with 1 byte payload -> close 1002', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: CLOSE with invalid code 999 -> close 1002', async () => {
@@ -196,7 +215,9 @@ test('frames: CLOSE with invalid code 999 -> close 1002', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: CLOSE with invalid UTF-8 in reason -> close 1007', async () => {
@@ -217,7 +238,9 @@ test('frames: CLOSE with invalid UTF-8 in reason -> close 1007', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Invalid payload data']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: CLOSE with empty payload -> client sees 1005', async () => {
@@ -234,7 +257,9 @@ test('frames: CLOSE with empty payload -> client sees 1005', async () => {
   });
 
   assert.strictEqual(result.code, 1005);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: fragmented text, bad UTF-8 in continuation -> 1007', async () => {
@@ -260,7 +285,9 @@ test('frames: fragmented text, bad UTF-8 in continuation -> 1007', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Invalid payload data']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: BINARY during TEXT fragmentation -> close 1002', async () => {
@@ -284,7 +311,9 @@ test('frames: BINARY during TEXT fragmentation -> close 1002', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: reserved control opcode 0xB -> close 1002', async () => {
@@ -302,7 +331,9 @@ test('frames: reserved control opcode 0xB -> close 1002', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: normal close handshake (1000 "bye")', async () => {
@@ -324,7 +355,9 @@ test('frames: normal close handshake (1000 "bye")', async () => {
 
   assert.strictEqual(result.code, 1000);
   assert.strictEqual(result.reason, 'bye');
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: CONTINUATION without started message -> close 1002', async () => {
@@ -344,7 +377,9 @@ test('frames: CONTINUATION without started message -> close 1002', async () => {
   });
 
   assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: ping during TEXT fragmentation -> pong + message', async () => {
@@ -385,7 +420,9 @@ test('frames: ping during TEXT fragmentation -> pong + message', async () => {
 
   assert.strictEqual(outcome.gotPong, true);
   assert.strictEqual(outcome.msg, 'Hello world');
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: TEXT length 125 and 126 accepted and echoed', async () => {
@@ -412,7 +449,9 @@ test('frames: TEXT length 125 and 126 accepted and echoed', async () => {
   assert.strictEqual(r126.length, 126);
 
   client.close();
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: 64-bit length unsafe high bits -> close 1009', async () => {
@@ -444,7 +483,9 @@ test('frames: 64-bit length unsafe high bits -> close 1009', async () => {
     `unexpected reason: ${result.reason}`,
   );
 
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: user close (3001 "user") echoed back', async () => {
@@ -466,7 +507,9 @@ test('frames: user close (3001 "user") echoed back', async () => {
 
   assert.strictEqual(result.code, 3001);
   assert.strictEqual(result.reason, 'user');
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: chunked TCP — split header/payload TEXT echoed', async () => {
@@ -510,7 +553,9 @@ test('frames: chunked TCP — split header/payload TEXT echoed', async () => {
   });
 
   assert.strictEqual(received, payload.toString());
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: chunked TCP — 16-bit length 126, split header', async () => {
@@ -561,7 +606,9 @@ test('frames: chunked TCP — 16-bit length 126, split header', async () => {
   });
 
   assert.strictEqual(received, str);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: server responses are not masked (pong)', async () => {
@@ -583,7 +630,9 @@ test('frames: server responses are not masked (pong)', async () => {
   });
 
   assert.strictEqual(ok, true);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: server-initiated close (1000 "srv")', async () => {
@@ -600,7 +649,9 @@ test('frames: server-initiated close (1000 "srv")', async () => {
 
   assert.strictEqual(result.code, 1000);
   assert.strictEqual(result.reason, 'srv');
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });
 
 test('frames: server ping -> client pong, server receives', async () => {
@@ -626,5 +677,7 @@ test('frames: server ping -> client pong, server receives', async () => {
   });
 
   assert.strictEqual(ok, true);
-  await new Promise((r) => httpServer.close(r));
+  await new Promise((r) => {
+    httpServer.close(r);
+  });
 });

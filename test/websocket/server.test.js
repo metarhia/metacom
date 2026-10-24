@@ -14,14 +14,20 @@ test('WebsocketServer: accepts new connection after socket error', async () => {
     pingInterval: 50,
   });
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const first = new ProtocolClient(`ws://localhost:${port}`);
-  await new Promise((resolve) => first.on('open', resolve));
+  await new Promise((resolve) => {
+    first.on('open', resolve);
+  });
   first.socket.destroy();
 
-  await new Promise((resolve) => setTimeout(resolve, 150));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 150);
+  });
 
   const second = new ProtocolClient(`ws://localhost:${port}`);
   const opened = await new Promise((resolve) => {
@@ -31,5 +37,7 @@ test('WebsocketServer: accepts new connection after socket error', async () => {
 
   assert.strictEqual(opened, true);
   second.close();
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });
