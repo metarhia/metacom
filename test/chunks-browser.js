@@ -12,8 +12,8 @@ test('Chunk / chunkEncode', async (t) => {
     const chunk = chunkEncode(id, payload);
 
     assert.ok(chunk instanceof Uint8Array);
-    assert.strictEqual(chunk[0], 7); // ID length
-    assert.strictEqual(chunk.length, 1 + 7 + 5); // length byte + ID + payload
+    assert.strictEqual(chunk[0], 7);
+    assert.strictEqual(chunk.length, 1 + 7 + 5);
   });
 
   await t.test('handles empty payload', () => {
@@ -21,8 +21,8 @@ test('Chunk / chunkEncode', async (t) => {
     const payload = new Uint8Array([]);
     const chunk = chunkEncode(id, payload);
 
-    assert.strictEqual(chunk[0], 4); // ID length
-    assert.strictEqual(chunk.length, 1 + 4); // length byte + ID only
+    assert.strictEqual(chunk[0], 4);
+    assert.strictEqual(chunk.length, 1 + 4);
   });
 
   await t.test('handles single character ID', () => {
@@ -30,12 +30,12 @@ test('Chunk / chunkEncode', async (t) => {
     const payload = new Uint8Array([42]);
     const chunk = chunkEncode(id, payload);
 
-    assert.strictEqual(chunk[0], 1); // ID length
-    assert.strictEqual(chunk.length, 1 + 1 + 1); // length byte + ID + payload
+    assert.strictEqual(chunk[0], 1);
+    assert.strictEqual(chunk.length, 1 + 1 + 1);
   });
 
   await t.test('handles UTF-8 characters', () => {
-    const id = 'тест'; // Cyrillic characters
+    const id = 'тест';
     const payload = new Uint8Array([1, 2, 3]);
     const chunk = chunkEncode(id, payload);
 
@@ -88,7 +88,7 @@ test('Chunk / chunkDecode', async (t) => {
   });
 
   await t.test('handles UTF-8 characters', () => {
-    const originalId = '测试'; // Chinese characters
+    const originalId = '测试';
     const originalPayload = new Uint8Array([10, 20, 30]);
     const chunk = chunkEncode(originalId, originalPayload);
 

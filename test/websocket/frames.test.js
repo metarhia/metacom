@@ -36,7 +36,7 @@ test('frames: unmasked data frame from client -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   assert.ok(
     String(result.reason).toLowerCase().includes('unmasked'),
     `unexpected reason: ${result.reason}`,
@@ -53,13 +53,12 @@ test('frames: RSV bits set -> close 1002 with RSV reason', async () => {
 
   const result = await new Promise((resolve) => {
     client.on('open', () => {
-      // Craft a single masked TEXT frame with RSV bits set (0x70)
       const fin = 0x80;
       const rsv = 0x70;
       const opcode = 0x1; // TEXT
       const b0 = fin | rsv | opcode;
       const payload = Buffer.from([0x41]);
-      const maskKey = Buffer.from([0, 0, 0, 0]); // trivial mask
+      const maskKey = Buffer.from([0, 0, 0, 0]);
       const b1 = 0x80 | payload.length; // masked + length
       const buf = Buffer.concat([Buffer.from([b0, b1]), maskKey, payload]);
       client.socket.write(buf);
@@ -67,7 +66,7 @@ test('frames: RSV bits set -> close 1002 with RSV reason', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   assert.ok(
     String(result.reason).toLowerCase().includes('rsv'),
     `unexpected reason: ${result.reason}`,
@@ -89,7 +88,7 @@ test('frames: control frame too long (ping >125) -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   assert.ok(
     String(result.reason).toLowerCase().includes('too long'),
     `unexpected reason: ${result.reason}`,
@@ -114,7 +113,7 @@ test('frames: fragmented control (ping with FIN=0) -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   assert.ok(
     String(result.reason).toLowerCase().includes('protocol error'),
     `unexpected reason: ${result.reason}`,
@@ -136,7 +135,7 @@ test('frames: unknown data opcode (0x3) -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -155,7 +154,7 @@ test('frames: invalid UTF-8 in single text frame -> close 1007', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.INVALID_PAYLOAD);
+  assert.strictEqual(result.code, CLOSE_CODES['Invalid payload data']);
   assert.ok(
     String(result.reason).toLowerCase().includes('invalid payload'),
     `unexpected reason: ${result.reason}`,
@@ -177,7 +176,7 @@ test('frames: CLOSE with 1 byte payload -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -196,7 +195,7 @@ test('frames: CLOSE with invalid code 999 -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -217,7 +216,7 @@ test('frames: CLOSE with invalid UTF-8 in reason -> close 1007', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.INVALID_PAYLOAD);
+  assert.strictEqual(result.code, CLOSE_CODES['Invalid payload data']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -260,7 +259,7 @@ test('frames: fragmented text, bad UTF-8 in continuation -> 1007', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.INVALID_PAYLOAD);
+  assert.strictEqual(result.code, CLOSE_CODES['Invalid payload data']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -284,7 +283,7 @@ test('frames: BINARY during TEXT fragmentation -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -302,7 +301,7 @@ test('frames: reserved control opcode 0xB -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   await new Promise((r) => httpServer.close(r));
 });
 
@@ -336,7 +335,6 @@ test('frames: CONTINUATION without started message -> close 1002', async () => {
 
   const result = await new Promise((resolve) => {
     client.on('open', () => {
-      // Send CONTINUATION (0x0) as first frame
       client.sendFrame(OPCODES.CONTINUATION, Buffer.from([0x41]), {
         fin: true,
         mask: true,
@@ -345,12 +343,11 @@ test('frames: CONTINUATION without started message -> close 1002', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.PROTOCOL_ERROR);
+  assert.strictEqual(result.code, CLOSE_CODES['Protocol error']);
   await new Promise((r) => httpServer.close(r));
 });
 
 test('frames: ping during TEXT fragmentation -> pong + message', async () => {
-  // Echo server to verify assembled message
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
     conn.on('message', (msg, isBinary) => {
@@ -441,7 +438,7 @@ test('frames: 64-bit length unsafe high bits -> close 1009', async () => {
     client.on('close', (code, reason) => resolve({ code, reason }));
   });
 
-  assert.strictEqual(result.code, CLOSE_CODES.MESSAGE_TOO_BIG);
+  assert.strictEqual(result.code, CLOSE_CODES['Message too big']);
   assert.ok(
     String(result.reason).toLowerCase().includes('too big'),
     `unexpected reason: ${result.reason}`,
@@ -479,10 +476,10 @@ test('frames: chunked TCP — split header/payload TEXT echoed', async () => {
   });
   const client = new ProtocolClient(`ws://localhost:${port}`);
 
-  const payload = Buffer.from('Chunked!'); // 8 bytes
+  const payload = Buffer.from('Chunked!');
   const fin = 0x80;
   const opcode = 0x1; // TEXT
-  const b0 = fin | opcode; // 0x81
+  const b0 = fin | opcode;
   const mask = Buffer.from([0x11, 0x22, 0x33, 0x44]);
   const masked = Buffer.alloc(payload.length);
   for (let i = 0; i < payload.length; i++) {
@@ -496,18 +493,14 @@ test('frames: chunked TCP — split header/payload TEXT echoed', async () => {
       client.close();
     });
     client.on('open', async () => {
-      // Write header/payload in small chunks with tiny delays
-      // to simulate segmentation
       client.socket.write(Buffer.from([b0]));
       await delay();
       client.socket.write(Buffer.from([b1]));
       await delay();
-      // split mask into 2 writes
       client.socket.write(mask.subarray(0, 2));
       await delay();
       client.socket.write(mask.subarray(2));
       await delay();
-      // payload by 3 chunks
       client.socket.write(masked.subarray(0, 3));
       await delay();
       client.socket.write(masked.subarray(3, 6));
@@ -531,7 +524,7 @@ test('frames: chunked TCP — 16-bit length 126, split header', async () => {
   const payload = Buffer.from(str);
   const fin = 0x80;
   const opcode = 0x1; // TEXT
-  const b0 = fin | opcode; // 0x81
+  const b0 = fin | opcode;
   const b1 = 0x80 | 126; // MASK + 126 (16-bit length follows)
   const lenHi = (payload.length >>> 8) & 0xff;
   const lenLo = payload.length & 0xff;
@@ -551,17 +544,14 @@ test('frames: chunked TCP — 16-bit length 126, split header', async () => {
       await delay();
       client.socket.write(Buffer.from([b1]));
       await delay();
-      // write 16-bit length split into two writes
       client.socket.write(Buffer.from([lenHi]));
       await delay();
       client.socket.write(Buffer.from([lenLo]));
       await delay();
-      // mask in two parts
       client.socket.write(mask.subarray(0, 2));
       await delay();
       client.socket.write(mask.subarray(2));
       await delay();
-      // payload in ~5 chunks to keep test fast
       const step = 32;
       for (let i = 0; i < masked.length; i += step) {
         client.socket.write(masked.subarray(i, i + step));
@@ -599,7 +589,7 @@ test('frames: server responses are not masked (pong)', async () => {
 test('frames: server-initiated close (1000 "srv")', async () => {
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
-    conn.sendClose(1000, 'srv');
+    conn.sendClose('srv', 1000);
   });
   const client = new ProtocolClient(`ws://localhost:${port}`);
 
@@ -617,7 +607,7 @@ test('frames: server ping -> client pong, server receives', async () => {
   const { httpServer, port } = await startServer((conn) => {
     conn.on('error', () => {});
     conn.on('pong', (buf) => {
-      if (buf && buf.toString() === 'ok') conn.sendClose(1000, 'done');
+      if (buf && buf.toString() === 'ok') conn.sendClose('done', 1000);
     });
     process.nextTick(() => conn.sendPing(Buffer.from('ok')));
   });
