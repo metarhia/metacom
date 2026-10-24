@@ -67,11 +67,11 @@
     "metautil": "^5.4.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
-    "eslint": "^9.39.4",
-    "eslint-config-metarhia": "^9.1.9",
+    "@types/node": "^25.9.9",
+    "eslint": "^9.39.5",
+    "eslint-config-metarhia": "^9.2.1",
     "metarhia-build": "^0.0.3",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.10",
     "typescript": "^5.9.3"
   }
 }
