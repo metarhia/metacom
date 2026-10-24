@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const ws = require('#ws');
-const { Connection, Frame, FrameParser } = ws;
+const { Connection, Frame, parse } = ws;
 const { OPCODES, CLOSE_TIMEOUT, CLOSE_CODES } = ws;
 const { MockSocket } = require('./mockSocket.js');
 
@@ -41,7 +41,7 @@ test('Connection: should send pong when ping received', async () => {
   socket.emit('data', ping.toBuffer());
 
   const lastWrite = socket.writtenData[socket.writtenData.length - 1];
-  const frame = FrameParser.parse(lastWrite).value.frame;
+  const frame = parse(lastWrite).value.frame;
   assert.strictEqual(frame.opcode, OPCODES.PONG);
   conn.terminate();
 });
@@ -95,7 +95,7 @@ test('Connection: rejects fragmented message exceeding maxBuffer', () => {
   socket.emit('data', cont.toBuffer());
 
   const lastWrite = socket.writtenData[socket.writtenData.length - 1];
-  const closeFrame = FrameParser.parse(lastWrite).value.frame;
+  const closeFrame = parse(lastWrite).value.frame;
   assert.strictEqual(closeFrame.opcode, OPCODES.CLOSE);
   assert.strictEqual(
     closeFrame.payload.readUInt16BE(0),
@@ -133,7 +133,7 @@ test('Connection: responds to ping during close handshake', () => {
   socket.emit('data', ping.toBuffer());
 
   const lastWrite = socket.writtenData[socket.writtenData.length - 1];
-  const frame = FrameParser.parse(lastWrite).value.frame;
+  const frame = parse(lastWrite).value.frame;
   assert.strictEqual(frame.opcode, OPCODES.PONG);
   conn.terminate();
 });
@@ -149,4 +149,47 @@ test('Connection: socket error terminates connection', async () => {
 
   assert.strictEqual(error.message, 'socket failure');
   assert.strictEqual(socket.destroyed, true);
+});
+
+test('Connection: reassembles frame delivered byte by byte', async () => {
+  const socket = new MockSocket();
+  const conn = new Connection(socket, Buffer.alloc(0));
+  const frame = Frame.binary(Buffer.alloc(300, 7));
+  frame.maskPayload();
+  const buffer = frame.toBuffer();
+
+  const received = new Promise((resolve) => {
+    conn.on('message', (msg, isBinary) => resolve({ msg, isBinary }));
+  });
+  for (let i = 0; i < buffer.length; i++) {
+    socket.emit('data', buffer.subarray(i, i + 1));
+  }
+
+  const { msg, isBinary } = await received;
+  assert.strictEqual(isBinary, true);
+  assert.ok(msg.equals(Buffer.alloc(300, 7)));
+  conn.terminate();
+});
+
+test('Connection: handles frames split across chunk boundaries', () => {
+  const socket = new MockSocket();
+  const conn = new Connection(socket, Buffer.alloc(0));
+  const messages = [];
+  conn.on('message', (msg) => messages.push(msg.toString()));
+
+  const frames = ['first', 'second', 'third'].map((text) => {
+    const frame = Frame.text(text);
+    frame.maskPayload();
+    return frame.toBuffer();
+  });
+  const stream = Buffer.concat(frames);
+  const cut1 = frames[0].length - 2;
+  const cut2 = frames[0].length + frames[1].length + 1;
+  socket.emit('data', stream.subarray(0, cut1));
+  assert.deepStrictEqual(messages, []);
+  socket.emit('data', stream.subarray(cut1, cut2));
+  assert.deepStrictEqual(messages, ['first', 'second']);
+  socket.emit('data', stream.subarray(cut2));
+  assert.deepStrictEqual(messages, ['first', 'second', 'third']);
+  conn.terminate();
 });
