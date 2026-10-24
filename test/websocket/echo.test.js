@@ -15,7 +15,9 @@ test('should echo messages', async () => {
     conn.on('message', (msg) => conn.send(`Echo: ${msg}`));
   });
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const client = new ProtocolClient(`ws://localhost:${port}`);
@@ -30,5 +32,7 @@ test('should echo messages', async () => {
 
   assert.strictEqual(received, 'Echo: Hello tinyWS');
 
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });

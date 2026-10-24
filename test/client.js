@@ -178,7 +178,9 @@ test('Client / stale callback', async (t) => {
       });
       client.on('error', () => {});
     });
-    const promise2 = new Promise((resolve) => client.once('error', resolve));
+    const promise2 = new Promise((resolve) => {
+      client.once('error', resolve);
+    });
     await client.load('test');
     const result = await client.api.test.test();
     assert.deepStrictEqual(result, { success: true });
@@ -240,9 +242,9 @@ test('Client / events', async (t) => {
   t.afterEach(() => void client.close());
 
   await t.test('handles events from server', async () => {
-    const ping = await new Promise((resolve) =>
-      client.api.test.on('ping', resolve),
-    );
+    const ping = await new Promise((resolve) => {
+      client.api.test.on('ping', resolve);
+    });
     assert.deepStrictEqual(ping, { ping: true });
   });
 });

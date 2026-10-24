@@ -22,7 +22,9 @@ test('handshake: successful upgrade', async () => {
     // no-op: we only assert that handshake upgraded successfully
   });
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const client = new ProtocolClient(`ws://localhost:${port}`);
@@ -39,7 +41,9 @@ test('handshake: successful upgrade', async () => {
     client.close();
   });
 
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });
 
 test('handshake: negative cases', async (t) => {
@@ -48,7 +52,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -71,7 +77,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('missing Connection header -> should not upgrade', async () => {
@@ -79,7 +87,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -99,7 +109,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('bad Sec-WebSocket-Version -> should not upgrade', async () => {
@@ -107,7 +119,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -128,7 +142,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('Sec-WebSocket-Key not base64 -> no upgrade', async () => {
@@ -136,7 +152,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -157,7 +175,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('Sec-WebSocket-Key too short -> no upgrade', async () => {
@@ -165,7 +185,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -187,7 +209,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('wrong Upgrade token value -> should not upgrade', async () => {
@@ -195,7 +219,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -216,7 +242,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('Connection without Upgrade token -> no upgrade', async () => {
@@ -224,7 +252,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -245,7 +275,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('missing Host header -> should not upgrade', async () => {
@@ -253,7 +285,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -275,7 +309,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('wrong HTTP method (POST) -> should not upgrade', async () => {
@@ -283,7 +319,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -305,7 +343,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 
   await t.test('HTTP/1.0 request -> should not upgrade', async () => {
@@ -313,7 +353,9 @@ test('handshake: negative cases', async (t) => {
     const tinyWsServer = new WebsocketServer({ server: httpServer });
     tinyWsServer.on('connection', () => {});
 
-    await new Promise((resolve) => httpServer.listen(0, resolve));
+    await new Promise((resolve) => {
+      httpServer.listen(0, resolve);
+    });
     const port = httpServer.address().port;
 
     const res = await ProtocolClient.attemptHandshake({
@@ -335,7 +377,9 @@ test('handshake: negative cases', async (t) => {
       `expected no upgrade, got: ${res.statusLine}`,
     );
 
-    await new Promise((resolve) => httpServer.close(resolve));
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
   });
 });
 
@@ -345,7 +389,9 @@ test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
   // Terminate immediately to avoid waiting for heartbeat timeouts
   tinyWsServer.on('connection', (ws) => ws.terminate());
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const key = Buffer.from('0123456789abcdef').toString('base64');
@@ -372,7 +418,9 @@ test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
   assert.strictEqual(res.headers['sec-websocket-accept'], expected);
   assert.strictEqual(res.headers['sec-websocket-protocol'], undefined);
 
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });
 
 test('handshake: Connection token match is case-insensitive', async () => {
@@ -381,7 +429,9 @@ test('handshake: Connection token match is case-insensitive', async () => {
   // Terminate immediately to avoid waiting for heartbeat timeouts
   tinyWsServer.on('connection', (ws) => ws.terminate());
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const res = await ProtocolClient.attemptHandshake({
@@ -399,7 +449,9 @@ test('handshake: Connection token match is case-insensitive', async () => {
 
   const code = parseStatusCode(res.statusLine);
   assert.strictEqual(code, 101);
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });
 
 test('handshake: rejects upgrade when path does not match', async () => {
@@ -410,7 +462,9 @@ test('handshake: rejects upgrade when path does not match', async () => {
   });
   tinyWsServer.on('connection', () => {});
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const res = await ProtocolClient.attemptHandshake({
@@ -427,7 +481,9 @@ test('handshake: rejects upgrade when path does not match', async () => {
   });
 
   assert.strictEqual(parseStatusCode(res.statusLine), 404);
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });
 
 test('handshake: verifyClient can reject upgrade', async () => {
@@ -438,7 +494,9 @@ test('handshake: verifyClient can reject upgrade', async () => {
   });
   tinyWsServer.on('connection', () => {});
 
-  await new Promise((resolve) => httpServer.listen(0, resolve));
+  await new Promise((resolve) => {
+    httpServer.listen(0, resolve);
+  });
   const port = httpServer.address().port;
 
   const res = await ProtocolClient.attemptHandshake({
@@ -454,5 +512,7 @@ test('handshake: verifyClient can reject upgrade', async () => {
   });
 
   assert.strictEqual(parseStatusCode(res.statusLine), 403);
-  await new Promise((resolve) => httpServer.close(resolve));
+  await new Promise((resolve) => {
+    httpServer.close(resolve);
+  });
 });
