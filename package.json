@@ -64,14 +64,17 @@
     "node": ">=22"
   },
   "dependencies": {
-    "metautil": "^5.4.0"
+    "metautil": "^5.5.2"
   },
   "devDependencies": {
-    "@types/node": "^25.9.9",
-    "eslint": "^9.39.5",
-    "eslint-config-metarhia": "^9.2.1",
+    "@types/node": "^26.6.6",
+    "eslint": "^10.14.0",
+    "eslint-config-metarhia": "^10.0.1",
     "metarhia-build": "^0.0.3",
     "prettier": "^3.9.10",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
   }
 }
