@@ -1,12 +1,10 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "moduleResolution": "node",
+    "module": "nodenext",
     "strict": true,
     "noEmit": true,
-    "baseUrl": ".",
-    "preserveWatchOutput": true,
-    "esModuleInterop": true
+    "preserveWatchOutput": true
   },
-  "include": ["*.d.ts", "types-check.ts"]
+  "include": ["*.d.ts"]
 }
