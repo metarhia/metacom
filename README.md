@@ -27,6 +27,48 @@ await metacom.load('example'); // Load `example` interface
 const result = api.example.methodName({ arg1, arg2 });
 ```
 
+## Session restoration
+
+Session data is available to server API methods as `context.session.state`.
+Metacom does not populate a `context.user` property. For example, if sign-in calls
+`context.client.startSession(token, { accountId })`, a private API method can read
+the account ID with:
+
+```js
+({
+  access: 'private',
+  method: async () => context.session.state.accountId,
+});
+```
+
+A new WebSocket connection must restore its session before calling private API
+methods. The application implements `auth.restore`, and the client must await its
+successful completion before making these calls.
+
+`restoreSession(token)` only searches the server's in-memory session cache. When
+loading a session from persistent storage instead, attach the data to the client
+before returning success:
+
+```js
+// application/api/auth/restore.js
+({
+  access: 'public',
+  method: async ({ token }) => {
+    const isRestored = context.client.restoreSession(token);
+    if (isRestored) return { status: 'logged' };
+    const data = await api.auth.provider.readSession(token);
+    if (!data) return { status: 'not logged' };
+    context.client.initializeSession(token, data);
+    return { status: 'logged' };
+  },
+});
+```
+
+Here `readSession` is an application provider method that returns the stored
+session state as an object, or `null` if the session cannot be restored. Returning
+`logged` without initializing the client session leaves subsequent private API
+calls unauthorized.
+
 ## Streams over Websocket
 
 ### Example: big file upload
