@@ -178,6 +178,10 @@ export interface MetacomOptions {
   generateId?: () => string;
   restore?: (metacom: Metacom) => Promise<void>;
   worker?: ServiceWorker;
+  container?: ServiceWorkerContainer;
+  pingInterval?: number;
+  pongTimeout?: number;
+  handshakeTimeout?: number;
   proxy?: PacketProxy;
 }
 

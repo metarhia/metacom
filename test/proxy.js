@@ -77,17 +77,53 @@ const createEnvironment = () => {
   };
 };
 
-const createWorker = (environment, id) => ({
-  postMessage(data, ports = []) {
-    environment.dispatch({ data, ports, source: { id } });
-  },
-});
+const createContainer = () => {
+  const listeners = new Map();
+  return {
+    controller: null,
+    addEventListener(type, listener) {
+      listeners.set(type, listener);
+    },
+    removeEventListener(type) {
+      listeners.delete(type);
+    },
+    dispatch(type, event) {
+      const listener = listeners.get(type);
+      if (listener) listener(event);
+    },
+  };
+};
+
+const createWorker = (environment, id, container = null) => {
+  const postMessage = (data) => {
+    if (container) container.dispatch('message', { data });
+  };
+  const source = { id, postMessage };
+  return {
+    environment,
+    types: [],
+    postMessage(data, ports = []) {
+      this.types.push(data.type);
+      this.environment.dispatch({ data, ports, source });
+    },
+  };
+};
 
 const createTab = (environment, id, options = {}) => {
   const worker = createWorker(environment, id);
   const transport = new ClientEventTransport(URL);
   const tabOptions = { worker, callTimeout: 300, ...options };
   return new Metacom(URL, transport, tabOptions);
+};
+
+const restartWorker = async (t, worker) => {
+  const environment = createEnvironment();
+  globalThis.self = environment;
+  const proxy = new MetacomProxy({ reconnectTimeout: RECONNECT_MS });
+  t.after(() => void proxy.close());
+  await proxy.open();
+  worker.environment = environment;
+  return proxy;
 };
 
 const INTROSPECT = 'system/introspect';
@@ -99,7 +135,7 @@ const introspect = (units) => {
 
 const echoServer = (socket, data) => {
   const packet = JSON.parse(data);
-  if (typeof packet !== 'object') return;
+  if (packet.type !== 'call') return;
   const { id, method, args } = packet;
   const result = method === INTROSPECT ? introspect(args) : args;
   socket.dispatchMessage(JSON.stringify({ type: 'callback', id, result }));
@@ -248,12 +284,26 @@ test('MetacomProxy: reports connection status to tabs', async (t) => {
   const tab = await connect('tab1');
   const statuses = [];
   tab.on('status', ({ connected }) => statuses.push(connected));
-  await timers.setTimeout(DELIVERY_MS);
   const socket = await goOffline();
   socket.open();
   await timers.setTimeout(DELIVERY_MS);
-  assert.deepStrictEqual(statuses, [true, false, true]);
+  assert.deepStrictEqual(statuses, [false, true]);
   assert.strictEqual(tab.active, true);
+});
+
+test('MetacomProxy: reports status change once', async (t) => {
+  const { connect } = await setup(t);
+  const tab = await connect('tab1');
+  const statuses = [];
+  tab.on('status', ({ connected }) => statuses.push(connected));
+  const socket = await goOffline();
+  socket.emit('error');
+  socket.emit('close');
+  await timers.setTimeout(RECONNECT_MS * 2);
+  assert.notStrictEqual(MockWebSocket.last, socket);
+  MockWebSocket.last.open();
+  await timers.setTimeout(DELIVERY_MS);
+  assert.deepStrictEqual(statuses, [false, true]);
 });
 
 test('MetacomProxy: queues calls while offline', async (t) => {
@@ -409,12 +459,17 @@ test('MetacomProxy: offline load is extended when online', async (t) => {
   const { proxy, connect } = await setup(t, { offline: true });
   proxy.register('local', { sum: async ({ a, b }) => a + b });
   const tab = await connect('tab1');
-  await tab.load('local', 'test');
+  const loading = tab.load('local', 'test');
+  await timers.setTimeout(DELIVERY_MS);
+  assert.strictEqual(tab.api.local, undefined);
+  MockWebSocket.last.close();
+  await loading;
   assert.strictEqual(await tab.api.local.sum({ a: 1, b: 1 }), 2);
   assert.strictEqual(tab.api.test, undefined);
   const events = [];
   const unit = tab.api.local;
   unit.on('changed', (data) => events.push(data));
+  await timers.setTimeout(RECONNECT_MS * 2);
   MockWebSocket.last.open();
   await timers.setTimeout(DELIVERY_MS);
   assert.deepStrictEqual(await tab.api.test.echo({ a: 1 }), { a: 1 });
@@ -432,4 +487,171 @@ test('MetacomProxy: offline load uses cached interface', async (t) => {
   const tab2 = await connect('tab2');
   await tab2.load('test');
   assert.strictEqual(typeof tab2.api.test.echo, 'function');
+});
+
+test('ClientEventTransport: open fails without worker answer', async () => {
+  const worker = { postMessage() {} };
+  const transport = new ClientEventTransport(URL);
+  const opening = transport.open({ worker, handshakeTimeout: 30 });
+  await assert.rejects(opening, /handshake timeout/);
+  assert.strictEqual(transport.active, false);
+  transport.close();
+  transport.close();
+});
+
+test('ClientEventTransport: close during handshake', async () => {
+  const worker = { postMessage() {} };
+  const transport = new ClientEventTransport(URL);
+  const opening = transport.open({ worker });
+  transport.close();
+  await assert.rejects(opening, /Connection closed/);
+});
+
+test('MetacomProxy: heartbeat keeps tab connected', async (t) => {
+  const { environment, connect } = await setup(t);
+  const worker = createWorker(environment, 'tab1');
+  const timing = { pingInterval: 20, pongTimeout: 40 };
+  const tab = await connect('tab1', { worker, ...timing });
+  let closed = false;
+  tab.on('close', () => {
+    closed = true;
+  });
+  await timers.setTimeout(150);
+  const pings = worker.types.filter((type) => type === 'metacom:ping');
+  assert.ok(pings.length >= 3);
+  assert.strictEqual(closed, false);
+  assert.strictEqual(tab.active, true);
+});
+
+test('MetacomProxy: tab reconnects after worker restart', async (t) => {
+  const { environment, connect } = await setup(t);
+  const worker = createWorker(environment, 'tab1');
+  const timing = { pingInterval: 20, pongTimeout: 40, reconnectTimeout: 30 };
+  const tab = await connect('tab1', { worker, ...timing });
+  await tab.load('test');
+  const events = [];
+  tab.on('close', () => events.push('close'));
+  tab.on('open', () => events.push('open'));
+  const restarted = await restartWorker(t, worker);
+  const connected = new Promise((resolve) => {
+    restarted.once('connect', resolve);
+  });
+  await connected;
+  await timers.setTimeout(DELIVERY_MS);
+  assert.deepStrictEqual(events, ['close', 'open']);
+  assert.deepStrictEqual(await tab.api.test.echo({ a: 1 }), { a: 1 });
+});
+
+test('MetacomProxy: restarted worker resets tab at once', async (t) => {
+  const { environment, connect } = await setup(t);
+  const container = createContainer();
+  const worker = createWorker(environment, 'tab1', container);
+  const timing = { pingInterval: 20, pongTimeout: 5000, reconnectTimeout: 30 };
+  const tab = await connect('tab1', { worker, container, ...timing });
+  const events = [];
+  tab.on('close', () => events.push('close'));
+  tab.on('open', () => events.push('open'));
+  await restartWorker(t, worker);
+  await timers.setTimeout(150);
+  assert.deepStrictEqual(events, ['close', 'open']);
+});
+
+test('MetacomProxy: tab follows new controller', async (t) => {
+  const { environment, connect } = await setup(t);
+  const container = createContainer();
+  const worker = createWorker(environment, 'tab1', container);
+  const tab = await connect('tab1', {
+    worker,
+    container,
+    reconnectTimeout: 30,
+  });
+  const controller = createWorker(environment, 'tab1', container);
+  const restarted = await restartWorker(t, controller);
+  const connected = new Promise((resolve) => {
+    restarted.once('connect', resolve);
+  });
+  container.controller = controller;
+  container.dispatch('controllerchange', {});
+  await connected;
+  await timers.setTimeout(DELIVERY_MS);
+  assert.strictEqual(tab.active, true);
+  assert.ok(controller.types.includes('metacom:connect'));
+});
+
+test('MetacomProxy: tab keeps port when claimed by its worker', async (t) => {
+  const { environment, connect } = await setup(t);
+  const container = createContainer();
+  const worker = createWorker(environment, 'tab1', container);
+  const tab = await connect('tab1', { worker, container });
+  let closed = false;
+  tab.on('close', () => {
+    closed = true;
+  });
+  container.controller = worker;
+  container.dispatch('controllerchange', {});
+  container.controller = null;
+  container.dispatch('controllerchange', {});
+  assert.strictEqual(closed, false);
+  assert.strictEqual(tab.active, true);
+});
+
+test('MetacomProxy: emits connect and disconnect', async (t) => {
+  const { proxy, connect } = await setup(t);
+  const events = [];
+  proxy.on('connect', (id) => events.push(`connect:${typeof id}`));
+  proxy.on('disconnect', (id) => events.push(`disconnect:${typeof id}`));
+  const tab = await connect('tab1');
+  tab.close();
+  tab.close();
+  assert.deepStrictEqual(events, ['connect:string', 'disconnect:string']);
+});
+
+test('MetacomProxy: reconnected tab replaces its port', async (t) => {
+  const { environment, proxy, connect } = await setup(t);
+  const container = createContainer();
+  const worker = createWorker(environment, 'tab1', container);
+  const tab = await connect('tab1', {
+    worker,
+    container,
+    reconnectTimeout: 30,
+  });
+  await tab.load('test');
+  const events = [];
+  proxy.on('connect', () => events.push('connect'));
+  proxy.on('disconnect', () => events.push('disconnect'));
+  container.dispatch('message', { data: { type: 'metacom:reset' } });
+  await timers.setTimeout(100);
+  assert.deepStrictEqual(events, ['disconnect', 'connect']);
+  const received = [];
+  tab.api.test.on('ping', (data) => received.push(data));
+  proxy.broadcast('test/ping', { ping: true });
+  await timers.setTimeout(DELIVERY_MS);
+  assert.deepStrictEqual(received, [{ ping: true }]);
+});
+
+test('MetacomProxy: removes closed tab and its routes', async (t) => {
+  const { environment, proxy, connect } = await setup(t, { sweepInterval: 30 });
+  environment.clients = { matchAll: async () => [{ id: 'tab2' }] };
+  const tab1 = await connect('tab1');
+  const tab2 = await connect('tab2');
+  await tab2.load('test');
+  const stream = tab1.createStream('file', 8);
+  const disconnected = [];
+  proxy.on('disconnect', (id) => disconnected.push(id));
+  await timers.setTimeout(100);
+  assert.strictEqual(disconnected.length, 1);
+  const terminate = { type: 'stream', id: stream.id, status: 'terminate' };
+  const sent = MockWebSocket.last.sent.at(-1);
+  assert.deepStrictEqual(JSON.parse(sent), terminate);
+  assert.deepStrictEqual(await tab2.api.test.echo({ a: 1 }), { a: 1 });
+});
+
+test('MetacomProxy: load waits for the first connection', async (t) => {
+  const { connect } = await setup(t, { offline: true });
+  const tab = await connect('tab1');
+  const loading = tab.load('test');
+  await timers.setTimeout(DELIVERY_MS);
+  MockWebSocket.last.open();
+  await loading;
+  assert.deepStrictEqual(await tab.api.test.echo({ a: 1 }), { a: 1 });
 });
