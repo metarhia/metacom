@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const { chunkEncode, chunkDecode } = require('../lib/chunks-browser.js');
+const nodeEncoders = require('../lib/chunks.js');
 
 test('Chunk / chunkEncode', async (t) => {
   await t.test('encodes string ID and payload', () => {
@@ -150,7 +151,6 @@ test('Chunk / encode-decode', async (t) => {
 
 test('Chunk / browser-node compatibility', async (t) => {
   await t.test('produces identical output', () => {
-    const nodeEncoders = require('../lib/chunks.js');
     const id = 'compat-test';
     const payload = new Uint8Array([10, 20, 30, 40, 50]);
 
@@ -161,7 +161,6 @@ test('Chunk / browser-node compatibility', async (t) => {
   });
 
   await t.test('can decode each others output', () => {
-    const nodeEncoders = require('../lib/chunks.js');
     const id = 'cross-decode';
     const payload = new Uint8Array([100, 200]);
 

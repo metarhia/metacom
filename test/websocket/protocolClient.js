@@ -1,18 +1,56 @@
 'use strict';
 
 const { EventEmitter } = require('node:events');
-
-const net = require('net');
-const crypto = require('crypto');
+const net = require('node:net');
+const crypto = require('node:crypto');
 
 const TWO_32 = 4294967296;
 
-function parseStatusCode(statusLine) {
+const parseStatusCode = (statusLine) => {
   if (!statusLine) return null;
   const parts = statusLine.split(' ');
   const code = parseInt(parts[1], 10);
   return Number.isFinite(code) ? code : null;
-}
+};
+
+const buildUpgradeRequest = (host, port, path, key) => {
+  const lines = [
+    `GET ${path || '/'} HTTP/1.1`,
+    `Host: ${host}:${port}`,
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    `Sec-WebSocket-Key: ${key}`,
+    'Sec-WebSocket-Version: 13',
+    '\r\n',
+  ];
+  return lines.join('\r\n');
+};
+
+const createFrameHeader = (finOp, mask, length) => {
+  const maskBit = mask ? 0x80 : 0x00;
+  const maskBytes = mask ? 4 : 0;
+  if (length < 126) {
+    const header = Buffer.alloc(2 + maskBytes);
+    header[0] = finOp;
+    header[1] = maskBit | length;
+    return header;
+  }
+  if (length <= 0xffff) {
+    const header = Buffer.alloc(4 + maskBytes);
+    header[0] = finOp;
+    header[1] = maskBit | 126;
+    header.writeUInt16BE(length, 2);
+    return header;
+  }
+  const header = Buffer.alloc(10 + maskBytes);
+  header[0] = finOp;
+  header[1] = maskBit | 127;
+  const high = Math.trunc(length / TWO_32);
+  const low = length >>> 0;
+  header.writeUInt32BE(high, 2);
+  header.writeUInt32BE(low, 6);
+  return header;
+};
 
 // Minimal low-level client for protocol tests.
 // Events: 'open', 'message'(Buffer), 'frame'(opcode, Buffer), 'ping'(Buffer),
@@ -20,12 +58,13 @@ function parseStatusCode(statusLine) {
 // Methods: send(data), sendFrame(opcode, payload, { fin=true, mask=true }),
 // sendText, sendBinary, ping, close
 class ProtocolClient extends EventEmitter {
-  #handlers;
+  #handlers = null;
+
   constructor(url) {
     super();
-    const u = new URL(url);
-    const port = u.port || 80;
-    const host = u.hostname || 'localhost';
+    const parsedUrl = new URL(url);
+    const port = parsedUrl.port || 80;
+    const host = parsedUrl.hostname || 'localhost';
 
     this._buffer = Buffer.alloc(0);
     this._opened = false;
@@ -41,7 +80,7 @@ class ProtocolClient extends EventEmitter {
       0xa: this.#handlePong,
     };
 
-    this.socket = ProtocolClient.#createSocket(u, host, port);
+    this.socket = ProtocolClient.#createSocket(parsedUrl, host, port);
     this.#attachSocketListeners();
   }
 
@@ -50,27 +89,10 @@ class ProtocolClient extends EventEmitter {
       // Reduce Nagle latency for faster test handshakes/frames
       socket.setNoDelay(true);
       const key = crypto.randomBytes(16).toString('base64');
-      const req = ProtocolClient.#buildUpgradeRequest(
-        host,
-        port,
-        url.pathname,
-        key,
-      );
-      socket.write(req);
+      const request = buildUpgradeRequest(host, port, url.pathname, key);
+      socket.write(request);
     });
     return socket;
-  }
-
-  static #buildUpgradeRequest(host, port, path, key) {
-    return [
-      `GET ${path || '/'} HTTP/1.1`,
-      `Host: ${host}:${port}`,
-      'Upgrade: websocket',
-      'Connection: Upgrade',
-      `Sec-WebSocket-Key: ${key}`,
-      'Sec-WebSocket-Version: 13',
-      '\r\n',
-    ].join('\r\n');
   }
 
   #attachSocketListeners() {
@@ -92,9 +114,9 @@ class ProtocolClient extends EventEmitter {
   }
 
   #consumeHandshake() {
-    const idx = this._buffer.indexOf('\r\n\r\n');
-    if (idx === -1) return false;
-    const header = this._buffer.subarray(0, idx).toString();
+    const index = this._buffer.indexOf('\r\n\r\n');
+    if (index === -1) return false;
+    const header = this._buffer.subarray(0, index).toString();
     const statusLine = header.split('\r\n', 1)[0] || '';
     const code = parseStatusCode(statusLine);
     if (code !== 101) {
@@ -103,40 +125,39 @@ class ProtocolClient extends EventEmitter {
       return false;
     }
     this._opened = true;
-    this._buffer = this._buffer.subarray(idx + 4);
+    this._buffer = this._buffer.subarray(index + 4);
     this.emit('open');
     return true;
   }
 
   #consumeFrames() {
     while (this._buffer.length >= 2) {
-      const b0 = this._buffer[0];
-      const b1 = this._buffer[1];
-      const fin = (b0 & 0x80) !== 0;
-      const opcode = b0 & 0x0f;
-      const masked = (b1 & 0x80) !== 0;
-      let len = b1 & 0x7f;
+      const firstByte = this._buffer[0];
+      const secondByte = this._buffer[1];
+      const fin = (firstByte & 0x80) !== 0;
+      const opcode = firstByte & 0x0f;
+      const masked = (secondByte & 0x80) !== 0;
+      let length = secondByte & 0x7f;
       let offset = 2;
 
-      if (len === 126) {
+      if (length === 126) {
         if (this._buffer.length < offset + 2) break;
-        len = this._buffer.readUInt16BE(offset);
+        length = this._buffer.readUInt16BE(offset);
         offset += 2;
-      } else if (len === 127) {
+      } else if (length === 127) {
         if (this._buffer.length < offset + 8) break;
         const high = this._buffer.readUInt32BE(offset);
         const low = this._buffer.readUInt32BE(offset + 4);
-        len = high * TWO_32 + low;
+        length = high * TWO_32 + low;
         offset += 8;
       }
 
-      const maskLen = masked ? 4 : 0;
-      if (this._buffer.length < offset + maskLen + len) break;
+      const maskBytes = masked ? 4 : 0;
+      if (this._buffer.length < offset + maskBytes + length) break;
 
-      const payload = this._buffer.subarray(
-        offset + maskLen,
-        offset + maskLen + len,
-      );
+      const payloadStart = offset + maskBytes;
+      const frameEnd = payloadStart + length;
+      const payload = this._buffer.subarray(payloadStart, frameEnd);
       if (masked) {
         const mask = this._buffer.subarray(offset, offset + 4);
         for (let i = 0; i < payload.length; i++) {
@@ -144,7 +165,7 @@ class ProtocolClient extends EventEmitter {
         }
       }
 
-      this._buffer = this._buffer.subarray(offset + maskLen + len);
+      this._buffer = this._buffer.subarray(frameEnd);
 
       this.#dispatchFrame({ opcode, fin, masked, payload });
     }
@@ -213,96 +234,75 @@ class ProtocolClient extends EventEmitter {
 
   _sendFrame(opcode, payload, { fin = true, mask = true } = {}) {
     const finOp = (fin ? 0x80 : 0x00) | (opcode & 0x0f);
-    const payloadBuf = Buffer.from(payload || '');
-    const len = payloadBuf.length;
-    let header;
+    const payloadBuffer = Buffer.from(payload || '');
+    const length = payloadBuffer.length;
+    const header = createFrameHeader(finOp, mask, length);
 
-    if (len < 126) {
-      header = Buffer.alloc(2 + (mask ? 4 : 0));
-      header[0] = finOp;
-      header[1] = (mask ? 0x80 : 0x00) | len;
-    } else if (len <= 0xffff) {
-      header = Buffer.alloc(4 + (mask ? 4 : 0));
-      header[0] = finOp;
-      header[1] = (mask ? 0x80 : 0x00) | 126;
-      header.writeUInt16BE(len, 2);
-    } else {
-      header = Buffer.alloc(10 + (mask ? 4 : 0));
-      header[0] = finOp;
-      header[1] = (mask ? 0x80 : 0x00) | 127;
-      const high = Math.trunc(len / TWO_32);
-      const low = len >>> 0;
-      header.writeUInt32BE(high, 2);
-      header.writeUInt32BE(low, 6);
+    if (!mask) {
+      const plainFrame = Buffer.concat([header, payloadBuffer]);
+      return void this.socket.write(plainFrame);
     }
-
-    let out;
-    if (mask) {
-      const maskKey = crypto.randomBytes(4);
-      const maskOffset = header.length - 4;
-      maskKey.copy(header, maskOffset);
-      const masked = Buffer.alloc(len);
-      for (let i = 0; i < len; i++) masked[i] = payloadBuf[i] ^ maskKey[i % 4];
-      out = Buffer.concat([header, masked]);
-    } else {
-      out = Buffer.concat([header, payloadBuf]);
+    const maskKey = crypto.randomBytes(4);
+    const maskOffset = header.length - 4;
+    maskKey.copy(header, maskOffset);
+    const masked = Buffer.alloc(length);
+    for (let i = 0; i < length; i++) {
+      masked[i] = payloadBuffer[i] ^ maskKey[i % 4];
     }
-
-    this.socket.write(out);
+    const maskedFrame = Buffer.concat([header, masked]);
+    this.socket.write(maskedFrame);
   }
 
-  sendFrame(opcode, payload, opts) {
-    this._sendFrame(opcode, payload, opts);
+  sendFrame(opcode, payload, options) {
+    this._sendFrame(opcode, payload, options);
   }
 
-  sendText(str, opts) {
-    this._sendFrame(0x1, Buffer.from(String(str)), opts);
+  sendText(text, options) {
+    this._sendFrame(0x1, Buffer.from(`${text}`), options);
   }
 
-  sendBinary(buf, opts) {
-    this._sendFrame(0x2, Buffer.from(buf || Buffer.alloc(0)), opts);
+  sendBinary(buffer, options) {
+    this._sendFrame(0x2, Buffer.from(buffer || Buffer.alloc(0)), options);
   }
 
-  ping(payload = Buffer.alloc(0), opts) {
-    this._sendFrame(0x9, Buffer.from(payload), opts);
+  ping(payload = Buffer.alloc(0), options) {
+    this._sendFrame(0x9, Buffer.from(payload), options);
   }
 
-  send(data, opts) {
-    if (typeof data === 'string') return this.sendText(data, opts);
-    if (Buffer.isBuffer(data)) return this.sendBinary(data, opts);
+  send(data, options) {
+    if (typeof data === 'string') return this.sendText(data, options);
+    if (Buffer.isBuffer(data)) return this.sendBinary(data, options);
     if (data && ArrayBuffer.isView(data)) {
-      return this.sendBinary(
-        Buffer.from(data.buffer, data.byteOffset, data.byteLength),
-        opts,
-      );
+      const { buffer, byteOffset, byteLength } = data;
+      const view = Buffer.from(buffer, byteOffset, byteLength);
+      return this.sendBinary(view, options);
     }
     if (data instanceof ArrayBuffer) {
-      return this.sendBinary(Buffer.from(data), opts);
+      return this.sendBinary(Buffer.from(data), options);
     }
-    return this.sendText(String(data), opts);
+    return this.sendText(`${data}`, options);
   }
 
   close(code = 1000, reason = '') {
     if (this.socket.destroyed || this._closeSent) return;
-    const reasonBuf = Buffer.from(String(reason));
-    const payload = Buffer.alloc(2 + reasonBuf.length);
+    const reasonBuffer = Buffer.from(`${reason}`);
+    const payload = Buffer.alloc(2 + reasonBuffer.length);
     payload.writeUInt16BE(code, 0);
-    reasonBuf.copy(payload, 2);
+    reasonBuffer.copy(payload, 2);
     this._sendFrame(0x8, payload);
     this._closeSent = true;
     this.socket.end();
   }
 
-  static attemptHandshake({
-    host = 'localhost',
-    port,
-    path = '/',
-    headers = {},
-    method = 'GET',
-    httpVersion = '1.1',
-    includeHost = true,
-    timeoutMs = 400,
-  }) {
+  static attemptHandshake(options) {
+    const { port } = options;
+    const host = options.host ?? 'localhost';
+    const path = options.path ?? '/';
+    const headers = options.headers ?? {};
+    const method = options.method ?? 'GET';
+    const httpVersion = options.httpVersion ?? '1.1';
+    const includeHost = options.includeHost ?? true;
+    const timeoutMs = options.timeoutMs ?? 400;
     return new Promise((resolve) => {
       const socket = net.connect({ host, port }, () => {
         // Lower latency and enforce a hard timeout at the socket level
@@ -311,42 +311,45 @@ class ProtocolClient extends EventEmitter {
         const lines = [];
         lines.push(`${method} ${path} HTTP/${httpVersion}`);
         if (includeHost) lines.push(`Host: ${host}:${port}`);
-        for (const [k, v] of Object.entries(headers)) lines.push(`${k}: ${v}`);
+        for (const name in headers) lines.push(`${name}: ${headers[name]}`);
         lines.push('\r\n');
         socket.write(lines.join('\r\n'));
       });
 
-      let buf = Buffer.alloc(0);
+      let buffer = Buffer.alloc(0);
       let closed = false;
       let done = false;
 
       const finish = () => {
         if (done) return;
         done = true;
-        const idx = buf.indexOf('\r\n\r\n');
-        const head = idx !== -1 ? buf.slice(0, idx).toString() : buf.toString();
-        const [statusLine, ...headerLines] = head.split(/\r?\n/);
-        const headersObj = {};
+        const index = buffer.indexOf('\r\n\r\n');
+        const end = index !== -1 ? index : buffer.length;
+        const head = buffer.subarray(0, end).toString();
+        const responseLines = head.split(/\r?\n/);
+        const statusLine = responseLines[0];
+        const headerLines = responseLines.slice(1);
+        const parsedHeaders = {};
         for (const line of headerLines) {
-          const m = line.match(/^([^:]+):\s*(.*)$/);
-          if (m) headersObj[m[1].toLowerCase()] = m[2];
+          const match = line.match(/^([^:]+):\s*(.*)$/);
+          if (match) parsedHeaders[match[1].toLowerCase()] = match[2];
         }
         resolve({
           statusLine: statusLine || '',
-          headers: headersObj,
+          headers: parsedHeaders,
           raw: head,
           socketClosed: closed,
         });
       };
 
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         socket.destroy();
       }, timeoutMs);
 
       socket.on('data', (chunk) => {
-        buf = Buffer.concat([buf, chunk]);
-        if (buf.indexOf('\r\n\r\n') !== -1) {
-          clearTimeout(t);
+        buffer = Buffer.concat([buffer, chunk]);
+        if (buffer.indexOf('\r\n\r\n') !== -1) {
+          clearTimeout(timer);
           finish();
           socket.destroy();
         }

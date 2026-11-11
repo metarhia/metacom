@@ -2,32 +2,27 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+
 const { Emitter } = require('metautil');
 
 const { Server } = require('../../lib/server.js');
 const { ServerTransport } = require('../../lib/transport.js');
 const { ClientTransport } = require('../../lib/client-transport.js');
-const {
-  allTransports,
-  registerTransport,
-} = require('../../lib/transport-registry.js');
+const registry = require('../../lib/transport-registry.js');
+const { allTransports, registerTransport } = registry;
 
 const application = { console: { error: () => {} } };
 const options = { protocol: 'http', cors: { origin: '*' } };
 
 class MockServerTransport extends ServerTransport {
+  static capabilities = { duplex: true, streams: true, events: true };
+
   written = [];
 
   write(data) {
     this.written.push(data);
   }
 }
-
-MockServerTransport.capabilities = {
-  duplex: true,
-  streams: true,
-  events: true,
-};
 
 const calls = [];
 
@@ -44,7 +39,9 @@ registerTransport('mock', {
 });
 
 test('Transport attach: every built-in adapter has attach hook', () => {
-  for (const [name, adapter] of allTransports()) {
+  for (const entry of allTransports()) {
+    const name = entry[0];
+    const adapter = entry[1];
     assert.equal(typeof adapter.attach, 'function', name);
   }
 });
@@ -53,7 +50,7 @@ test('Transport attach: Server attaches registered custom transport', () => {
   calls.length = 0;
   const server = new Server(application, options);
   assert.equal(calls.length, 1);
-  const [{ server: target, attachOptions, onConnection }] = calls;
+  const { server: target, attachOptions, onConnection } = calls[0];
   assert.strictEqual(target, server);
   assert.equal(attachOptions.headers['Access-Control-Allow-Origin'], '*');
   assert.equal(typeof attachOptions.verifyClient, 'function');
@@ -65,7 +62,7 @@ test('Transport attach: Server attaches registered custom transport', () => {
 test('Transport attach: websocketPath is passed as path', () => {
   calls.length = 0;
   const server = new Server(application, { ...options, websocketPath: '/ws' });
-  const [{ attachOptions }] = calls;
+  const { attachOptions } = calls[0];
   assert.equal(attachOptions.path, '/ws');
   assert.equal(attachOptions.verifyClient, undefined);
   dispose(server);
@@ -74,7 +71,7 @@ test('Transport attach: websocketPath is passed as path', () => {
 test('Transport attach: duplex transport messages reach Server', () => {
   calls.length = 0;
   const server = new Server(application, options);
-  const [{ onConnection }] = calls;
+  const { onConnection } = calls[0];
   const transport = new MockServerTransport('mock');
   onConnection(transport);
   transport.emit('message', '{}');

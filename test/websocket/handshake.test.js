@@ -8,12 +8,12 @@ const crypto = require('node:crypto');
 const { MAGIC, WebsocketServer } = require('#ws');
 const { ProtocolClient } = require('./protocolClient.js');
 
-function parseStatusCode(statusLine) {
+const parseStatusCode = (statusLine) => {
   if (!statusLine) return null;
   const parts = statusLine.split(' ');
   const code = parseInt(parts[1], 10);
   return Number.isFinite(code) ? code : null;
-}
+};
 
 test('handshake: successful upgrade', async () => {
   const httpServer = http.createServer();
@@ -387,7 +387,7 @@ test('handshake: Sec-WebSocket-Accept correct, no subprotocol', async () => {
   const httpServer = http.createServer();
   const tinyWsServer = new WebsocketServer({ server: httpServer });
   // Terminate immediately to avoid waiting for heartbeat timeouts
-  tinyWsServer.on('connection', (ws) => ws.terminate());
+  tinyWsServer.on('connection', (connection) => connection.terminate());
 
   await new Promise((resolve) => {
     httpServer.listen(0, resolve);
@@ -427,7 +427,7 @@ test('handshake: Connection token match is case-insensitive', async () => {
   const httpServer = http.createServer();
   const tinyWsServer = new WebsocketServer({ server: httpServer });
   // Terminate immediately to avoid waiting for heartbeat timeouts
-  tinyWsServer.on('connection', (ws) => ws.terminate());
+  tinyWsServer.on('connection', (connection) => connection.terminate());
 
   await new Promise((resolve) => {
     httpServer.listen(0, resolve);

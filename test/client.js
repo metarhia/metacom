@@ -8,6 +8,7 @@ const assert = require('node:assert');
 const { randomUUID } = require('node:crypto');
 
 const metautil = require('metautil');
+
 const { WebsocketServer } = require('#ws');
 const { Metacom } = require('../lib/metacom.js');
 const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
@@ -24,10 +25,12 @@ const createWsServer = () => {
   return { httpServer, wsServer };
 };
 
-const listen = (httpServer, port) =>
-  new Promise((resolve, reject) => {
+const listen = (httpServer, port) => {
+  const executor = (resolve, reject) => {
     httpServer.listen(port, (error) => (error ? reject(error) : resolve()));
-  });
+  };
+  return new Promise(executor);
+};
 
 test('Client / calls', async (t) => {
   const api = {
@@ -55,27 +58,29 @@ test('Client / calls', async (t) => {
     },
   };
 
-  let serverWs = null;
+  let serverConnection = null;
   const { httpServer, wsServer: mockServer } = createWsServer();
   await listen(httpServer, 8000);
-  mockServer.on('connection', (ws) => {
-    serverWs = ws;
-    ws.on('message', async (raw) => {
+  mockServer.on('connection', (connection) => {
+    serverConnection = connection;
+    connection.on('message', async (raw) => {
       const packet = metautil.jsonParse(raw.toString()) || {};
       const { type, id, method } = packet;
-      const [unit, name] = method.split('/');
+      const route = method.split('/');
+      const unit = route[0];
+      const name = route[1];
       if (type !== 'call') return;
       try {
         const result = await api[unit][name].handler();
-        ws.send(JSON.stringify({ type: 'callback', id, result }));
+        connection.send(JSON.stringify({ type: 'callback', id, result }));
       } catch ({ message }) {
         const packet = { type: 'callback', id, error: { code: 400, message } };
-        ws.send(JSON.stringify(packet));
+        connection.send(JSON.stringify(packet));
       }
     });
   });
 
-  let client;
+  let client = null;
 
   t.after(() => void httpServer.close());
 
@@ -95,8 +100,10 @@ test('Client / calls', async (t) => {
   await t.test('handles parallel api calls', async () => {
     const promises = [];
     for (let i = 0; i < 10; i++) promises.push(client.api.test.test());
-    const res = await Promise.all(promises);
-    for (const r of res) assert.deepStrictEqual(r, { success: true });
+    const results = await Promise.all(promises);
+    for (const result of results) {
+      assert.deepStrictEqual(result, { success: true });
+    }
   });
 
   await t.test('handles call timeouts', async () => {
@@ -115,8 +122,11 @@ test('Client / calls', async (t) => {
     const errorPromise = new Promise((resolve) => {
       client.once('error', resolve);
     });
-    assert.ok(serverWs, 'expected WebSocket connection from mock server');
-    serverWs.send('not json');
+    assert.ok(
+      serverConnection,
+      'expected WebSocket connection from mock server',
+    );
+    serverConnection.send('not json');
     const error = await errorPromise;
     assert.match(error.message, /Invalid JSON packet/);
   });
@@ -139,30 +149,28 @@ test('Client / stale callback', async (t) => {
 
   const { httpServer, wsServer: mockServer } = createWsServer();
   await listen(httpServer, 8010);
-  mockServer.on('connection', (ws) => {
-    ws.on('message', async (raw) => {
+  mockServer.on('connection', (connection) => {
+    connection.on('message', async (raw) => {
       const packet = metautil.jsonParse(raw.toString()) || {};
       const { type, id, method } = packet;
-      const [unit, name] = method?.split('/') || [];
+      const route = method?.split('/') || [];
+      const unit = route[0];
+      const name = route[1];
       if (type !== 'call') return;
       try {
         const handler = api[unit]?.[name]?.handler;
         const result = (handler ? await handler() : undefined) ?? { ok: true };
-        ws.send(JSON.stringify({ type: 'callback', id, result }));
-        ws.send(
-          JSON.stringify({
-            type: 'callback',
-            id: 'stale-id-not-in-calls',
-            result: null,
-          }),
-        );
+        connection.send(JSON.stringify({ type: 'callback', id, result }));
+        const staleId = 'stale-id-not-in-calls';
+        const stale = { type: 'callback', id: staleId, result: null };
+        connection.send(JSON.stringify(stale));
       } catch ({ message }) {
-        const errPacket = {
+        const errorPacket = {
           type: 'callback',
           id,
           error: { code: 400, message },
         };
-        ws.send(JSON.stringify(errPacket));
+        connection.send(JSON.stringify(errorPacket));
       }
     });
   });
@@ -209,28 +217,30 @@ test('Client / events', async (t) => {
 
   const { httpServer, wsServer: mockServer } = createWsServer();
   await listen(httpServer, 8001);
-  mockServer.on('connection', (ws) => {
+  mockServer.on('connection', (connection) => {
     const pingInterval = setInterval(() => {
       const packet = { type: 'event', name: 'test/ping', data: { ping: true } };
-      ws.send(JSON.stringify(packet));
+      connection.send(JSON.stringify(packet));
     }, 100);
-    ws.on('close', () => void clearInterval(pingInterval));
-    ws.on('message', async (raw) => {
+    connection.on('close', () => void clearInterval(pingInterval));
+    connection.on('message', async (raw) => {
       const packet = metautil.jsonParse(raw.toString()) || {};
       if (packet.type === 'call' && packet.method === 'system/introspect') {
         const introspection = { type: 'callback', id: packet.id, result: api };
-        ws.send(JSON.stringify(introspection));
+        connection.send(JSON.stringify(introspection));
         return;
       }
       const { type, name, data } = packet;
       if (type !== 'event') return;
-      const [unit, event] = name.split('/');
+      const route = name.split('/');
+      const unit = route[0];
+      const event = route[1];
       const result = await api[unit][event].handler(data);
-      ws.send(JSON.stringify({ type: 'event', name, data: result }));
+      connection.send(JSON.stringify({ type: 'event', name, data: result }));
     });
   });
 
-  let client;
+  let client = null;
 
   t.after(() => void httpServer.close());
 
@@ -260,16 +270,18 @@ test('Client / stream', async (t) => {
     stream.data.push(stringChunk);
   };
 
-  const handleOutgoingStream = async (ws, { id, name, blob }) => {
+  const handleOutgoingStream = async (connection, { id, name, blob }) => {
     const initPacket = { type: 'stream', id, name, size: blob.size };
     const endPacket = { type: 'stream', id, status: 'end' };
-    ws.send(JSON.stringify(initPacket));
+    connection.send(JSON.stringify(initPacket));
     const reader = blob.stream().getReader();
-    let chunk;
-    while (!(chunk = await reader.read()).done) {
-      ws.sendBinary(Buffer.from(chunkEncode(id, chunk.value)));
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      const encoded = chunkEncode(id, chunk.value);
+      connection.sendBinary(Buffer.from(encoded));
+      chunk = await reader.read();
     }
-    ws.send(JSON.stringify(endPacket));
+    connection.send(JSON.stringify(endPacket));
   };
 
   const handleIncomingStream = ({ id, name, size, status }) => {
@@ -298,11 +310,11 @@ test('Client / stream', async (t) => {
         handler: async ({ id }) => storage.get(id),
       },
       download: {
-        handler: async ({ name }, ws) => {
+        handler: async ({ name }, connection) => {
           const id = randomUUID();
           const data = 'Some random data for upload to the client';
           const blob = new Blob([data]);
-          handleOutgoingStream(ws, { id, name, blob });
+          handleOutgoingStream(connection, { id, name, blob });
           return { id };
         },
       },
@@ -311,29 +323,31 @@ test('Client / stream', async (t) => {
 
   const { httpServer, wsServer: mockServer } = createWsServer();
   await listen(httpServer, 8002);
-  mockServer.on('connection', (ws) => {
+  mockServer.on('connection', (connection) => {
     const pingInterval = setInterval(() => {
       const packet = { type: 'event', name: 'test/ping', data: { ping: true } };
-      ws.send(JSON.stringify(packet));
+      connection.send(JSON.stringify(packet));
     }, 100);
-    ws.on('close', () => void clearInterval(pingInterval));
-    ws.on('message', async (raw, isBinary) => {
+    connection.on('close', () => void clearInterval(pingInterval));
+    connection.on('message', async (raw, isBinary) => {
       if (isBinary) return void handleBinary(new Uint8Array(raw));
       const packet = metautil.jsonParse(raw.toString()) || {};
       if (packet.type === 'call' && packet.method === 'system/introspect') {
         const introspection = { type: 'callback', id: packet.id, result: api };
-        return void ws.send(JSON.stringify(introspection));
+        return void connection.send(JSON.stringify(introspection));
       }
       if (packet.type === 'stream') return void handleIncomingStream(packet);
       const { type, id, method, args } = packet;
-      const [unit, name] = method.split('/');
+      const route = method.split('/');
+      const unit = route[0];
+      const name = route[1];
       if (type !== 'call') return;
-      const result = await api[unit][name].handler(args, ws);
-      ws.send(JSON.stringify({ type: 'callback', id, result }));
+      const result = await api[unit][name].handler(args, connection);
+      connection.send(JSON.stringify({ type: 'callback', id, result }));
     });
   });
 
-  let client;
+  let client = null;
 
   t.after(() => void httpServer.close());
 
@@ -385,18 +399,20 @@ test('Client / different ID generation strategies', async (t) => {
 
   const { httpServer, wsServer: mockServer } = createWsServer();
   await listen(httpServer, 8004);
-  mockServer.on('connection', (ws) => {
-    ws.on('message', async (raw) => {
+  mockServer.on('connection', (connection) => {
+    connection.on('message', async (raw) => {
       const packet = metautil.jsonParse(raw.toString()) || {};
       const { type, id, method } = packet;
-      const [unit, name] = method.split('/');
+      const route = method.split('/');
+      const unit = route[0];
+      const name = route[1];
       if (type !== 'call') return;
       try {
         const result = await api[unit][name].handler();
-        ws.send(JSON.stringify({ type: 'callback', id, result }));
+        connection.send(JSON.stringify({ type: 'callback', id, result }));
       } catch ({ message }) {
         const packet = { type: 'callback', id, error: { code: 400, message } };
-        ws.send(JSON.stringify(packet));
+        connection.send(JSON.stringify(packet));
       }
     });
   });

@@ -64,7 +64,7 @@ test('Server / calls', async (t) => {
     getMethod: (unit, _version, method) => new ProcedureMock(api[unit][method]),
   };
 
-  let server;
+  let server = null;
 
   t.beforeEach(async () => {
     server = new Server(application, options);
@@ -96,14 +96,14 @@ test('Server / calls', async (t) => {
     const args = { name: 'Max' };
     const packet = { type: 'call', id, method: 'test/hello', args };
     const socket = new ProtocolClient(`ws://${options.host}:${options.port}`);
-    await new Promise((res) => {
-      socket.once('open', res);
+    await new Promise((resolve) => {
+      socket.once('open', resolve);
     });
     socket.send(JSON.stringify(packet));
-    const resPacket = await new Promise((res) => {
-      socket.once('message', res);
+    const responsePacket = await new Promise((resolve) => {
+      socket.once('message', resolve);
     });
-    const response = JSON.parse(resPacket.toString());
+    const response = JSON.parse(responsePacket.toString());
     socket.close();
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');
@@ -117,14 +117,14 @@ test('Server / calls', async (t) => {
     const socket = new ProtocolClient(
       `ws://${options.host}:${options.port}/api`,
     );
-    await new Promise((res) => {
-      socket.once('open', res);
+    await new Promise((resolve) => {
+      socket.once('open', resolve);
     });
     socket.send(JSON.stringify(packet));
-    const resPacket = await new Promise((res) => {
-      socket.once('message', res);
+    const responsePacket = await new Promise((resolve) => {
+      socket.once('message', resolve);
     });
-    const response = JSON.parse(resPacket.toString());
+    const response = JSON.parse(responsePacket.toString());
     socket.close();
     assert.strictEqual(response.id, id);
     assert.strictEqual(response.type, 'callback');

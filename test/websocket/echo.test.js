@@ -11,8 +11,8 @@ test('should echo messages', async () => {
   const httpServer = http.createServer();
   const tinyWsServer = new WebsocketServer({ server: httpServer });
 
-  tinyWsServer.on('connection', (conn) => {
-    conn.on('message', (msg) => conn.send(`Echo: ${msg}`));
+  tinyWsServer.on('connection', (connection) => {
+    connection.on('message', (message) => connection.send(`Echo: ${message}`));
   });
 
   await new Promise((resolve) => {
@@ -24,8 +24,8 @@ test('should echo messages', async () => {
 
   const received = await new Promise((resolve) => {
     client.on('open', () => client.send('Hello tinyWS'));
-    client.on('message', (msg) => {
-      resolve(msg.toString());
+    client.on('message', (message) => {
+      resolve(message.toString());
       client.close();
     });
   });

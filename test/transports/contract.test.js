@@ -6,37 +6,34 @@ const assert = require('node:assert/strict');
 require('../../lib/transport-ws.js');
 require('../../lib/transport-http.js');
 require('../../lib/transport-event.js');
-const {
-  allTransports,
-  getTransport,
-  registerTransport,
-} = require('../../lib/transport-registry.js');
+const registry = require('../../lib/transport-registry.js');
+const { allTransports, getTransport, registerTransport } = registry;
 
 const REQUIRED_CAPABILITIES = ['duplex', 'streams', 'events'];
 
-const assertCapabilities = (caps, name) => {
+const assertCapabilities = (capabilities, name) => {
   assert.ok(
-    caps && typeof caps === 'object',
+    capabilities && typeof capabilities === 'object',
     `${name}: capabilities must be an object`,
   );
   for (const key of REQUIRED_CAPABILITIES) {
     assert.ok(
-      typeof caps[key] === 'boolean',
+      typeof capabilities[key] === 'boolean',
       `${name}: capabilities.${key} must be a boolean`,
     );
   }
 };
 
-const assertMethod = (obj, method, name) => {
+const assertMethod = (target, method, name) => {
   assert.equal(
-    typeof obj.prototype[method],
+    typeof target.prototype[method],
     'function',
     `${name}: must have method '${method}'`,
   );
 };
 
 test('Transport registry: built-in adapters are registered', () => {
-  const names = [...allTransports()].map(([name]) => name);
+  const names = Array.from(allTransports(), (entry) => entry[0]);
   assert.ok(names.includes('ws'), 'ws adapter must be registered');
   assert.ok(names.includes('http'), 'http adapter must be registered');
   assert.ok(names.includes('event'), 'event adapter must be registered');
@@ -115,7 +112,10 @@ test('registerTransport: rejects null capabilities', () => {
   );
 });
 
-for (const [name, adapter] of allTransports()) {
+for (const entry of allTransports()) {
+  const name = entry[0];
+  const adapter = entry[1];
+
   // eslint-disable-next-line max-len
   test(`Transport adapter '${name}': has Client and Server constructors`, () => {
     assert.equal(typeof adapter.Client, 'function');
@@ -140,10 +140,10 @@ for (const [name, adapter] of allTransports()) {
 
   // eslint-disable-next-line max-len
   test(`Transport adapter '${name}': Server.capabilities match adapter capabilities`, () => {
-    const serverCaps = adapter.Server.capabilities;
-    assertCapabilities(serverCaps, `Server '${name}'`);
+    const serverCapabilities = adapter.Server.capabilities;
+    assertCapabilities(serverCapabilities, `Server '${name}'`);
     assert.deepEqual(
-      serverCaps,
+      serverCapabilities,
       adapter.capabilities,
       `Server.capabilities for '${name}' must match adapter-level capabilities`,
     );

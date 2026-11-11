@@ -2,13 +2,17 @@
 
 const { performance } = require('node:perf_hooks');
 const crypto = require('node:crypto');
+
 const nodeEncoders = require('../lib/chunks.js');
 const browserEncoders = require('../lib/chunks-browser.js');
 
 const ITERATIONS = 100000;
 const WARMUP_ITERATIONS = 10000;
+const LINE = '='.repeat(80);
+const DIVIDER = '-'.repeat(80);
+const NUMBER_FORMAT = { maximumFractionDigits: 2 };
 
-const testCases = [
+const TEST_CASES = [
   {
     name: 'Short ID, small payload',
     id: 'test',
@@ -31,21 +35,15 @@ const testCases = [
   },
 ];
 
-const benchmark = (name, fn, iterations) => {
+const benchmark = (operation) => {
   const start = performance.now();
-  for (let i = 0; i < iterations; i++) {
-    fn();
-  }
-  const end = performance.now();
-  const duration = end - start;
-  const opsPerSec = (iterations / duration) * 1000;
+  for (let i = 0; i < ITERATIONS; i++) operation();
+  const duration = performance.now() - start;
+  const opsPerSec = (ITERATIONS / duration) * 1000;
   return { duration, opsPerSec };
 };
 
-const formatNumber = (num) =>
-  num.toLocaleString('en-US', {
-    maximumFractionDigits: 2,
-  });
+const formatNumber = (value) => value.toLocaleString('en-US', NUMBER_FORMAT);
 
 const formatOps = (ops) => {
   if (ops >= 1000000) return `${formatNumber(ops / 1000000)}M ops/sec`;
@@ -53,175 +51,114 @@ const formatOps = (ops) => {
   return `${formatNumber(ops)} ops/sec`;
 };
 
+const printTiming = (label, { opsPerSec, duration }) => {
+  const ops = formatOps(opsPerSec).padEnd(20);
+  console.log(`    ${label} ${ops} (${formatNumber(duration)}ms)`);
+};
+
+const printDifference = (current, base, label) => {
+  const percent = (current.opsPerSec / base.opsPerSec - 1) * 100;
+  const sign = percent > 0 ? '+' : '';
+  const value = formatNumber(percent);
+  console.log(`    Difference: ${sign}${value}% (${label})`);
+};
+
+const printSection = (title, rows, difference) => {
+  console.log();
+  console.log(`  ${title}:`);
+  for (const { label, result } of rows) printTiming(label, result);
+  printDifference(difference.current, difference.base, difference.label);
+};
+
+const runCase = ({ name, id, payload }) => {
+  console.log(`Test Case: ${name}`);
+  console.log(`  ID: "${id}" (${id.length} chars)`);
+  console.log(`  Payload: ${payload.length} bytes`);
+  console.log(DIVIDER);
+
+  const encodeNode = () => nodeEncoders.chunkEncode(id, payload);
+  const encodeBrowser = () => browserEncoders.chunkEncode(id, payload);
+
+  for (let i = 0; i < WARMUP_ITERATIONS; i++) {
+    encodeNode();
+    encodeBrowser();
+  }
+
+  const nodeEncode = benchmark(encodeNode);
+  const browserEncode = benchmark(encodeBrowser);
+
+  const nodeChunk = encodeNode();
+  const browserChunk = encodeBrowser();
+
+  const nodeDecode = benchmark(() => nodeEncoders.chunkDecode(nodeChunk));
+  const browserDecode = benchmark(() =>
+    browserEncoders.chunkDecode(browserChunk),
+  );
+  const browserToNode = benchmark(() => nodeEncoders.chunkDecode(browserChunk));
+  const nodeToBrowser = benchmark(() => browserEncoders.chunkDecode(nodeChunk));
+  const nodeRoundTrip = benchmark(() => {
+    nodeEncoders.chunkDecode(encodeNode());
+  });
+  const browserRoundTrip = benchmark(() => {
+    browserEncoders.chunkDecode(encodeBrowser());
+  });
+
+  const browserVsNode = 'Browser vs Node';
+  const nodeLabel = 'Node:   ';
+  const browserLabel = 'Browser:';
+
+  printSection(
+    'Encoding',
+    [
+      { label: nodeLabel, result: nodeEncode },
+      { label: browserLabel, result: browserEncode },
+    ],
+    { current: browserEncode, base: nodeEncode, label: browserVsNode },
+  );
+  printSection(
+    'Decoding (same origin)',
+    [
+      { label: nodeLabel, result: nodeDecode },
+      { label: browserLabel, result: browserDecode },
+    ],
+    { current: browserDecode, base: nodeDecode, label: browserVsNode },
+  );
+  printSection(
+    'Cross-compatibility decoding',
+    [
+      { label: 'Browser→Node:', result: browserToNode },
+      { label: 'Node→Browser:', result: nodeToBrowser },
+    ],
+    {
+      current: nodeToBrowser,
+      base: browserToNode,
+      label: 'Node→Browser vs Browser→Node',
+    },
+  );
+  printSection(
+    'Round-trip (encode + decode)',
+    [
+      { label: nodeLabel, result: nodeRoundTrip },
+      { label: browserLabel, result: browserRoundTrip },
+    ],
+    { current: browserRoundTrip, base: nodeRoundTrip, label: browserVsNode },
+  );
+
+  console.log();
+  console.log(LINE);
+  console.log();
+};
+
 const runBenchmarks = () => {
-  console.log('='.repeat(80));
+  console.log(LINE);
   console.log('Encoder/Decoder Performance Benchmark');
-  console.log('='.repeat(80));
+  console.log(LINE);
   console.log(`Iterations: ${formatNumber(ITERATIONS)}`);
   console.log(`Warmup: ${formatNumber(WARMUP_ITERATIONS)}`);
-  console.log('='.repeat(80));
+  console.log(LINE);
   console.log();
 
-  for (const testCase of testCases) {
-    console.log(`Test Case: ${testCase.name}`);
-    console.log(`  ID: "${testCase.id}" (${testCase.id.length} chars)`);
-    console.log(`  Payload: ${testCase.payload.length} bytes`);
-    console.log('-'.repeat(80));
-
-    const results = {};
-
-    for (let i = 0; i < WARMUP_ITERATIONS; i++) {
-      nodeEncoders.chunkEncode(testCase.id, testCase.payload);
-      browserEncoders.chunkEncode(testCase.id, testCase.payload);
-    }
-
-    results.nodeEncode = benchmark(
-      'Node encode',
-      () => nodeEncoders.chunkEncode(testCase.id, testCase.payload),
-      ITERATIONS,
-    );
-
-    results.browserEncode = benchmark(
-      'Browser encode',
-      () => browserEncoders.chunkEncode(testCase.id, testCase.payload),
-      ITERATIONS,
-    );
-
-    const nodeChunk = nodeEncoders.chunkEncode(testCase.id, testCase.payload);
-    const browserChunk = browserEncoders.chunkEncode(
-      testCase.id,
-      testCase.payload,
-    );
-
-    results.nodeDecode = benchmark(
-      'Node decode',
-      () => nodeEncoders.chunkDecode(nodeChunk),
-      ITERATIONS,
-    );
-
-    results.browserDecode = benchmark(
-      'Browser decode',
-      () => browserEncoders.chunkDecode(browserChunk),
-      ITERATIONS,
-    );
-
-    results.browserToNode = benchmark(
-      'Browser→Node decode',
-      () => nodeEncoders.chunkDecode(browserChunk),
-      ITERATIONS,
-    );
-
-    results.nodeToBrowser = benchmark(
-      'Node→Browser decode',
-      () => browserEncoders.chunkDecode(nodeChunk),
-      ITERATIONS,
-    );
-
-    results.nodeRoundTrip = benchmark(
-      'Node round-trip',
-      () => {
-        const chunk = nodeEncoders.chunkEncode(testCase.id, testCase.payload);
-        nodeEncoders.chunkDecode(chunk);
-      },
-      ITERATIONS,
-    );
-
-    results.browserRoundTrip = benchmark(
-      'Browser round-trip',
-      () => {
-        const chunk = browserEncoders.chunkEncode(
-          testCase.id,
-          testCase.payload,
-        );
-        browserEncoders.chunkDecode(chunk);
-      },
-      ITERATIONS,
-    );
-
-    console.log();
-    console.log('  Encoding:');
-    console.log(
-      `    Node:    ${formatOps(results.nodeEncode.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.nodeEncode.duration)}ms)`,
-    );
-    console.log(
-      `    Browser: ${formatOps(results.browserEncode.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.browserEncode.duration)}ms)`,
-    );
-    const encodeDiff =
-      (results.browserEncode.opsPerSec / results.nodeEncode.opsPerSec - 1) *
-      100;
-    console.log(
-      `    Difference: ${encodeDiff > 0 ? '+' : ''}` +
-        `${formatNumber(encodeDiff)}% ` +
-        `(Browser vs Node)`,
-    );
-
-    console.log();
-    console.log('  Decoding (same origin):');
-    console.log(
-      `    Node:    ${formatOps(results.nodeDecode.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.nodeDecode.duration)}ms)`,
-    );
-    console.log(
-      `    Browser: ${formatOps(results.browserDecode.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.browserDecode.duration)}ms)`,
-    );
-    const decodeDiff =
-      (results.browserDecode.opsPerSec / results.nodeDecode.opsPerSec - 1) *
-      100;
-    console.log(
-      `    Difference: ${decodeDiff > 0 ? '+' : ''}` +
-        `${formatNumber(decodeDiff)}% ` +
-        `(Browser vs Node)`,
-    );
-
-    console.log();
-    console.log('  Cross-compatibility decoding:');
-    console.log(
-      `    Browser→Node: ` +
-        `${formatOps(results.browserToNode.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.browserToNode.duration)}ms)`,
-    );
-    console.log(
-      `    Node→Browser: ` +
-        `${formatOps(results.nodeToBrowser.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.nodeToBrowser.duration)}ms)`,
-    );
-    const crossDiff =
-      (results.nodeToBrowser.opsPerSec / results.browserToNode.opsPerSec - 1) *
-      100;
-    console.log(
-      `    Difference: ${crossDiff > 0 ? '+' : ''}` +
-        `${formatNumber(crossDiff)}% ` +
-        `(Node→Browser vs Browser→Node)`,
-    );
-
-    console.log();
-    console.log('  Round-trip (encode + decode):');
-    console.log(
-      `    Node:    ${formatOps(results.nodeRoundTrip.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.nodeRoundTrip.duration)}ms)`,
-    );
-    console.log(
-      `    Browser: ` +
-        `${formatOps(results.browserRoundTrip.opsPerSec).padEnd(20)} ` +
-        `(${formatNumber(results.browserRoundTrip.duration)}ms)`,
-    );
-    const roundTripDiff =
-      (results.browserRoundTrip.opsPerSec / results.nodeRoundTrip.opsPerSec -
-        1) *
-      100;
-    console.log(
-      `    Difference: ${roundTripDiff > 0 ? '+' : ''}` +
-        `${formatNumber(roundTripDiff)}% ` +
-        `(Browser vs Node)`,
-    );
-
-    console.log();
-    console.log('='.repeat(80));
-    console.log();
-  }
+  for (const testCase of TEST_CASES) runCase(testCase);
 
   console.log('Summary:');
   console.log('  - Both implementations use identical encoding format');
@@ -230,7 +167,7 @@ const runBenchmarks = () => {
   console.log('  - Performance differences are due to:');
   console.log('    * Node: Buffer.from() for UTF-8 conversion');
   console.log('    * Browser: TextEncoder/TextDecoder APIs');
-  console.log('='.repeat(80));
+  console.log(LINE);
 };
 
 runBenchmarks();
