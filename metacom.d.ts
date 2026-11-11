@@ -117,6 +117,7 @@ export class ClientTransport extends Emitter {
   close(): void;
   send(obj: object): void;
   write(data: string | ArrayBufferView): void;
+  announce(id: string): void;
   online(): void;
   offline(): void;
 }
@@ -140,6 +141,7 @@ export class Metacom extends Emitter {
   static online(): void;
   static offline(): void;
   static initialize(): void;
+  static create(url: string, options?: MetacomOptions): Metacom;
   static connect(url: string, options?: MetacomOptions): Promise<Metacom>;
   static transport: {
     ws: typeof ClientWsTransport;
@@ -157,20 +159,37 @@ export class Metacom extends Emitter {
   load(...units: Array<string>): Promise<void>;
   getStream(id: string): MetaReadable | MetaWritable;
   createStream(name: string, size: number): MetaWritable;
+  createReadable(): MetaReadable;
   createBlobUploader(blob: Blob): BlobUploader;
   send(obj: object): void;
   write(data: string | ArrayBufferView): void;
+  deliver(data: string, timeout?: number): boolean;
+}
+
+export interface PacketProxy {
+  packet(packet: MetacomPacket, data: string): void;
+  binary(id: string, data: Uint8Array): void;
 }
 
 export interface MetacomOptions {
   callTimeout?: number;
   reconnectTimeout?: number;
+  queueSize?: number;
+  generateId?: () => string;
+  restore?: (metacom: Metacom) => Promise<void>;
   worker?: ServiceWorker;
-  proxy?: (data: string) => void;
+  proxy?: PacketProxy;
+}
+
+export interface MetacomProxyOptions extends MetacomOptions {
+  url?: string;
+  sweepInterval?: number;
 }
 
 export class MetacomProxy extends Emitter {
-  constructor(options?: MetacomOptions);
+  readonly server: Metacom;
+  readonly active: boolean;
+  constructor(options?: MetacomProxyOptions);
   open(): Promise<void>;
   close(): void;
 }
@@ -242,6 +261,7 @@ export interface Options {
   timeouts?: { bind: number };
   retry?: number;
   websocketPath?: string;
+  generateId?: () => string;
 }
 
 export interface ErrorOptions {
@@ -269,14 +289,18 @@ export class Client extends Emitter {
   source: string;
   session: Session | null;
   streams: Map<string, MetaReadable | MetaWritable>;
-  constructor(transport: ServerTransport, context: ApplicationContext);
+  constructor(
+    transport: ServerTransport,
+    context: ApplicationContext,
+    options?: { generateId?: () => string },
+  );
   error(code: number, options?: ErrorOptions): void;
   send(obj: object, options?: { code?: number; method?: string }): void;
   createContext(): Context;
   emit(name: EventName, data: unknown): Promise<void>;
   sendEvent(name: string, data?: unknown): void;
   getStream(id: string): MetaReadable | MetaWritable;
-  createStream(name: string, size: number): MetaWritable;
+  createStream(name: string, size: number, id?: string): MetaWritable;
   initializeSession(token: string, data?: object): boolean;
   finalizeSession(): boolean;
   startSession(token: string, data?: object): boolean;

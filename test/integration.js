@@ -115,9 +115,10 @@ test('Integration / Metacom client with Server', async (t) => {
         },
       },
       download: {
-        handler: async ({ name }, context) => {
+        handler: async ({ name, id }, context) => {
           const payload = Buffer.from('hello from server');
-          const stream = context.client.createStream(name, payload.length);
+          const { length } = payload;
+          const stream = context.client.createStream(name, length, id);
           queueMicrotask(() => {
             stream.write(payload);
             stream.end();
@@ -206,4 +207,28 @@ test('Integration / Metacom client with Server', async (t) => {
     const blob = await readable.toBlob();
     assert.strictEqual(await blob.text(), 'hello from server');
   });
+
+  await t.test('WS streams: download into client created stream', async () => {
+    const client = await Metacom.connect(`ws://127.0.0.1:${port}/`);
+    t.after(() => void client.close());
+    await client.load('test');
+    const readable = client.createReadable();
+    const name = 'download-stream';
+    const result = await client.api.test.download({ name, id: readable.id });
+    assert.strictEqual(result.id, readable.id);
+    const blob = await readable.toBlob();
+    assert.strictEqual(await blob.text(), 'hello from server');
+    assert.strictEqual(readable.name, name);
+    assert.strictEqual(readable.size, 17);
+  });
+
+  await t.test(
+    'WS RPC: failed connect does not keep reconnecting',
+    async () => {
+      const connections = Metacom.connections.size;
+      const promise = Metacom.connect('ws://127.0.0.1:1/');
+      await assert.rejects(promise);
+      assert.strictEqual(Metacom.connections.size, connections);
+    },
+  );
 });

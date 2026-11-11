@@ -6,6 +6,7 @@
     "client-event.js",
     "chunks-browser.js",
     "streams.js",
-    "metacom.js"
+    "metacom.js",
+    "proxy.js"
   ]
 }
