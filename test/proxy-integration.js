@@ -181,6 +181,23 @@ test('MetacomProxy with Server', async (t) => {
     },
   );
 
+  await t.test('local unit extends server unit', async () => {
+    proxy.register('test', {
+      hello: async ({ name }) => `Local hello, ${name}`,
+      greet: async ({ name }, context) => {
+        await context.server.load('test');
+        return context.server.api.test.hello({ name });
+      },
+    });
+    await tab1.load('test');
+    assert.strictEqual(
+      await tab1.api.test.hello({ name: 'a' }),
+      'Local hello, a',
+    );
+    assert.strictEqual(await tab1.api.test.greet({ name: 'b' }), 'Hello, b');
+    assert.deepStrictEqual(await tab1.api.test.notify(), { ok: true });
+  });
+
   await t.test('stream with server created id is not delivered', async () => {
     const { id } = await tab1.api.test.download({ name: 'file' });
     await timers.setTimeout(DELIVERY_MS);

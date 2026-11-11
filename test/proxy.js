@@ -90,13 +90,25 @@ const createTab = (environment, id, options = {}) => {
   return new Metacom(URL, transport, tabOptions);
 };
 
+const INTROSPECT = 'system/introspect';
+
+const introspect = (units) => {
+  if (!units.includes('test')) return {};
+  return { test: { echo: {} } };
+};
+
 const echoServer = (socket, data) => {
   const packet = JSON.parse(data);
   if (typeof packet !== 'object') return;
   const { id, method, args } = packet;
-  const isIntrospect = method === 'system/introspect';
-  const result = isIntrospect ? { test: { echo: {} } } : args;
+  const result = method === INTROSPECT ? introspect(args) : args;
   socket.dispatchMessage(JSON.stringify({ type: 'callback', id, result }));
+};
+
+const getCalls = (socket) => {
+  const packets = socket.sent.filter((data) => data.startsWith('{'));
+  const calls = packets.map((data) => JSON.parse(data));
+  return calls.filter((packet) => packet.method !== INTROSPECT);
 };
 
 const setup = async (t, options = {}) => {
@@ -105,6 +117,8 @@ const setup = async (t, options = {}) => {
   MockWebSocket.autoOpen = true;
   MockWebSocket.respond = echoServer;
   const proxyOptions = { reconnectTimeout: RECONNECT_MS, ...options };
+  const { offline = false } = options;
+  if (offline) MockWebSocket.autoOpen = false;
   const proxy = new MetacomProxy(proxyOptions);
   const tabs = [];
   const connect = async (id, tabOptions) => {
@@ -120,7 +134,7 @@ const setup = async (t, options = {}) => {
     MockWebSocket.respond = null;
     delete globalThis.self;
   });
-  await proxy.open();
+  if (!offline) await proxy.open();
   return { environment, proxy, connect };
 };
 
@@ -254,8 +268,7 @@ test('MetacomProxy: queues calls while offline', async (t) => {
   socket.open();
   assert.deepStrictEqual(await first, { order: 1 });
   assert.deepStrictEqual(await second, { order: 2 });
-  const packets = socket.sent.map((data) => JSON.parse(data));
-  const orders = packets.map((packet) => packet.args.order);
+  const orders = getCalls(socket).map((packet) => packet.args.order);
   assert.deepStrictEqual(orders, [1, 2]);
 });
 
@@ -274,8 +287,7 @@ test('MetacomProxy: restores session before queue flush', async (t) => {
   const during = tab.api.test.echo({ order: 2 });
   await Promise.all([queued, during]);
   assert.strictEqual(socket.sent[0], '"restore"');
-  const calls = socket.sent.slice(1).map((data) => JSON.parse(data));
-  const orders = calls.map((packet) => packet.args.order);
+  const orders = getCalls(socket).map((packet) => packet.args.order);
   assert.deepStrictEqual(orders, [1, 2]);
 });
 
@@ -301,7 +313,8 @@ test('MetacomProxy: drops expired calls on flush', async (t) => {
   const fresh = tab.api.test.echo({ order: 2 });
   socket.open();
   assert.deepStrictEqual(await fresh, { order: 2 });
-  assert.strictEqual(socket.sent.length, 1);
+  const orders = getCalls(socket).map((packet) => packet.args.order);
+  assert.deepStrictEqual(orders, [2]);
 });
 
 test('MetacomProxy: answers stream packets with 503 offline', async (t) => {
@@ -315,4 +328,108 @@ test('MetacomProxy: answers stream packets with 503 offline', async (t) => {
   await timers.setTimeout(DELIVERY_MS);
   assert.strictEqual(socket.sent.length, 0);
   assert.deepStrictEqual(errors, [`Callback ${stream.id} not found`]);
+});
+
+test('MetacomProxy: local unit is handled in the worker', async (t) => {
+  const { proxy, connect } = await setup(t);
+  proxy.register('local', {
+    sum: async ({ a, b }) => a + b,
+    deny: async () => {
+      const error = new Error('Denied');
+      error.code = 403;
+      throw error;
+    },
+    crash: async () => {
+      throw new Error('Crashed');
+    },
+  });
+  const tab = await connect('tab1');
+  await tab.load('local');
+  const socket = MockWebSocket.last;
+  assert.strictEqual(await tab.api.local.sum({ a: 2, b: 3 }), 5);
+  const { deny, crash } = tab.api.local;
+  await assert.rejects(deny(), { message: 'Denied', code: 403 });
+  await assert.rejects(crash(), { message: 'Crashed', code: 500 });
+  assert.deepStrictEqual(getCalls(socket), []);
+});
+
+test('MetacomProxy: local method shadows server method', async (t) => {
+  const { proxy, connect } = await setup(t);
+  proxy.register('test', { echo: async () => 'local' });
+  proxy.register('test', { extra: async () => 'extra' });
+  const tab = await connect('tab1');
+  await tab.load('test');
+  assert.strictEqual(await tab.api.test.echo({ a: 1 }), 'local');
+  assert.strictEqual(await tab.api.test.extra(), 'extra');
+  assert.deepStrictEqual(getCalls(MockWebSocket.last), []);
+});
+
+test('MetacomProxy: merges local and server methods', async (t) => {
+  const { proxy, connect } = await setup(t);
+  proxy.register('test', { extra: async () => 'extra' });
+  const tab = await connect('tab1');
+  await tab.load('test', 'missing');
+  assert.deepStrictEqual(await tab.api.test.echo({ a: 1 }), { a: 1 });
+  assert.strictEqual(await tab.api.test.extra(), 'extra');
+  assert.strictEqual(tab.api.missing, undefined);
+});
+
+test('MetacomProxy: local handler context', async (t) => {
+  const { proxy, connect } = await setup(t);
+  proxy.register('local', {
+    reply: async (args, context) => void context.emit('local/own', args),
+    share: async (args, context) => void context.broadcast('local/other', args),
+    notify: async (args) => void proxy.broadcast('local/all', args),
+    relay: async (args, context) => context.server.api.test.echo(args),
+  });
+  await proxy.server.load('test');
+  const tab1 = await connect('tab1');
+  const tab2 = await connect('tab2');
+  await tab1.load('local');
+  await tab2.load('local');
+  const received = [];
+  const listen = (tab, name) => {
+    const events = ['own', 'other', 'all'];
+    for (const event of events) {
+      tab.api.local.on(event, () => received.push(`${name}:${event}`));
+    }
+  };
+  listen(tab1, 'tab1');
+  listen(tab2, 'tab2');
+  await tab1.api.local.reply({});
+  await tab1.api.local.share({});
+  await tab1.api.local.notify({});
+  assert.deepStrictEqual(await tab1.api.local.relay({ a: 1 }), { a: 1 });
+  await timers.setTimeout(DELIVERY_MS);
+  const expected = ['tab1:all', 'tab1:own', 'tab2:all', 'tab2:other'];
+  assert.deepStrictEqual(received.toSorted(), expected);
+});
+
+test('MetacomProxy: offline load is extended when online', async (t) => {
+  const { proxy, connect } = await setup(t, { offline: true });
+  proxy.register('local', { sum: async ({ a, b }) => a + b });
+  const tab = await connect('tab1');
+  await tab.load('local', 'test');
+  assert.strictEqual(await tab.api.local.sum({ a: 1, b: 1 }), 2);
+  assert.strictEqual(tab.api.test, undefined);
+  const events = [];
+  const unit = tab.api.local;
+  unit.on('changed', (data) => events.push(data));
+  MockWebSocket.last.open();
+  await timers.setTimeout(DELIVERY_MS);
+  assert.deepStrictEqual(await tab.api.test.echo({ a: 1 }), { a: 1 });
+  assert.strictEqual(tab.api.local, unit);
+  proxy.broadcast('local/changed', { ok: true });
+  await timers.setTimeout(DELIVERY_MS);
+  assert.deepStrictEqual(events, [{ ok: true }]);
+});
+
+test('MetacomProxy: offline load uses cached interface', async (t) => {
+  const { connect } = await setup(t);
+  const tab1 = await connect('tab1');
+  await tab1.load('test');
+  await goOffline();
+  const tab2 = await connect('tab2');
+  await tab2.load('test');
+  assert.strictEqual(typeof tab2.api.test.echo, 'function');
 });
