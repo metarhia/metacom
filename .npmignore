@@ -4,3 +4,5 @@ node_modules
 .eslintrc.json
 .idea
 */skills/metaskills
+.cursor/skills
+.claude/skills
