@@ -8,7 +8,7 @@ const assert = require('node:assert');
 const { Server } = require('../lib/server.js');
 const { Metacom } = require('../lib/metacom.js');
 const { MetacomProxy } = require('../lib/proxy.js');
-const { ClientEventTransport } = require('../lib/client-event.js');
+const { ClientEventTransport } = require('../lib/client.js');
 
 const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {

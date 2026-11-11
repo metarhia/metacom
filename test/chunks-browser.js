@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const { chunkEncode, chunkDecode } = require('../lib/chunks-browser.js');
-const nodeEncoders = require('../lib/chunks.js');
+const nodeEncoders = require('../lib/chunks-node.js');
 
 test('Chunk / chunkEncode', async (t) => {
   await t.test('encodes string ID and payload', () => {

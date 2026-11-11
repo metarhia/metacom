@@ -11,7 +11,7 @@ const metautil = require('metautil');
 
 const { WebsocketServer } = require('#ws');
 const { Metacom } = require('../lib/metacom.js');
-const { chunkEncode, chunkDecode } = require('../lib/chunks.js');
+const { chunkEncode, chunkDecode } = require('../lib/chunks-node.js');
 
 const { emitWarning } = process;
 process.emitWarning = (warning, type, ...args) => {

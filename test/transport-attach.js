@@ -5,11 +5,10 @@ const assert = require('node:assert/strict');
 
 const { Emitter } = require('metautil');
 
-const { Server } = require('../../lib/server.js');
-const { ServerTransport } = require('../../lib/transport.js');
-const { ClientTransport } = require('../../lib/client-transport.js');
-const registry = require('../../lib/transport-registry.js');
-const { allTransports, registerTransport } = registry;
+const { Server } = require('../lib/server.js');
+const transport = require('../lib/transport.js');
+const { ServerTransport, allTransports, registerTransport } = transport;
+const { ClientTransport } = require('../lib/client.js');
 
 const application = { console: { error: () => {} } };
 const options = { protocol: 'http', cors: { origin: '*' } };
