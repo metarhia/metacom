@@ -131,6 +131,12 @@ export class ClientEventTransport extends ClientTransport {
   static getInstance(url: string): ClientEventTransport;
 }
 
+export declare const TRANSPORTS: {
+  ws: typeof ClientWsTransport;
+  http: typeof ClientHttpTransport;
+  event: typeof ClientEventTransport;
+};
+
 export function buildHeaders(
   cors?: { origin?: string } | null,
 ): Record<string, string>;
@@ -143,11 +149,7 @@ export class Metacom extends Emitter {
   static initialize(): void;
   static create(url: string, options?: MetacomOptions): Metacom;
   static connect(url: string, options?: MetacomOptions): Promise<Metacom>;
-  static transport: {
-    ws: typeof ClientWsTransport;
-    http: typeof ClientHttpTransport;
-    event: typeof ClientEventTransport;
-  };
+  static transport: typeof TRANSPORTS;
 
   url: string;
   api: Record<string, Emitter>;

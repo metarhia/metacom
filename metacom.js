@@ -10,6 +10,7 @@ const { registerTransport, getTransport, allTransports } = transport;
 const { ClientWsTransport, ServerWsTransport } = transport;
 const { ClientHttpTransport, ServerHttpTransport } = transport;
 const { ClientEventTransport, ServerEventTransport } = transport;
+const { TRANSPORTS } = require('./lib/client.js');
 const { MetaReadable, MetaWritable } = require('./lib/streams.js');
 const { chunkEncode, chunkDecode } = require('./lib/chunks-node.js');
 const ws = require('./lib/websocket/ws.js');
@@ -35,6 +36,7 @@ module.exports = {
   ServerHttpTransport,
   ClientEventTransport,
   ServerEventTransport,
+  TRANSPORTS,
   MetaReadable,
   MetaWritable,
   chunkEncode,
