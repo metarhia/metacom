@@ -8,7 +8,7 @@ const assert = require('node:assert');
 const metautil = require('metautil');
 
 const { MetaReadable, MetaWritable } = require('../lib/streams.js');
-const { chunkDecode } = require('../lib/chunks.js');
+const { chunkDecode } = require('../lib/chunks-node.js');
 
 const UINT_8_MAX = 255;
 

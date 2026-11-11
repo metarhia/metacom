@@ -3,7 +3,7 @@
 const { performance } = require('node:perf_hooks');
 const crypto = require('node:crypto');
 
-const nodeEncoders = require('../lib/chunks.js');
+const nodeEncoders = require('../lib/chunks-node.js');
 const browserEncoders = require('../lib/chunks-browser.js');
 
 const ITERATIONS = 100000;
