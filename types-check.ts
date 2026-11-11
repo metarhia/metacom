@@ -23,6 +23,8 @@ import type {
   MetacomOptions,
   Options,
   ParsedFrame,
+  ProxyContext,
+  ProxyHandler,
   Result,
   StreamPacket,
   TransportAdapter,
@@ -61,6 +63,19 @@ type _MetacomReadable = Assert<
 
 type _ProxyServer = Assert<
   MetacomProxy['server'] extends Metacom ? true : false
+>;
+
+type _ProxyRegister = Assert<
+  MetacomProxy['register'] extends (
+    unit: string,
+    methods: Record<string, ProxyHandler>,
+  ) => void
+    ? true
+    : false
+>;
+
+type _ProxyContextServer = Assert<
+  ProxyContext['server'] extends Metacom ? true : false
 >;
 
 type _ClientStreamId = Assert<

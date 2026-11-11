@@ -186,12 +186,25 @@ export interface MetacomProxyOptions extends MetacomOptions {
   sweepInterval?: number;
 }
 
+export interface ProxyContext {
+  server: Metacom;
+  emit(name: string, data?: unknown): void;
+  broadcast(name: string, data?: unknown): void;
+}
+
+export type ProxyHandler = (
+  args: any,
+  context: ProxyContext,
+) => Promise<unknown> | unknown;
+
 export class MetacomProxy extends Emitter {
   readonly server: Metacom;
   readonly active: boolean;
   constructor(options?: MetacomProxyOptions);
   open(): Promise<void>;
   close(): void;
+  register(unit: string, methods: Record<string, ProxyHandler>): void;
+  broadcast(name: string, data?: unknown): void;
 }
 
 export class ServerTransport extends Emitter {

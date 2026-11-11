@@ -428,6 +428,7 @@ class Metacom extends Emitter {
   #calls = new Map();
   #streams = new Map();
   #expected = new Set();
+  #units = new Set();
   #outbox = [];
   #queueSize = 0;
   #restore = null;
@@ -483,6 +484,9 @@ class Metacom extends Emitter {
 
   #bindTransport() {
     const escalate = (error) => this.emit('error', error);
+    const report = (error) => {
+      if (this.listenerCount('error') > 0) this.emit('error', error);
+    };
 
     this.#transport.on('open', () => {
       clearTimeout(this.#reconnectTimer);
@@ -500,6 +504,7 @@ class Metacom extends Emitter {
 
     this.#transport.on('status', (status) => {
       this.emit('status', status);
+      if (status.connected) this.#refresh().catch(report);
     });
 
     this.#transport.on('message', (data) => {
@@ -704,18 +709,36 @@ class Metacom extends Emitter {
 
   async load(...units) {
     if (!this.active) throw new Error('Not connected');
+    const introspection = await this.#introspect(units);
+    for (let i = 0; i < units.length; i++) this.#units.add(units[i]);
+    this.#extend(introspection, units);
+  }
+
+  #introspect(units) {
     const createSystemMethod = this.#scaffold('system');
     const introspect = createSystemMethod('introspect');
-    const introspection = await introspect(units);
+    return introspect(units);
+  }
+
+  // Server methods appear in loaded units after proxy reaches the server
+  async #refresh() {
+    if (this.#units.size === 0) return;
+    const units = Array.from(this.#units);
+    const introspection = await this.#introspect(units);
+    this.#extend(introspection, units);
+  }
+
+  // Unit emitter is reused to keep event listeners
+  #extend(introspection, units) {
     for (let i = 0; i < units.length; i++) {
       const unit = units[i];
       if (!Object.hasOwn(introspection, unit)) continue;
-      const methods = new Emitter();
-      const instance = introspection[unit];
+      const methods = this.api[unit] ?? new Emitter();
       const request = this.#scaffold(unit);
-      const methodNames = Object.keys(instance);
+      const methodNames = Object.keys(introspection[unit]);
       for (let j = 0; j < methodNames.length; j++) {
         const methodName = methodNames[j];
+        if (Object.hasOwn(methods, methodName)) continue;
         methods[methodName] = request(methodName);
       }
       this.api[unit] = methods;
@@ -794,10 +817,49 @@ const sendTerminate = (port, id) => {
   port.postMessage(JSON.stringify(packet));
 };
 
+const encodeEvent = (name, data) => {
+  const packet = { type: 'event', name, data };
+  return JSON.stringify(packet);
+};
+
+// Method format: unit/name or unit.version/name
+const parseMethod = (method) => {
+  const slash = method.indexOf('/');
+  const target = slash === -1 ? method : method.slice(0, slash);
+  const name = slash === -1 ? '' : method.slice(slash + 1);
+  const dot = target.indexOf('.');
+  const unit = dot === -1 ? target : target.slice(0, dot);
+  return { unit, name };
+};
+
+class ProxyContext {
+  #port = null;
+  #ports = null;
+
+  constructor(server, port, ports) {
+    this.server = server;
+    this.#port = port;
+    this.#ports = ports;
+  }
+
+  emit(name, data) {
+    this.#port.postMessage(encodeEvent(name, data));
+  }
+
+  broadcast(name, data) {
+    const packet = encodeEvent(name, data);
+    for (const port of this.#ports.keys()) {
+      if (port !== this.#port) port.postMessage(packet);
+    }
+  }
+}
+
 class MetacomProxy extends Emitter {
   #ports = new Map();
   #calls = new Map();
   #streams = new Map();
+  #units = new Map();
+  #interfaces = new Map();
   #server = null;
   #callTimeout = ROUTE_TIMEOUT_MS;
   #sweepInterval = SWEEP_INTERVAL_MS;
@@ -855,6 +917,21 @@ class MetacomProxy extends Emitter {
     this.#calls.clear();
     this.#streams.clear();
     this.#server.close();
+  }
+
+  // Local method shadows server method with the same name
+  register(unit, methods) {
+    const handlers = this.#units.get(unit) ?? new Map();
+    const names = Object.keys(methods);
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      handlers.set(name, methods[name]);
+    }
+    this.#units.set(unit, handlers);
+  }
+
+  broadcast(name, data) {
+    this.#post(encodeEvent(name, data));
   }
 
   #escalate(error) {
@@ -928,15 +1005,79 @@ class MetacomProxy extends Emitter {
     if (typeof id !== 'string' || id === '') {
       return void sendError(port, '', BAD_REQUEST);
     }
-    if (type === 'call') return void this.#forwardCall(port, id, data);
+    if (type === 'call') return void this.#dispatchCall(port, packet, data);
     if (type === 'stream') return void this.#forwardStream(port, packet, data);
     sendError(port, id, BAD_REQUEST);
   }
 
-  #forwardCall(port, id, data) {
+  #dispatchCall(port, packet, data) {
+    const { id, method } = packet;
+    if (typeof method !== 'string') {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    const { unit, name } = parseMethod(method);
+    const isIntrospect = unit === 'system' && name === 'introspect';
+    if (isIntrospect) return void this.#introspect(port, packet, data);
+    const handlers = this.#units.get(unit);
+    const handler = handlers ? handlers.get(name) : undefined;
+    if (handler) return void this.#invoke(port, packet, handler);
+    this.#forwardCall(port, id, data, null);
+  }
+
+  async #invoke(port, packet, handler) {
+    const { id, args } = packet;
+    const context = new ProxyContext(this.#server, port, this.#ports);
+    try {
+      const result = await handler(args, context);
+      const callback = { type: 'callback', id, result };
+      port.postMessage(JSON.stringify(callback));
+    } catch (error) {
+      const code = typeof error.code === 'number' ? error.code : 500;
+      sendError(port, id, { message: error.message, code });
+    }
+  }
+
+  // Offline tab gets local and cached methods, the rest after reconnect
+  #introspect(port, packet, data) {
+    const { id, args } = packet;
+    const units = Array.isArray(args) ? args : [];
+    if (this.#server.active) {
+      return void this.#forwardCall(port, id, data, units);
+    }
+    const callback = { type: 'callback', id, result: this.#describe(units) };
+    port.postMessage(JSON.stringify(callback));
+  }
+
+  #describe(units) {
+    const result = {};
+    for (let i = 0; i < units.length; i++) {
+      const unit = units[i];
+      const remote = this.#interfaces.get(unit);
+      const local = this.#units.get(unit);
+      if (!remote && !local) continue;
+      const methods = { ...remote };
+      if (local) for (const name of local.keys()) methods[name] = {};
+      result[unit] = methods;
+    }
+    return result;
+  }
+
+  #mergeInterfaces(units, packet, data) {
+    const { id, result } = packet;
+    if (!result) return data;
+    for (let i = 0; i < units.length; i++) {
+      const unit = units[i];
+      if (Object.hasOwn(result, unit)) this.#interfaces.set(unit, result[unit]);
+      else this.#interfaces.delete(unit);
+    }
+    const callback = { type: 'callback', id, result: this.#describe(units) };
+    return JSON.stringify(callback);
+  }
+
+  #forwardCall(port, id, data, units) {
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + callTimeout;
-    this.#calls.set(id, { port, expires });
+    this.#calls.set(id, { port, expires, units });
     if (this.#deliver(data, callTimeout)) return;
     this.#calls.delete(id);
     sendError(port, id, UNAVAILABLE);
@@ -978,7 +1119,7 @@ class MetacomProxy extends Emitter {
   #route(packet, data) {
     const { type, id } = packet;
     if (type === 'event') return void this.#post(data);
-    if (type === 'callback') return void this.#routeCallback(id, data);
+    if (type === 'callback') return void this.#routeCallback(packet, data);
     const stream = this.#streams.get(id);
     if (!stream) return;
     if (packet.status === undefined) stream.expires = 0;
@@ -987,11 +1128,14 @@ class MetacomProxy extends Emitter {
   }
 
   // Server reports stream errors as callbacks with stream id
-  #routeCallback(id, data) {
+  #routeCallback(packet, data) {
+    const { id } = packet;
     const call = this.#calls.get(id);
     if (call) {
       this.#calls.delete(id);
-      return void call.port.postMessage(data);
+      const { port, units } = call;
+      const reply = units ? this.#mergeInterfaces(units, packet, data) : data;
+      return void port.postMessage(reply);
     }
     const stream = this.#streams.get(id);
     if (stream) stream.port.postMessage(data);
