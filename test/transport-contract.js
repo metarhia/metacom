@@ -3,11 +3,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-require('../../lib/transport-ws.js');
-require('../../lib/transport-http.js');
-require('../../lib/transport-event.js');
-const registry = require('../../lib/transport-registry.js');
-const { allTransports, getTransport, registerTransport } = registry;
+const transport = require('../lib/transport.js');
+const { allTransports, getTransport, registerTransport } = transport;
 
 const REQUIRED_CAPABILITIES = ['duplex', 'streams', 'events'];
 

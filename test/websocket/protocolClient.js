@@ -52,11 +52,6 @@ const createFrameHeader = (finOp, mask, length) => {
   return header;
 };
 
-// Minimal low-level client for protocol tests.
-// Events: 'open', 'message'(Buffer), 'frame'(opcode, Buffer), 'ping'(Buffer),
-// 'pong'(Buffer), 'close'(code, reason)
-// Methods: send(data), sendFrame(opcode, payload, { fin=true, mask=true }),
-// sendText, sendBinary, ping, close
 class ProtocolClient extends EventEmitter {
   #handlers = null;
 

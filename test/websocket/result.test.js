@@ -3,7 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { Result } = require('../lib/websocket/result.js');
+const { Result } = require('../../lib/websocket/result.js');
 
 test('Result.ok: creates success result with given value', () => {
   const result = Result.ok(42);
