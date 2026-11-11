@@ -7,3 +7,4 @@ node_modules
 .review
 .cursor/skills
 .claude/skills
+.example
