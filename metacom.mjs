@@ -1,6 +1,18 @@
 import { Emitter, generateUUID, jsonParse } from './metautil.js';
 
-// client-transport.js
+// client.js
+
+const { WebSocket } = globalThis;
+
+const PING_INTERVAL_MS = 20 * 1000;
+const PONG_TIMEOUT_MS = 5 * 1000;
+const HANDSHAKE_TIMEOUT_MS = 5 * 1000;
+
+const startInterval = (listener, interval) => {
+  const timer = setInterval(listener, interval);
+  if (typeof timer.unref === 'function') timer.unref();
+  return timer;
+};
 
 class ClientTransport extends Emitter {
   active = false;
@@ -21,10 +33,6 @@ class ClientTransport extends Emitter {
   // eslint-disable-next-line class-methods-use-this
   offline() {}
 }
-
-// client-ws.js
-
-const { WebSocket } = globalThis;
 
 class ClientWsTransport extends ClientTransport {
   #socket = null;
@@ -74,8 +82,6 @@ class ClientWsTransport extends ClientTransport {
   }
 }
 
-// client-http.js
-
 class ClientHttpTransport extends ClientTransport {
   async open() {
     if (this.active) return;
@@ -104,18 +110,6 @@ class ClientHttpTransport extends ClientTransport {
     send();
   }
 }
-
-// client-event.js
-
-const PING_INTERVAL_MS = 20 * 1000;
-const PONG_TIMEOUT_MS = 5 * 1000;
-const HANDSHAKE_TIMEOUT_MS = 5 * 1000;
-
-const startInterval = (listener, interval) => {
-  const timer = setInterval(listener, interval);
-  if (typeof timer.unref === 'function') timer.unref();
-  return timer;
-};
 
 class ClientEventTransport extends ClientTransport {
   static instance = null;
@@ -331,6 +325,12 @@ class ClientEventTransport extends ClientTransport {
   }
 }
 
+const TRANSPORTS = {
+  ws: ClientWsTransport,
+  http: ClientHttpTransport,
+  event: ClientEventTransport,
+};
+
 // chunks-browser.js
 
 const ID_LENGTH_BYTES = 1;
@@ -543,11 +543,7 @@ class MetacomError extends Error {
 class Metacom extends Emitter {
   static connections = new Set();
   static isOnline = true;
-  static transport = {
-    ws: ClientWsTransport,
-    http: ClientHttpTransport,
-    event: ClientEventTransport,
-  };
+  static transport = TRANSPORTS;
 
   static online() {
     Metacom.isOnline = true;
@@ -603,8 +599,12 @@ class Metacom extends Emitter {
 
   constructor(url, transport, options = {}) {
     super();
-    const { callTimeout, reconnectTimeout, proxy } = options;
-    const { queueSize, restore, generateId } = options;
+    const callTimeout = options.callTimeout;
+    const reconnectTimeout = options.reconnectTimeout;
+    const proxy = options.proxy;
+    const queueSize = options.queueSize;
+    const restore = options.restore;
+    const generateId = options.generateId;
     if (callTimeout) this.#callTimeout = callTimeout;
     if (reconnectTimeout) this.#reconnectTimeout = reconnectTimeout;
     if (proxy) this.#proxy = proxy;
@@ -706,7 +706,6 @@ class Metacom extends Emitter {
     this.#transport.send(data);
   }
 
-  // Send now or keep until connected, false when the queue is full
   deliver(data, timeout = this.#callTimeout) {
     const isReady = this.active && !this.#restoring;
     const isDirect = isReady || this.#queueSize === 0;
@@ -903,7 +902,7 @@ class Metacom extends Emitter {
   }
 
   #call(id, data) {
-    return new Promise((resolve, reject) => {
+    const promise = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.#calls.has(id)) return;
         this.#calls.delete(id);
@@ -922,6 +921,7 @@ class Metacom extends Emitter {
         fail(error);
       }
     });
+    return promise;
   }
 
   // Own calls skip the queue while the session is being restored
@@ -1408,6 +1408,7 @@ export {
   ClientWsTransport,
   ClientHttpTransport,
   ClientEventTransport,
+  TRANSPORTS,
   chunkEncode,
   chunkDecode,
   MetaReadable,
