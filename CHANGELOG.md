@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- Breaking: client transports live in `lib/client.js`
+- Breaking: server transports in `lib/transport.js`
+- Renamed `lib/chunks.js` to `lib/chunks-node.js`
 - Service worker proxy: route calls and streams by ids created in tabs
 - Add local units to `MetacomProxy`: `register`, `broadcast`, handler context
 - Queue calls while offline, `restore` hook runs before the queue is flushed
