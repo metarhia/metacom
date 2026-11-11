@@ -1,6 +1,7 @@
 'use strict';
 
-const { Metacom, MetacomProxy, MetacomError } = require('./lib/metacom.js');
+const { Metacom, MetacomError } = require('./lib/metacom.js');
+const { MetacomProxy } = require('./lib/proxy.js');
 const server = require('./lib/server.js');
 const { Server, Client, Context, Session, createProxy } = server;
 const transport = require('./lib/transport.js');

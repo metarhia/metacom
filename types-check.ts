@@ -49,6 +49,30 @@ type _ParseNullable = Assert<
 
 type _MetacomActive = Assert<Metacom['active'] extends boolean ? true : false>;
 
+type _MetacomDeliver = Assert<
+  Metacom['deliver'] extends (data: string, timeout?: number) => boolean
+    ? true
+    : false
+>;
+
+type _MetacomReadable = Assert<
+  ReturnType<Metacom['createReadable']> extends MetaReadable ? true : false
+>;
+
+type _ProxyServer = Assert<
+  MetacomProxy['server'] extends Metacom ? true : false
+>;
+
+type _ClientStreamId = Assert<
+  Client['createStream'] extends (
+    name: string,
+    size: number,
+    id?: string,
+  ) => MetaWritable
+    ? true
+    : false
+>;
+
 type _SessionState = Assert<Session['state'] extends object ? true : false>;
 
 type _StreamPacket = Assert<
