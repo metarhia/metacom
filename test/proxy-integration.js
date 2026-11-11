@@ -207,3 +207,29 @@ test('MetacomProxy with Server', async (t) => {
     assert.deepStrictEqual(tab2.errors, []);
   });
 });
+
+test('MetacomProxy with Server over HTTP', async (t) => {
+  const options = { host: '127.0.0.1', port: 0, protocol: 'http' };
+  const server = new Server(application, { ...options, timeouts: {} });
+  await server.listen();
+  const { port } = server.httpServer.address();
+  const environment = createEnvironment(port);
+  globalThis.self = environment;
+  const proxy = new MetacomProxy({ url: `http://127.0.0.1:${port}/api` });
+  await proxy.open();
+  const postMessage = (data, ports = []) => {
+    environment.dispatch({ data, ports, source: { id: 'tab' } });
+  };
+  const url = `ws://127.0.0.1:${port}`;
+  const transport = new ClientEventTransport(url);
+  const tab = new Metacom(url, transport, { worker: { postMessage } });
+  t.after(async () => {
+    tab.close();
+    proxy.close();
+    delete globalThis.self;
+    await server.close();
+  });
+  await tab.open();
+  await tab.load('test');
+  assert.strictEqual(await tab.api.test.hello({ name: 'http' }), 'Hello, http');
+});

@@ -2,6 +2,19 @@
 
 ## [Unreleased][unreleased]
 
+- Service worker proxy: route calls and streams by ids created in tabs
+- Add local units to `MetacomProxy`: `register`, `broadcast`, handler context
+- Queue calls while offline, `restore` hook runs before the queue is flushed
+- Add `Metacom.createReadable()` and `Client.createStream(name, size, id)`
+- Add `generateId` option to `Metacom`, `MetacomProxy` and `Server`
+- Add `Metacom.create()` to build a connection without opening it
+- Event transport: worker handshake, heartbeat, reconnect after worker restart
+- Remove closed tabs with their routes, terminate their uploads
+- Breaking: `proxy` option is an object with `packet` and `binary` methods
+- Breaking: server stream without tab id is not delivered through the proxy
+- Fix chunk order: read websocket binary frames as `ArrayBuffer`
+- Fix reconnect after failed `open()` and duplicate error on failed connect
+
 ## [3.2.6][] - 2025-09-20
 
 - Migrate tests from metatests to Node.js native test runner

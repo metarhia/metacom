@@ -107,11 +107,34 @@ class ClientHttpTransport extends ClientTransport {
 
 // client-event.js
 
+const PING_INTERVAL_MS = 20 * 1000;
+const PONG_TIMEOUT_MS = 5 * 1000;
+const HANDSHAKE_TIMEOUT_MS = 5 * 1000;
+
+const startInterval = (listener, interval) => {
+  const timer = setInterval(listener, interval);
+  if (typeof timer.unref === 'function') timer.unref();
+  return timer;
+};
+
 class ClientEventTransport extends ClientTransport {
   static instance = null;
 
+  #id = generateUUID();
   #port = null;
   #worker = null;
+  #container = null;
+  #instance = '';
+  #opening = null;
+  #handshake = null;
+  #pingTimer = null;
+  #pongTimer = null;
+  #pingInterval = PING_INTERVAL_MS;
+  #pongTimeout = PONG_TIMEOUT_MS;
+  #handshakeTimeout = HANDSHAKE_TIMEOUT_MS;
+  #onContainerMessage = null;
+  #onControllerChange = null;
+  #onPageHide = null;
 
   static getInstance(url) {
     if (ClientEventTransport.instance) {
@@ -122,37 +145,171 @@ class ClientEventTransport extends ClientTransport {
     return transport;
   }
 
-  async open(options = {}) {
-    if (this.active) return;
-    const worker = options.worker ?? this.#worker;
-    if (!worker) throw new Error('Service Worker not provided');
-    this.#worker = worker;
-    const { port1, port2 } = new MessageChannel();
-    this.#port = port1;
-    port1.addEventListener('message', ({ data }) => {
-      if (data === undefined) return;
-      const isPacket = typeof data === 'string' || ArrayBuffer.isView(data);
-      if (isPacket) this.emit('message', data);
-      else this.#handleControl(data);
-    });
-    port1.start();
-    const { callTimeout } = options;
-    const message = { type: 'metacom:connect', callTimeout };
-    this.#worker.postMessage(message, [port2]);
-    this.active = true;
-    this.emit('open');
+  constructor(url) {
+    super(url);
+    this.#onContainerMessage = ({ data }) => {
+      if (data?.type === 'metacom:reset') this.#drop();
+    };
+    // First claim reports the worker this tab is already connected to
+    this.#onControllerChange = () => {
+      const { controller } = this.#container;
+      if (!controller || controller === this.#worker) return;
+      this.#worker = controller;
+      this.#drop();
+    };
+    this.#onPageHide = () => {
+      this.#disconnect();
+      this.#drop();
+    };
   }
 
-  #handleControl({ type, connected }) {
-    if (type === 'metacom:status') this.emit('status', { connected });
+  async open(options = {}) {
+    if (this.active) return;
+    if (this.#opening) {
+      await this.#opening;
+      return;
+    }
+    this.#configure(options);
+    if (!this.#worker) throw new Error('Service Worker not provided');
+    this.#opening = this.#connect(options.callTimeout);
+    try {
+      await this.#opening;
+    } finally {
+      this.#opening = null;
+    }
+  }
+
+  #configure(options) {
+    const { pingInterval, pongTimeout, handshakeTimeout } = options;
+    if (pingInterval) this.#pingInterval = pingInterval;
+    if (pongTimeout) this.#pongTimeout = pongTimeout;
+    if (handshakeTimeout) this.#handshakeTimeout = handshakeTimeout;
+    const container = options.container ?? globalThis.navigator?.serviceWorker;
+    this.#container = container ?? null;
+    const worker = this.#worker ?? options.worker ?? null;
+    const isStale = worker !== null && worker.state === 'redundant';
+    const controller = this.#container ? this.#container.controller : null;
+    this.#worker = isStale && controller ? controller : worker;
+  }
+
+  // Worker answers with metacom:ready when it holds the other port
+  #connect(callTimeout) {
+    return new Promise((resolve, reject) => {
+      const { port1, port2 } = new MessageChannel();
+      this.#port = port1;
+      port1.addEventListener('message', ({ data }) => {
+        if (this.#port === port1) this.#receive(data);
+      });
+      port1.start();
+      const timer = setTimeout(() => {
+        this.#reject(new Error('Service Worker handshake timeout'));
+        this.#release();
+      }, this.#handshakeTimeout);
+      this.#handshake = { resolve, reject, timer };
+      const message = { type: 'metacom:connect', id: this.#id, callTimeout };
+      this.#worker.postMessage(message, [port2]);
+    });
+  }
+
+  #receive(data) {
+    if (data === undefined) return;
+    const isPacket = typeof data === 'string' || ArrayBuffer.isView(data);
+    if (isPacket) return void this.emit('message', data);
+    const { type } = data;
+    if (type === 'metacom:ready') this.#accept(data);
+    else if (type === 'metacom:pong') this.#alive(data.instance);
+    else if (type === 'metacom:status') this.#report(data.connected);
+  }
+
+  #accept({ instance, connected }) {
+    const handshake = this.#handshake;
+    if (!handshake) return;
+    this.#handshake = null;
+    clearTimeout(handshake.timer);
+    this.#instance = instance;
+    this.active = true;
+    this.#bind();
+    this.#pingTimer = startInterval(() => this.#ping(), this.#pingInterval);
+    this.emit('open');
+    handshake.resolve();
+    this.#report(connected);
+  }
+
+  #reject(error) {
+    const handshake = this.#handshake;
+    this.#handshake = null;
+    clearTimeout(handshake.timer);
+    handshake.reject(error);
+  }
+
+  #report(connected) {
+    this.emit('status', { connected });
+  }
+
+  // Ping is posted to the worker itself to extend its lifetime
+  #ping() {
+    this.#worker.postMessage({ type: 'metacom:ping', id: this.#id });
+    if (this.#pongTimer) return;
+    this.#pongTimer = setTimeout(() => this.#drop(), this.#pongTimeout);
+  }
+
+  // Restarted worker has another instance id and no port of this tab
+  #alive(instance) {
+    clearTimeout(this.#pongTimer);
+    this.#pongTimer = null;
+    if (instance !== this.#instance) this.#drop();
+  }
+
+  #bind() {
+    const container = this.#container;
+    if (container) {
+      container.addEventListener('message', this.#onContainerMessage);
+      container.addEventListener('controllerchange', this.#onControllerChange);
+    }
+    if (typeof window === 'undefined') return;
+    window.addEventListener('pagehide', this.#onPageHide);
+  }
+
+  #unbind() {
+    const container = this.#container;
+    if (container) {
+      container.removeEventListener('message', this.#onContainerMessage);
+      const onChange = this.#onControllerChange;
+      container.removeEventListener('controllerchange', onChange);
+    }
+    if (typeof window === 'undefined') return;
+    window.removeEventListener('pagehide', this.#onPageHide);
+  }
+
+  #release() {
+    clearInterval(this.#pingTimer);
+    clearTimeout(this.#pongTimer);
+    this.#pingTimer = null;
+    this.#pongTimer = null;
+    if (this.#handshake) this.#reject(new Error('Connection closed'));
+    this.#unbind();
+    if (this.#port) this.#port.close();
+    this.#port = null;
+    this.active = false;
+  }
+
+  // Connection to the worker is lost, Metacom reconnects on close
+  #drop() {
+    if (!this.active) return;
+    this.#release();
+    this.emit('close');
+  }
+
+  #disconnect() {
+    this.#worker.postMessage({ type: 'metacom:disconnect', id: this.#id });
   }
 
   close() {
     if (!this.#port) return;
-    this.active = false;
-    this.#port.close();
-    this.#port = null;
-    this.emit('close');
+    const wasActive = this.active;
+    this.#disconnect();
+    this.#release();
+    if (wasActive) this.emit('close');
   }
 
   announce(id) {
@@ -855,12 +1012,17 @@ class ProxyContext {
 }
 
 class MetacomProxy extends Emitter {
+  #instance = generateUUID();
   #ports = new Map();
+  #peers = new Map();
   #calls = new Map();
   #streams = new Map();
   #units = new Map();
   #interfaces = new Map();
   #server = null;
+  #connecting = false;
+  #attempted = false;
+  #connected = false;
   #callTimeout = ROUTE_TIMEOUT_MS;
   #sweepInterval = SWEEP_INTERVAL_MS;
   #sweepTimer = null;
@@ -908,7 +1070,14 @@ class MetacomProxy extends Emitter {
 
   async open() {
     if (this.#server.active) return;
-    await this.#server.open();
+    this.#connecting = !this.#attempted;
+    try {
+      await this.#server.open();
+    } finally {
+      this.#connecting = false;
+      this.#attempted = true;
+      if (!this.#server.active) this.#describePending();
+    }
   }
 
   close() {
@@ -939,8 +1108,10 @@ class MetacomProxy extends Emitter {
   }
 
   #control(event) {
-    const { type } = event.data;
+    const { type, id } = event.data;
     if (type === 'metacom:connect') this.#connect(event);
+    else if (type === 'metacom:ping') this.#pong(id, event.source);
+    else if (type === 'metacom:disconnect') this.#disconnect(id);
     else if (type === 'metacom:online') Metacom.online();
     else if (type === 'metacom:offline') Metacom.offline();
   }
@@ -948,16 +1119,58 @@ class MetacomProxy extends Emitter {
   #connect(event) {
     const port = event.ports[0];
     if (!port) return;
-    const callTimeout = event.data.callTimeout ?? this.#callTimeout;
-    this.#ports.set(port, { callTimeout });
+    const { id = '', callTimeout = this.#callTimeout } = event.data;
+    const client = event.source ? event.source.id : '';
+    this.#disconnect(id);
+    this.#ports.set(port, { id, client, callTimeout });
+    if (id) this.#peers.set(id, port);
     port.addEventListener('message', ({ data }) => {
       this.#receive(port, data);
     });
     port.start();
+    const instance = this.#instance;
     const connected = this.#server.active;
-    port.postMessage({ type: 'metacom:status', connected });
+    port.postMessage({ type: 'metacom:ready', instance, connected });
     this.#startSweep();
+    this.emit('connect', id);
     if (!connected) this.open().catch((error) => this.#escalate(error));
+  }
+
+  // Unknown tab means the worker was restarted and lost its ports
+  #pong(id, source) {
+    const port = this.#peers.get(id);
+    const instance = this.#instance;
+    if (port) return void port.postMessage({ type: 'metacom:pong', instance });
+    if (source) source.postMessage({ type: 'metacom:reset' });
+  }
+
+  #disconnect(id) {
+    const port = this.#peers.get(id);
+    if (port) this.#removePort(port);
+  }
+
+  #removePort(port) {
+    const { id } = this.#ports.get(port);
+    this.#ports.delete(port);
+    this.#peers.delete(id);
+    for (const callId of this.#calls.keys()) {
+      const call = this.#calls.get(callId);
+      if (call.port === port) this.#calls.delete(callId);
+    }
+    for (const streamId of this.#streams.keys()) {
+      const stream = this.#streams.get(streamId);
+      if (stream.port !== port) continue;
+      this.#streams.delete(streamId);
+      const isUploading = stream.upload && stream.expires === 0;
+      if (isUploading) this.#terminateUpload(streamId);
+    }
+    port.close();
+    this.emit('disconnect', id);
+  }
+
+  #terminateUpload(id) {
+    if (!this.#server.active) return;
+    this.#server.send({ type: 'stream', id, status: 'terminate' });
   }
 
   #startSweep() {
@@ -978,9 +1191,28 @@ class MetacomProxy extends Emitter {
       const isExpired = expires !== 0 && expires <= now;
       if (isExpired) this.#streams.delete(id);
     }
+    this.#sweepClients().catch((error) => this.#escalate(error));
   }
 
+  // Closed tab is not listed by the browser, its port gives no signal
+  async #sweepClients() {
+    const { clients } = self;
+    if (!clients) return;
+    const query = { includeUncontrolled: true, type: 'all' };
+    const list = await clients.matchAll(query);
+    const alive = new Set();
+    for (let i = 0; i < list.length; i++) alive.add(list[i].id);
+    for (const port of this.#ports.keys()) {
+      const { client } = this.#ports.get(port);
+      const isClosed = client !== '' && !alive.has(client);
+      if (isClosed) this.#removePort(port);
+    }
+  }
+
+  // Failed reconnect attempts close the transport again and again
   #notify(connected) {
+    if (this.#connected === connected) return;
+    this.#connected = connected;
     const message = { type: 'metacom:status', connected };
     for (const port of this.#ports.keys()) port.postMessage(message);
   }
@@ -1041,11 +1273,24 @@ class MetacomProxy extends Emitter {
   #introspect(port, packet, data) {
     const { id, args } = packet;
     const units = Array.isArray(args) ? args : [];
-    if (this.#server.active) {
-      return void this.#forwardCall(port, id, data, units);
-    }
+    const isReachable = this.#server.active || this.#connecting;
+    if (isReachable) return void this.#forwardCall(port, id, data, units);
+    this.#sendInterface(port, id, units);
+  }
+
+  #sendInterface(port, id, units) {
     const callback = { type: 'callback', id, result: this.#describe(units) };
     port.postMessage(JSON.stringify(callback));
+  }
+
+  // Introspection waits for the first connection attempt only
+  #describePending() {
+    for (const id of this.#calls.keys()) {
+      const { port, units } = this.#calls.get(id);
+      if (!units) continue;
+      this.#calls.delete(id);
+      this.#sendInterface(port, id, units);
+    }
   }
 
   #describe(units) {
