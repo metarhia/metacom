@@ -1,7 +1,7 @@
 'use strict';
 
 const init = require('eslint-config-metarhia');
-init[0].ignores.push('metacom.iife.js');
+init[0].ignores.push('metacom.iife.js', '.example/**');
 module.exports = [
   ...init,
   {
