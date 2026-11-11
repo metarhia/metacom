@@ -7,3 +7,4 @@ node_modules
 .cursor/skills
 .claude/skills
 .example
+.reslop
