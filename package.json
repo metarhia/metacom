@@ -71,6 +71,7 @@
     "eslint": "^10.14.0",
     "eslint-config-metarhia": "^10.0.1",
     "metarhia-build": "^0.0.3",
+    "metaskills": "^1.0.6",
     "prettier": "^3.9.10",
     "typescript": "^7.0.2"
   },
