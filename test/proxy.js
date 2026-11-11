@@ -13,15 +13,15 @@ class MockWebSocket {
     queueMicrotask(() => this._emit('open'));
   }
 
-  addEventListener(type, fn) {
+  addEventListener(type, listener) {
     if (!this._listeners.has(type)) this._listeners.set(type, []);
-    this._listeners.get(type).push(fn);
+    this._listeners.get(type).push(listener);
   }
 
   _emit(type, payload) {
-    for (const fn of this._listeners.get(type) || []) {
-      if (type === 'message') fn({ data: payload });
-      else fn(payload);
+    for (const listener of this._listeners.get(type) || []) {
+      if (type === 'message') listener({ data: payload });
+      else listener(payload);
     }
   }
 
@@ -52,27 +52,27 @@ const createSwEnv = () => {
   const listeners = [];
   return {
     _listeners: listeners,
-    addEventListener(type, fn) {
-      listeners.push({ type, fn });
+    addEventListener(type, listener) {
+      listeners.push({ type, listener });
     },
     location: { protocol: 'http:', host: 'localhost:8020' },
     dispatch(event) {
-      for (const { type, fn } of listeners) {
-        if (type === 'message') fn(event);
+      for (const { type, listener } of listeners) {
+        if (type === 'message') listener(event);
       }
     },
   };
 };
 
 test('MetacomProxy', async (t) => {
-  let savedSelf;
+  let savedSelf = null;
 
   t.after(() => {
     delete globalThis.self;
   });
 
   t.afterEach(() => {
-    if (savedSelf !== undefined) {
+    if (savedSelf) {
       globalThis.self = savedSelf;
     } else {
       delete globalThis.self;
@@ -92,34 +92,36 @@ test('MetacomProxy', async (t) => {
     savedSelf = globalThis.self;
     globalThis.self = createSwEnv();
     const proxy = new MetacomProxy();
-    const ch1 = new MessageChannel();
-    const ch2 = new MessageChannel();
+    const channel1 = new MessageChannel();
+    const channel2 = new MessageChannel();
     globalThis.self.dispatch({
       data: { type: 'metacom:connect' },
-      ports: [ch1.port2],
+      ports: [channel1.port2],
     });
     globalThis.self.dispatch({
       data: { type: 'metacom:connect' },
-      ports: [ch2.port2],
+      ports: [channel2.port2],
     });
     const received = [];
-    ch1.port1.onmessage = (e) => received.push({ port: 1, data: e.data });
-    ch2.port1.onmessage = (e) => received.push({ port: 2, data: e.data });
-    ch1.port1.start();
-    ch2.port1.start();
+    channel1.port1.onmessage = (event) =>
+      received.push({ port: 1, data: event.data });
+    channel2.port1.onmessage = (event) =>
+      received.push({ port: 2, data: event.data });
+    channel1.port1.start();
+    channel2.port1.start();
     await proxy.open();
     MockWebSocket.last.dispatchMessage('payload');
-    await new Promise((r) => {
-      setImmediate(r);
+    await new Promise((resolve) => {
+      setImmediate(resolve);
     });
     assert.strictEqual(received.length, 2);
     assert.strictEqual(received[0].data, 'payload');
     assert.strictEqual(received[1].data, 'payload');
     proxy.close();
-    ch1.port1.close();
-    ch1.port2.close();
-    ch2.port1.close();
-    ch2.port2.close();
+    channel1.port1.close();
+    channel1.port2.close();
+    channel2.port1.close();
+    channel2.port2.close();
   });
 
   await t.test('Handle event: metacom:online', () => {

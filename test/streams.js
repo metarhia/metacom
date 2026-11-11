@@ -6,6 +6,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 
 const metautil = require('metautil');
+
 const { MetaReadable, MetaWritable } = require('../lib/streams.js');
 const { chunkDecode } = require('../lib/chunks.js');
 
@@ -17,18 +18,19 @@ process.emitWarning = (warning, type, ...args) => {
   emitWarning(warning, type, ...args);
 };
 
-const generatePacket = () => ({
-  id: randomUUID(),
-  name: metautil.random(UINT_8_MAX).toString(),
-  size: metautil.random(UINT_8_MAX),
-});
+const generatePacket = () => {
+  const id = randomUUID();
+  const name = metautil.random(UINT_8_MAX).toString();
+  const size = metautil.random(UINT_8_MAX);
+  return { id, name, size };
+};
 
 const generateDataView = () => {
   const encoder = new TextEncoder();
-  const randomString = [...new Array(metautil.random(UINT_8_MAX))]
-    .map(() => metautil.random(UINT_8_MAX))
-    .map((num) => String.fromCharCode(num))
-    .join('');
+  const length = metautil.random(UINT_8_MAX);
+  const codes = Array.from({ length }, () => metautil.random(UINT_8_MAX));
+  const chars = codes.map((code) => String.fromCharCode(code));
+  const randomString = chars.join('');
   return encoder.encode(randomString);
 };
 
@@ -38,21 +40,24 @@ const createWritable = (id, name, size) => {
     send: (packet) => writeBuffer.push(JSON.stringify(packet)),
     write: (data) => writeBuffer.push(data),
   };
-  const stream = new MetaWritable(id, name, size, transport);
-  return [stream, writeBuffer];
+  const writable = new MetaWritable(id, name, size, transport);
+  return { writable, writeBuffer };
 };
 
-const populateStream = (stream) => ({
-  with: (buffer) =>
-    Readable.from(buffer)
-      .on('data', (chunk) => stream.push(chunk))
-      .on('end', () => stream.stop()),
-});
+const populateStream = (stream) => {
+  const fill = (buffer) => {
+    const readable = Readable.from(buffer);
+    readable.on('data', (chunk) => stream.push(chunk));
+    readable.on('end', () => stream.stop());
+    return readable;
+  };
+  return { with: fill };
+};
 
 test('MetaWritable', async (t) => {
   await t.test('constructor', () => {
     const { id, name, size } = generatePacket();
-    const [, writeBuffer] = createWritable(id, name, size);
+    const { writeBuffer } = createWritable(id, name, size);
     assert.strictEqual(writeBuffer.length, 1);
     const packet = writeBuffer.pop();
     assert.strictEqual(typeof packet, 'string');
@@ -65,7 +70,7 @@ test('MetaWritable', async (t) => {
 
   await t.test('end: should send packet with "end" status', () => {
     const { id, name, size } = generatePacket();
-    const [writable, writeBuffer] = createWritable(id, name, size);
+    const { writable, writeBuffer } = createWritable(id, name, size);
     assert.strictEqual(writeBuffer.length, 1);
     writable.end();
     assert.strictEqual(writeBuffer.length, 2);
@@ -79,7 +84,7 @@ test('MetaWritable', async (t) => {
 
   await t.test('terminate: sends packet with "terminate" status', () => {
     const { id, name, size } = generatePacket();
-    const [writable, writeBuffer] = createWritable(id, name, size);
+    const { writable, writeBuffer } = createWritable(id, name, size);
     assert.strictEqual(writeBuffer.length, 1);
     writable.terminate();
     assert.strictEqual(writeBuffer.length, 2);
@@ -93,7 +98,7 @@ test('MetaWritable', async (t) => {
 
   await t.test('write: should send encoded packet', () => {
     const { id, name, size } = generatePacket();
-    const [writable, writeBuffer] = createWritable(id, name, size);
+    const { writable, writeBuffer } = createWritable(id, name, size);
     const dataView = generateDataView();
     assert.strictEqual(writeBuffer.length, 1);
     const result = writable.write(dataView);

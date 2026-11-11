@@ -1,35 +1,18 @@
 'use strict';
 
 const { Metacom, MetacomProxy, MetacomError } = require('./lib/metacom.js');
-const {
-  Server,
-  Client,
-  Context,
-  Session,
-  createProxy,
-} = require('./lib/server.js');
-const {
-  ClientTransport,
-  ServerTransport,
-  buildHeaders,
-} = require('./lib/transport.js');
-const {
-  registerTransport,
-  getTransport,
-  allTransports,
-} = require('./lib/transport-registry.js');
-const {
-  ClientWsTransport,
-  ServerWsTransport,
-} = require('./lib/transport-ws.js');
-const {
-  ClientHttpTransport,
-  ServerHttpTransport,
-} = require('./lib/transport-http.js');
-const {
-  ClientEventTransport,
-  ServerEventTransport,
-} = require('./lib/transport-event.js');
+const server = require('./lib/server.js');
+const { Server, Client, Context, Session, createProxy } = server;
+const transport = require('./lib/transport.js');
+const { ClientTransport, ServerTransport, buildHeaders } = transport;
+const registry = require('./lib/transport-registry.js');
+const { registerTransport, getTransport, allTransports } = registry;
+const transportWs = require('./lib/transport-ws.js');
+const { ClientWsTransport, ServerWsTransport } = transportWs;
+const transportHttp = require('./lib/transport-http.js');
+const { ClientHttpTransport, ServerHttpTransport } = transportHttp;
+const transportEvent = require('./lib/transport-event.js');
+const { ClientEventTransport, ServerEventTransport } = transportEvent;
 const { MetaReadable, MetaWritable } = require('./lib/streams.js');
 const { chunkEncode, chunkDecode } = require('./lib/chunks.js');
 const ws = require('./lib/websocket/ws.js');

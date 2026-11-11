@@ -3,56 +3,53 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const {
-  buildHeaders,
-  ServerTransport,
-  ClientTransport,
-} = require('../lib/transport.js');
+const transport = require('../lib/transport.js');
+const { buildHeaders, ServerTransport, ClientTransport } = transport;
 
 test('buildHeaders: returns default headers when cors is falsy', () => {
-  const h = buildHeaders(null);
-  assert.equal(h['Access-Control-Allow-Origin'], '*');
-  assert.ok('Content-Type' in h);
+  const headers = buildHeaders(null);
+  assert.equal(headers['Access-Control-Allow-Origin'], '*');
+  assert.ok('Content-Type' in headers);
 });
 
 test('buildHeaders: returns default headers when cors has no origin', () => {
-  const h = buildHeaders({});
-  assert.equal(h['Access-Control-Allow-Origin'], '*');
+  const headers = buildHeaders({});
+  assert.equal(headers['Access-Control-Allow-Origin'], '*');
 });
 
 // eslint-disable-next-line max-len
 test('buildHeaders: overrides Access-Control-Allow-Origin when cors.origin is set', () => {
-  const h = buildHeaders({ origin: 'https://example.com' });
-  assert.equal(h['Access-Control-Allow-Origin'], 'https://example.com');
-  assert.ok('Content-Type' in h, 'other headers preserved');
+  const headers = buildHeaders({ origin: 'https://example.com' });
+  assert.equal(headers['Access-Control-Allow-Origin'], 'https://example.com');
+  assert.ok('Content-Type' in headers, 'other headers preserved');
 });
 
 test('buildHeaders: does not mutate the default headers object', () => {
-  const a = buildHeaders({ origin: 'https://a.com' });
-  const b = buildHeaders(null);
-  assert.equal(a['Access-Control-Allow-Origin'], 'https://a.com');
-  assert.equal(b['Access-Control-Allow-Origin'], '*');
+  const first = buildHeaders({ origin: 'https://a.com' });
+  const second = buildHeaders(null);
+  assert.equal(first['Access-Control-Allow-Origin'], 'https://a.com');
+  assert.equal(second['Access-Control-Allow-Origin'], '*');
 });
 
 test('ClientTransport: starts inactive', () => {
-  const t = new ClientTransport('ws://localhost/api');
-  assert.equal(t.active, false);
-  assert.equal(t.url, 'ws://localhost/api');
+  const transport = new ClientTransport('ws://localhost/api');
+  assert.equal(transport.active, false);
+  assert.equal(transport.url, 'ws://localhost/api');
 });
 
 test('ClientTransport: send serialises object and calls write', () => {
-  const t = new ClientTransport('ws://localhost/api');
+  const transport = new ClientTransport('ws://localhost/api');
   const written = [];
-  t.write = (data) => written.push(data);
-  t.send({ type: 'call', id: '1' });
+  transport.write = (data) => written.push(data);
+  transport.send({ type: 'call', id: '1' });
   assert.equal(written.length, 1);
   assert.deepEqual(JSON.parse(written[0]), { type: 'call', id: '1' });
 });
 
 test('ClientTransport: online and offline are no-ops by default', () => {
-  const t = new ClientTransport('ws://localhost/api');
-  assert.doesNotThrow(() => t.online());
-  assert.doesNotThrow(() => t.offline());
+  const transport = new ClientTransport('ws://localhost/api');
+  assert.doesNotThrow(() => transport.online());
+  assert.doesNotThrow(() => transport.offline());
 });
 
 test('ServerTransport: send calls write with JSON-stringified object', () => {
@@ -65,14 +62,14 @@ test('ServerTransport: send calls write with JSON-stringified object', () => {
       this.written.push({ data, code });
     }
   }
-  const t = new TestTransport();
-  t.send({ type: 'callback', id: '1' });
-  assert.equal(t.written.length, 1);
-  assert.deepEqual(JSON.parse(t.written[0].data), {
+  const transport = new TestTransport();
+  transport.send({ type: 'callback', id: '1' });
+  assert.equal(transport.written.length, 1);
+  assert.deepEqual(JSON.parse(transport.written[0].data), {
     type: 'callback',
     id: '1',
   });
-  assert.equal(t.written[0].code, 200);
+  assert.equal(transport.written[0].code, 200);
 });
 
 // eslint-disable-next-line max-len
@@ -86,10 +83,10 @@ test('ServerTransport: error sends a callback packet with the error message', ()
       this.written.push(data);
     }
   }
-  const t = new TestTransport();
-  t.error(404, { id: 'req-1', error: new Error('not found') });
-  assert.equal(t.written.length, 1);
-  const packet = JSON.parse(t.written[0]);
+  const transport = new TestTransport();
+  transport.error(404, { id: 'req-1', error: new Error('not found') });
+  assert.equal(transport.written.length, 1);
+  const packet = JSON.parse(transport.written[0]);
   assert.equal(packet.type, 'callback');
   assert.equal(packet.id, 'req-1');
   assert.equal(packet.error.code, 404);
@@ -107,9 +104,9 @@ test('ServerTransport: error with no Error object uses HTTP status text', () => 
       this.written.push(data);
     }
   }
-  const t = new TestTransport();
-  t.error(500);
-  const packet = JSON.parse(t.written[0]);
+  const transport = new TestTransport();
+  transport.error(500);
+  const packet = JSON.parse(transport.written[0]);
   assert.equal(packet.error.code, 500);
   assert.equal(typeof packet.error.message, 'string');
   assert.ok(packet.error.message.length > 0);

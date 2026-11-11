@@ -29,48 +29,48 @@ test('FrameParser: payload length > MAX_SAFE_INTEGER -> error', () => {
 });
 
 test('FrameParser: empty result when buffer smaller than header', () => {
-  const buf = Buffer.alloc(1);
-  const res = parse(buf);
-  assert.strictEqual(res.value, null);
-  assert.strictEqual(res.error, null);
+  const buffer = Buffer.alloc(1);
+  const result = parse(buffer);
+  assert.strictEqual(result.value, null);
+  assert.strictEqual(result.error, null);
 });
 
 test('FrameParser: empty when mask set but mask bytes missing', () => {
   // 0x81 = FIN + TEXT opcode, 0x80 = MASK bit set + 0 payload length
-  const buf = Buffer.from([0x81, 0x80]);
-  const res = parse(buf);
-  assert.strictEqual(res.value, null);
-  assert.strictEqual(res.error, null);
+  const buffer = Buffer.from([0x81, 0x80]);
+  const result = parse(buffer);
+  assert.strictEqual(result.value, null);
+  assert.strictEqual(result.error, null);
 });
 
 test('FrameParser: masked frame, unmaskPayload recovers original', () => {
-  const msg = 'ok';
-  const frame = Frame.text(msg);
+  const message = 'ok';
+  const frame = Frame.text(message);
   frame.maskPayload();
-  const buf = frame.toBuffer();
+  const buffer = frame.toBuffer();
 
-  const res = parse(buf);
-  assert.ok(res.value, 'expected a value');
-  const parsed = res.value.frame;
+  const result = parse(buffer);
+  assert.ok(result.value, 'expected a value');
+  const parsed = result.value.frame;
   assert.strictEqual(parsed.fin, true);
   assert.strictEqual(parsed.masked, true);
   parsed.unmaskPayload();
-  assert.strictEqual(parsed.toString(), msg);
+  assert.strictEqual(parsed.toString(), message);
 
-  const expectedBytes = buf.length;
-  assert.strictEqual(res.value.bytesUsed, expectedBytes);
+  const expectedBytes = buffer.length;
+  assert.strictEqual(result.value.bytesUsed, expectedBytes);
 });
 
 test('FrameParser: first of two concatenated frames, bytesUsed', () => {
-  const f1 = Frame.text('first');
-  const f2 = Frame.text('second');
-  const buf = Buffer.concat([f1.toBuffer(), f2.toBuffer()]);
+  const firstFrame = Frame.text('first');
+  const secondFrame = Frame.text('second');
+  const buffer = Buffer.concat([firstFrame.toBuffer(), secondFrame.toBuffer()]);
 
-  const res = parse(buf);
-  assert.ok(res.value, 'expected a value for first frame');
-  const first = res.value.frame;
+  const result = parse(buffer);
+  assert.ok(result.value, 'expected a value for first frame');
+  const first = result.value.frame;
   assert.strictEqual(first.toString(), 'first');
-  assert.strictEqual(res.value.bytesUsed, f1.toBuffer().length);
+  assert.strictEqual(result.value.bytesUsed, firstFrame.toBuffer().length);
 });
 
 test('frameLength: needs 2 bytes for header', () => {
@@ -89,15 +89,15 @@ test('frameLength: short unmasked and masked frames', () => {
 });
 
 test('frameLength: 16-bit length frame', () => {
-  const buf = Frame.binary(Buffer.alloc(300)).toBuffer();
-  assert.strictEqual(frameLength(buf.subarray(0, 2)), 4);
-  assert.strictEqual(frameLength(buf.subarray(0, 4)), buf.length);
+  const buffer = Frame.binary(Buffer.alloc(300)).toBuffer();
+  assert.strictEqual(frameLength(buffer.subarray(0, 2)), 4);
+  assert.strictEqual(frameLength(buffer.subarray(0, 4)), buffer.length);
 });
 
 test('frameLength: 64-bit length frame', () => {
-  const buf = Frame.binary(Buffer.alloc(70000)).toBuffer();
-  assert.strictEqual(frameLength(buf.subarray(0, 2)), 10);
-  assert.strictEqual(frameLength(buf.subarray(0, 10)), buf.length);
+  const buffer = Frame.binary(Buffer.alloc(70000)).toBuffer();
+  assert.strictEqual(frameLength(buffer.subarray(0, 2)), 10);
+  assert.strictEqual(frameLength(buffer.subarray(0, 10)), buffer.length);
 });
 
 test('frameLength: oversized frame reports current length', () => {

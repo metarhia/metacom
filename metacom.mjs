@@ -92,8 +92,8 @@ class ClientHttpTransport extends ClientTransport {
     const options = { method: 'POST', headers, body: data };
     const send = async () => {
       try {
-        const res = await fetch(this.url, options);
-        const packet = await res.text();
+        const response = await fetch(this.url, options);
+        const packet = await response.text();
         this.emit('message', packet);
       } catch (error) {
         this.emit('error', error);
@@ -161,13 +161,15 @@ class ClientEventTransport extends ClientTransport {
 // chunks-browser.js
 
 const ID_LENGTH_BYTES = 1;
+const MAX_ID_LENGTH = 255;
 
 const chunkEncode = (id, payload) => {
   const encoder = new TextEncoder();
   const idBuffer = encoder.encode(id);
   const idLength = idBuffer.length;
-  if (idLength > 255) {
-    throw new Error(`ID length ${idLength} exceeds maximum of 255 characters`);
+  if (idLength > MAX_ID_LENGTH) {
+    const limit = `maximum of ${MAX_ID_LENGTH} characters`;
+    throw new Error(`ID length ${idLength} exceeds ${limit}`);
   }
   const chunk = new Uint8Array(ID_LENGTH_BYTES + idLength + payload.length);
   chunk[0] = idLength;
@@ -342,14 +344,15 @@ class MetaWritable extends Emitter {
 
 // metacom.js
 
-const CALL_TIMEOUT = 7 * 1000;
-const RECONNECT_TIMEOUT = 2 * 1000;
+const CALL_TIMEOUT_MS = 7 * 1000;
+const RECONNECT_TIMEOUT_MS = 2 * 1000;
 
 const toByteView = async (input) => {
   if (input instanceof Uint8Array) return input;
   if (input instanceof ArrayBuffer) return new Uint8Array(input);
   if (typeof input.arrayBuffer === 'function') {
-    return new Uint8Array(await input.arrayBuffer());
+    const arrayBuffer = await input.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
   }
   return new Uint8Array(input);
 };
@@ -364,6 +367,11 @@ class MetacomError extends Error {
 class Metacom extends Emitter {
   static connections = new Set();
   static isOnline = true;
+  static transport = {
+    ws: ClientWsTransport,
+    http: ClientHttpTransport,
+    event: ClientEventTransport,
+  };
 
   static online() {
     Metacom.isOnline = true;
@@ -400,8 +408,8 @@ class Metacom extends Emitter {
   #transport = null;
   #calls = new Map();
   #streams = new Map();
-  #callTimeout = CALL_TIMEOUT;
-  #reconnectTimeout = RECONNECT_TIMEOUT;
+  #callTimeout = CALL_TIMEOUT_MS;
+  #reconnectTimeout = RECONNECT_TIMEOUT_MS;
   #reconnectTimer = null;
   #proxyPacket = null;
   #options = {};
@@ -537,8 +545,7 @@ class Metacom extends Emitter {
       if (packet.error) {
         return void reject(new MetacomError(packet.error));
       }
-      resolve(packet.result);
-      return;
+      return void resolve(packet.result);
     }
     if (type === 'stream') await this.#handleStream(packet);
   }
@@ -576,15 +583,18 @@ class Metacom extends Emitter {
 
   async load(...units) {
     if (!this.active) throw new Error('Not connected');
-    const introspect = this.#scaffold('system')('introspect');
+    const createSystemMethod = this.#scaffold('system');
+    const introspect = createSystemMethod('introspect');
     const introspection = await introspect(units);
-    for (const unit of units) {
+    for (let i = 0; i < units.length; i++) {
+      const unit = units[i];
       if (!Object.hasOwn(introspection, unit)) continue;
       const methods = new Emitter();
       const instance = introspection[unit];
       const request = this.#scaffold(unit);
       const methodNames = Object.keys(instance);
-      for (const methodName of methodNames) {
+      for (let j = 0; j < methodNames.length; j++) {
+        const methodName = methodNames[j];
         methods[methodName] = request(methodName);
       }
       this.api[unit] = methods;
@@ -595,8 +605,8 @@ class Metacom extends Emitter {
     const createMethod = (methodName) => {
       const method = async (args = {}) => {
         const id = generateUUID();
-        const ver = version ? `.${version}` : '';
-        const target = `${unit}${ver}/${methodName}`;
+        const suffix = version ? `.${version}` : '';
+        const target = `${unit}${suffix}/${methodName}`;
         const packet = { type: 'call', id, method: target, args };
         return new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
@@ -618,8 +628,8 @@ class MetacomProxy extends Emitter {
   #ports = new Set();
   #pending = new Map();
   #connection = null;
-  #callTimeout = CALL_TIMEOUT;
-  #reconnectTimeout = RECONNECT_TIMEOUT;
+  #callTimeout = CALL_TIMEOUT_MS;
+  #reconnectTimeout = RECONNECT_TIMEOUT_MS;
 
   constructor(options = {}) {
     super();
@@ -709,12 +719,6 @@ class MetacomProxy extends Emitter {
     }
   }
 }
-
-Metacom.transport = {
-  ws: ClientWsTransport,
-  http: ClientHttpTransport,
-  event: ClientEventTransport,
-};
 
 Metacom.initialize();
 

@@ -48,15 +48,15 @@ const createApplication = (api) => {
     console: { log: noop, info: noop, warn: noop, error: noop, debug: noop },
     static: { constructor: { name: 'Static' } },
     auth: { saveSession: async () => {} },
-    getMethod: (unit, _ver, method) => {
+    getMethod: (unit, _version, method) => {
       if (unit === 'system' && method === 'introspect') {
         return new ProcedureMock({
           handler: async (units) => introspect(units),
         });
       }
-      const def = api[unit]?.[method];
-      if (!def) return null;
-      return new ProcedureMock(def);
+      const definition = api[unit]?.[method];
+      if (!definition) return null;
+      return new ProcedureMock(definition);
     },
   };
 };
