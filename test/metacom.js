@@ -457,3 +457,26 @@ test('Client / terminates streams on disconnect', async (t) => {
   assert.strictEqual(stream.status, 'terminated');
   assert.throws(() => client.getStream(id), /is not initialized/);
 });
+
+test('Client / HTTP rejects call on failed request', async (t) => {
+  const httpServer = http.createServer((req, res) => {
+    res.writeHead(502, { 'Content-Type': 'text/html' });
+    res.end('<h1>Bad Gateway</h1>');
+  });
+  await listen(httpServer, 8095);
+  t.after(() => void httpServer.close());
+  const options = { callTimeout: 5000 };
+  const unreachable = await Metacom.connect(
+    'http://localhost:8096/api',
+    options,
+  );
+  const gateway = await Metacom.connect('http://localhost:8095/api', options);
+  t.after(() => {
+    unreachable.close();
+    gateway.close();
+  });
+  const start = Date.now();
+  await assert.rejects(unreachable.load('test'), { code: 503 });
+  await assert.rejects(gateway.load('test'), { code: 502 });
+  assert.ok(Date.now() - start < options.callTimeout);
+});
