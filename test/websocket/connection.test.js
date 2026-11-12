@@ -61,6 +61,18 @@ test('Connection: should close on close frame', async () => {
   });
 });
 
+test('Connection: server ends socket right after close echo', () => {
+  const socket = new MockSocket();
+  const connection = new Connection(socket, Buffer.alloc(0));
+  const close = Frame.close(1000, 'bye');
+  close.maskPayload();
+  socket.emit('data', close.toBuffer());
+  assert.strictEqual(socket.ended, true);
+  const echo = parse(socket.writtenData[0]).value.frame;
+  assert.strictEqual(echo.opcode, OPCODES.CLOSE);
+  connection.terminate();
+});
+
 test('Connection: sendClose triggers socket end after CLOSE_TIMEOUT', () => {
   const socket = new MockSocket();
   const connection = new Connection(socket, Buffer.alloc(0), {
