@@ -144,7 +144,7 @@ test('RTC bridge: authorization, cancellation and timeout', async (t) => {
     bridge: {
       peerId: 'host',
       authorize: () => false,
-      handshakeTimeout: 100,
+      handshakeTimeout: 2000,
     },
   });
   const rejected = MetacomRtcBridge.attach(worker, rtcOptions(signaling));

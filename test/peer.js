@@ -2,10 +2,41 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { setTimeout: delay } = require('node:timers/promises');
 const { Metacom, MetacomPeer } = require('../metacom.js');
 const { RtcMockPeer, rtcSignals, rtcOptions } = require('./helpers/rtc.js');
 
 globalThis.RTCPeerConnection = RtcMockPeer;
+
+test('Peer: absent peers do not interrupt an established caller', async (t) => {
+  const signaling = rtcSignals();
+  const host = new MetacomPeer({
+    reconnectTimeout: 5,
+    rtc: [
+      rtcOptions(signaling, 'answerer'),
+      {
+        ...rtcOptions(signaling, 'answerer'),
+        peerId: 'absent',
+        handshakeTimeout: 5,
+      },
+    ],
+  });
+  host.on('error', () => {});
+  host.register('test', { echo: (args) => args });
+  const client = Metacom.create('host', {
+    transport: 'webrtc',
+    rtc: rtcOptions(signaling),
+  });
+  t.after(() => {
+    host.close();
+    client.close();
+  });
+  await host.open();
+  await client.open();
+  await client.load('test');
+  await delay(20);
+  assert.equal(await client.api.test.echo(7), 7);
+});
 
 test('Peer: local RPC, errors, events and bidirectional streams', async (t) => {
   const signaling = rtcSignals();

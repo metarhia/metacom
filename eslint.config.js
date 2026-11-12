@@ -5,7 +5,7 @@ init[0].ignores.push('metacom.iife.js', '.example/**');
 module.exports = [
   ...init,
   {
-    files: ['metacom.mjs', 'browser/*.mjs'],
+    files: ['metacom.mjs', 'browser/*.mjs', 'examples/webrtc/*.mjs'],
     languageOptions: {
       sourceType: 'module',
       globals: {

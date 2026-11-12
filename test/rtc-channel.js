@@ -115,3 +115,16 @@ test('RTC framing: invalid fragments, limits and timeout', async () => {
   assert.throws(() => failing.write('x'), /send failed/);
   assert.equal(failing.closed, true);
 });
+
+test('RTC buffering: one-frame buffers resume at low water', async () => {
+  const { a, sender } = channelPair({ maxMessageSize: 40, highWaterBytes: 40 });
+  assert.equal(a.bufferedAmountLowThreshold, 0);
+  a.bufferedAmount = 1;
+  assert.equal(sender.write('x'.repeat(24)), false);
+  const draining = sender.drain();
+  a.bufferedAmount = 0;
+  a.dispatch('bufferedamountlow');
+  await draining;
+  assert.equal(a.sent.length, 1);
+  sender.close();
+});

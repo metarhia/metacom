@@ -1,20 +1,17 @@
 import { Metacom, MetacomPeer, MetacomRtcBridge } from './metacom.mjs';
 
-const signalingChannel = new BroadcastChannel('metacom-browser-test');
-const signaling = {
-  send: (message) => signalingChannel.postMessage(message),
-  subscribe(listener) {
-    const receive = ({ data }) => listener(data);
-    signalingChannel.addEventListener('message', receive);
-    return () => signalingChannel.removeEventListener('message', receive);
-  },
-};
+import { broadcastSignaling, windowSignaling } from './signaling.mjs';
+
+const signaling = broadcastSignaling('metacom-browser-test');
+const useWindow = new URL(location.href).searchParams.get('mode') === 'window';
 
 const rtc = (localId, peerId, role) => ({
   localId,
   peerId,
   role,
-  signaling,
+  signaling: useWindow
+    ? windowSignaling(window.opener ?? globalThis.peerWindow, location.origin)
+    : signaling,
   configuration: { iceServers: [] },
   handshakeTimeout: 15000,
   pingInterval: 100,
@@ -39,6 +36,9 @@ let registration;
 
 globalThis.lab = {
   hostReady: null,
+  openWindow(url) {
+    globalThis.peerWindow = window.open(url);
+  },
   startHost(localId, peerIds, role = 'answerer') {
     host = new MetacomPeer({
       rtc: peerIds.map((id) => rtc(localId, id, role)),
@@ -170,7 +170,7 @@ globalThis.lab = {
     client?.close();
     owner?.close();
     host?.close();
-    signalingChannel.close();
+    signaling.close();
     for (const entry of await navigator.serviceWorker.getRegistrations()) {
       await entry.unregister();
     }

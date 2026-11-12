@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <title>Metacom WebRTC example</title>
+  <h1>Metacom WebRTC</h1>
+  <p>Open a host, then open its caller in another tab.</p>
+  <ul>
+    <li><a href="?role=host&peer=caller" target="_blank">Host for a tab</a></li>
+    <li><a href="?role=caller" target="_blank">Tab caller</a></li>
+    <li>
+      <a href="?role=host&peer=owner" target="_blank">Host for a worker</a>
+    </li>
+    <li><a href="?role=owner" target="_blank">Worker owner tab</a></li>
+    <li><a href="?role=worker-client" target="_blank">Worker client tab</a></li>
+  </ul>
+  <pre id="status">Choose a role above.</pre>
+  <script type="module" src="./app.mjs"></script>
+</html>

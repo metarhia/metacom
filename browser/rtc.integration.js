@@ -53,7 +53,7 @@ class BrowserProtocol {
     });
   }
 
-  async page(url, newWindow = false) {
+  async page(url, newWindow = false, object = 'lab') {
     const { targetId } = await this.request('Target.createTarget', {
       url,
       newWindow,
@@ -63,6 +63,24 @@ class BrowserProtocol {
       flatten: true,
     });
     await this.request('Runtime.enable', {}, sessionId);
+    await this.wait(sessionId, `Boolean(globalThis.${object})`);
+    return sessionId;
+  }
+
+  async popup(opener, url) {
+    await this.evaluate(opener, `lab.openWindow(${JSON.stringify(url)})`);
+    let target;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const { targetInfos } = await this.request('Target.getTargets');
+      target = targetInfos.find((entry) => entry.url === url);
+      if (target) break;
+      await delay(100);
+    }
+    assert.ok(target, 'Example popup did not open');
+    const { sessionId } = await this.request('Target.attachToTarget', {
+      targetId: target.targetId,
+      flatten: true,
+    });
     await this.wait(sessionId, 'Boolean(globalThis.lab)');
     return sessionId;
   }
@@ -74,6 +92,7 @@ class BrowserProtocol {
         expression,
         awaitPromise: true,
         returnByValue: true,
+        userGesture: true,
       },
       sessionId,
     );
@@ -116,6 +135,15 @@ test(
       '/metautil.js': path.resolve('node_modules/metautil/metautil.mjs'),
       '/fixture.mjs': path.resolve('browser/fixture.mjs'),
       '/worker.mjs': path.resolve('browser/worker.mjs'),
+      '/signaling.mjs': path.resolve('examples/webrtc/signaling.mjs'),
+      '/example/': path.resolve('examples/webrtc/index.html'),
+      '/example/app.mjs': path.resolve('examples/webrtc/app.mjs'),
+      '/example/worker.mjs': path.resolve('examples/webrtc/worker.mjs'),
+      '/example/signaling.mjs': path.resolve('examples/webrtc/signaling.mjs'),
+      '/example/metacom.mjs': path.resolve('metacom.mjs'),
+      '/example/metautil.js': path.resolve(
+        'node_modules/metautil/metautil.mjs',
+      ),
     };
     const server = http.createServer(async (req, res) => {
       try {
@@ -130,7 +158,10 @@ test(
           res.writeHead(404);
           return void res.end();
         }
-        res.setHeader('Content-Type', 'text/javascript');
+        res.setHeader(
+          'Content-Type',
+          pathname === '/example/' ? 'text/html' : 'text/javascript',
+        );
         res.setHeader('Cache-Control', 'no-store');
         const source = await fs.readFile(routes[pathname], 'utf8');
         res.end(
@@ -177,7 +208,12 @@ test(
           console.log('Worker errors:', browser.errors);
         }
         await Promise.allSettled(
-          pages.map((page) => browser.evaluate(page, 'lab.close()')),
+          pages.map((page) =>
+            browser.evaluate(
+              page,
+              'globalThis.lab ? lab.close() : globalThis.example?.close()',
+            ),
+          ),
         );
         browser.close();
       }
@@ -344,6 +380,93 @@ test(
         assert.equal(
           (await browser.evaluate(tabA, `lab.exercise('updated')`)).active,
           true,
+        );
+      },
+    );
+    await t.test(
+      'example window signaling validates the popup source',
+      async () => {
+        const caller = await browser.page(`${origin}/?role=popup&mode=window`);
+        const popup = await browser.popup(
+          caller,
+          `${origin}/?role=popup-host&mode=window`,
+        );
+        pages.push(caller, popup);
+        await browser.evaluate(popup, `lab.startHost('host', ['popup'])`);
+        const connecting = browser.evaluate(
+          caller,
+          `lab.connect('popup', 'host')`,
+        );
+        await browser.evaluate(
+          caller,
+          `window.postMessage({
+        protocol: 'metacom:rtc', version: 999, source: 'host',
+        target: 'popup', generation: 'untrusted',
+      }, location.origin)`,
+        );
+        await connecting;
+        assert.equal(
+          (await browser.evaluate(caller, `lab.exercise('window')`)).bytes,
+          100000,
+        );
+        await browser.evaluate(caller, 'lab.close()');
+        await browser.evaluate(popup, 'lab.close()');
+      },
+    );
+    await Promise.all(
+      pages.map((page) => browser.evaluate(page, 'lab.close()')),
+    );
+    await t.test(
+      'runnable tab example uses the documented public APIs',
+      async () => {
+        const exampleHost = await browser.page(
+          `${origin}/example/?role=host&peer=caller`,
+          false,
+          'example',
+        );
+        const exampleCaller = await browser.page(
+          `${origin}/example/?role=caller`,
+          false,
+          'example',
+        );
+        pages.push(exampleHost, exampleCaller);
+        await browser.evaluate(exampleCaller, 'example.ready');
+        assert.deepEqual(
+          await browser.evaluate(exampleCaller, 'example.result'),
+          { hello: 'caller' },
+        );
+        await browser.evaluate(exampleHost, 'example.close()');
+        await browser.evaluate(exampleCaller, 'example.close()');
+      },
+    );
+    await t.test(
+      'runnable worker example includes local and remote methods',
+      async () => {
+        const exampleHost = await browser.page(
+          `${origin}/example/?role=host&peer=owner`,
+          false,
+          'example',
+        );
+        const exampleOwner = await browser.page(
+          `${origin}/example/?role=owner`,
+          false,
+          'example',
+        );
+        pages.push(exampleHost, exampleOwner);
+        await browser.evaluate(exampleOwner, 'example.ready');
+        const exampleClient = await browser.page(
+          `${origin}/example/?role=worker-client`,
+          false,
+          'example',
+        );
+        pages.push(exampleClient);
+        await browser.evaluate(exampleClient, 'example.ready');
+        assert.deepEqual(
+          await browser.evaluate(exampleClient, 'example.result'),
+          {
+            hello: 'worker-client',
+            sum: 5,
+          },
         );
       },
     );

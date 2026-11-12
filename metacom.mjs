@@ -318,7 +318,10 @@ class RtcChannelEndpoint extends Emitter {
       frameBytes,
     };
     channel.binaryType = 'arraybuffer';
-    channel.bufferedAmountLowThreshold = Math.floor(highWater / 2);
+    channel.bufferedAmountLowThreshold = Math.min(
+      Math.floor(highWater / 2),
+      highWater - frameBytes,
+    );
     const listen = (name, listener) => {
       channel.addEventListener(name, listener);
       this.#listeners.push(() => channel.removeEventListener(name, listener));
@@ -2706,7 +2709,6 @@ class MetacomPeer extends Emitter {
   #router;
   #options;
   #sessions = new Map();
-  #opening = null;
   #closed = true;
 
   constructor(options) {
@@ -2732,31 +2734,22 @@ class MetacomPeer extends Emitter {
   }
 
   open() {
-    if (this.#opening) return this.#opening;
     if (!this.#closed) return Promise.resolve();
-    this.#closed = false;
     const peers = Array.isArray(this.#options.rtc)
       ? this.#options.rtc
       : [this.#options.rtc];
     const ids = new Set();
-    this.#opening = Promise.all(
-      peers.map((rtc) => {
-        if (!rtc || ids.has(rtc.peerId)) {
-          throw new Error('Unique RTC peers required');
-        }
-        ids.add(rtc.peerId);
-        return this.#connect(rtc);
-      }),
-    )
-      .then(() => {})
-      .catch((error) => {
-        this.close();
-        throw error;
-      })
-      .finally(() => {
-        this.#opening = null;
-      });
-    return this.#opening;
+    for (const rtc of peers) {
+      if (!rtc || ids.has(rtc.peerId)) {
+        return Promise.reject(new Error('Unique RTC peers required'));
+      }
+      ids.add(rtc.peerId);
+    }
+    this.#closed = false;
+    for (const rtc of peers) {
+      this.#connect(rtc).catch((error) => this.#report(error));
+    }
+    return Promise.resolve();
   }
 
   async #connect(rtc) {

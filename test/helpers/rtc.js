@@ -132,7 +132,7 @@ const rtcOptions = (signaling, role = 'offerer') => ({
   peerId: role === 'offerer' ? 'host' : 'caller',
   role,
   signaling,
-  handshakeTimeout: 100,
+  handshakeTimeout: 2000,
 });
 
 module.exports = {

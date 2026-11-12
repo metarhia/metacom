@@ -22,6 +22,7 @@ Lifecycle checks terminate the application's worker through DevTools, replace
 its controller, close the owner, and attach a fresh owner connection.
 
 Verified on 2026-11-12 with Chrome 157.0.8103.50 on Linux. The successful report
-is `.log/2026-11-12-node-17.raw` (seven tests, zero failures). Firefox, Safari,
+is `.log/2026-11-12-node-20.raw` (ten tests, zero failures, including the runnable
+examples and explicit-origin popup signaling adapter). Firefox, Safari,
 and remote STUN/TURN paths were not tested by this harness; the local tests use
 host ICE candidates and no external signaling or ICE servers.
