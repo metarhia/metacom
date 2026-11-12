@@ -33,6 +33,15 @@ test('Frame: mask and unmask payload', () => {
   assert.notDeepStrictEqual(maskedPayload, frame.payload);
 });
 
+test('Frame: maskPayload does not modify the caller buffer', () => {
+  const data = Buffer.from('hello');
+  const frame = Frame.binary(data);
+  frame.maskPayload();
+  assert.strictEqual(data.toString(), 'hello');
+  frame.unmaskPayload();
+  assert.deepStrictEqual(frame.payload, data);
+});
+
 test('Frame: create binary frame', () => {
   const data = crypto.randomBytes(10);
   const frame = Frame.binary(data);
