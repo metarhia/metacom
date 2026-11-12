@@ -201,3 +201,20 @@ test('Connection: handles frames split across chunk boundaries', () => {
   assert.deepStrictEqual(messages, ['first', 'second', 'third']);
   connection.terminate();
 });
+
+test('Connection: send reports full buffer, drain waits for it', async () => {
+  const socket = new MockSocket();
+  const connection = new Connection(socket, Buffer.alloc(0));
+  socket.writableNeedDrain = true;
+  assert.strictEqual(connection.sendBinary(Buffer.from('data')), false);
+  let isDrained = false;
+  const drained = connection.drain().then(() => {
+    isDrained = true;
+  });
+  await new Promise(setImmediate);
+  assert.strictEqual(isDrained, false);
+  socket.writableNeedDrain = false;
+  socket.emit('drain');
+  await drained;
+  assert.strictEqual(connection.sendBinary(Buffer.from('data')), true);
+});

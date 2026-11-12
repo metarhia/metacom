@@ -45,7 +45,8 @@ export class MetaReadable extends Emitter {
 
 export interface Transport {
   send(obj: object): void;
-  write(data: string | ArrayBufferView): void;
+  write(data: string | ArrayBufferView): boolean | void;
+  drain?(): Promise<void>;
 }
 
 export interface MetacomPacket {
@@ -116,7 +117,8 @@ export class ClientTransport extends Emitter {
   open(options?: MetacomOptions): Promise<void>;
   close(): void;
   send(obj: object): void;
-  write(data: string | ArrayBufferView): void;
+  write(data: string | ArrayBufferView): boolean | void;
+  drain(): Promise<void>;
   announce(id: string): void;
   online(): void;
   offline(): void;
@@ -168,7 +170,8 @@ export class Metacom extends Emitter {
   createReadable(): MetaReadable;
   createBlobUploader(blob: Blob): BlobUploader;
   send(obj: object): void;
-  write(data: string | ArrayBufferView): void;
+  write(data: string | ArrayBufferView): boolean | void;
+  drain(): Promise<void>;
   deliver(data: string, timeout?: number): boolean;
 }
 
@@ -224,9 +227,10 @@ export class ServerTransport extends Emitter {
   getCookies(): Record<string, string>;
   sendSessionCookie(token: string): void;
   removeSessionCookie(): void;
+  drain(): Promise<void>;
   error(code?: number | string, options?: ErrorOptions): void;
   send(obj: object, code?: number): void;
-  write(data: string | Buffer, code?: number): void;
+  write(data: string | Buffer, code?: number): boolean | void;
 }
 
 export class ServerHttpTransport extends ServerTransport {
@@ -250,7 +254,7 @@ export class ServerWsTransport extends ServerTransport {
   static capabilities: TransportCapabilities;
   connection: Connection;
   constructor(req: IncomingMessage, connection: Connection);
-  write(data: string | Buffer): void;
+  write(data: string | Buffer): boolean;
 }
 
 export class ServerEventTransport extends ServerTransport {
@@ -525,6 +529,7 @@ export declare class Connection extends EventEmitter {
   sendPing(payload?: Buffer | string): boolean;
   sendPong(payload?: Buffer | string): boolean;
   sendClose(reason?: string, code?: number): void;
+  drain(): Promise<void>;
   terminate(): void;
 
   on(
