@@ -32,6 +32,7 @@ import type {
   StreamPacket,
   TransportAdapter,
   TransportCapabilities,
+  RtcSignaling,
 } from './metacom.js';
 
 type Assert<T extends true> = T;
@@ -157,3 +158,37 @@ async function _usage(): Promise<void> {
 }
 
 void _usage;
+
+async function _rtcExamples(worker: ServiceWorker, signaling: RtcSignaling) {
+  const host = new MetacomPeer({
+    rtc: {
+      localId: 'host',
+      peerId: 'caller',
+      role: 'answerer',
+      signaling,
+    },
+  });
+  host.register('demo', {
+    echo: (args, context) => {
+      context.emit('demo/changed', args);
+      return args;
+    },
+    download: ({ id }, context) => {
+      const stream = context.createStream('bytes', 1, id);
+      stream.write(new Uint8Array([7]));
+      stream.end();
+    },
+  });
+  await host.open();
+  const bridge = MetacomRtcBridge.attach(worker, {
+    localId: 'caller',
+    peerId: 'host',
+    role: 'offerer',
+    signaling,
+  });
+  await bridge.ready;
+  bridge.close();
+  host.close();
+}
+
+void _rtcExamples;

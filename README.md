@@ -107,6 +107,145 @@ generates the id and the client reads the stream with
 `metacom.getStream(streamId)`. Through the service worker proxy the id must
 be created on the client, the worker routes streams by ids it has seen.
 
+## WebRTC transport
+
+Tabs and windows can communicate using a reliable, ordered RTCDataChannel.
+Select it explicitly with `transport: 'webrtc'`. The URL is a logical endpoint
+identifier; signaling and ICE configuration are supplied by your application.
+
+Run `npm run build` and `node examples/webrtc/server.js`, then open
+<http://127.0.0.1:8008/>. Open **Host for a tab**, then **Tab caller** in another
+tab. For the worker topology, open **Host for a worker**, **Worker owner tab**,
+then one or more **Worker client tab** pages. Keep each topology's host open.
+The [example sources](examples/webrtc/) also show worker authorization and
+cleanup. Local examples use host ICE candidates without external servers.
+
+In the host tab:
+
+```js
+import { MetacomPeer } from './metacom.mjs';
+import { broadcastSignaling } from './signaling.mjs';
+
+const signaling = broadcastSignaling('my-app');
+const host = new MetacomPeer({
+  rtc: {
+    localId: 'host',
+    peerId: 'caller',
+    role: 'answerer',
+    signaling,
+  },
+});
+host.register('demo', { echo: (args) => args });
+await host.open();
+host.on('connect', (peerId) => console.log('Connected:', peerId));
+```
+
+In the caller tab:
+
+```js
+import { Metacom } from './metacom.mjs';
+import { broadcastSignaling } from './signaling.mjs';
+
+const signaling = broadcastSignaling('my-app');
+const client = await Metacom.connect('host', {
+  transport: 'webrtc',
+  rtc: {
+    localId: 'caller',
+    peerId: 'host',
+    role: 'offerer',
+    signaling,
+  },
+});
+await client.load('demo');
+console.log(await client.api.demo.echo({ hello: 'world' }));
+// When finished: client.close(); signaling.close();
+```
+
+Start the answerer before the offerer. `MetacomPeer.open()` starts accepting its
+configured peers; use `connect`/`disconnect` events and `active` to observe
+connections. Pass an array of RTC options to host several distinct peer IDs.
+Each peer has its own transport and routes; an absent peer retries without
+closing established connections. `host.close()` releases all its connections.
+An optional `upstream: Metacom` forwards unhandled methods and merges interface
+descriptions. The host owns that upstream connection's routing and lifetime;
+do not attach it to another router concurrently.
+
+Host handlers receive a context with `peerId`, nullable upstream `server`,
+`emit(name, data)`, `broadcast(name, data)`, `getStream(id)`, and
+`createStream(name, size, id?)`. Use the caller's `createReadable().id` when
+creating a download. For local uploads, call `context.getStream(id)` before the
+first upload chunk; unclaimed uploads are forwarded when an upstream is present.
+Existing Metacom stream APIs and packet formats remain the same.
+
+The signaling adapter implements `send(message)` and
+`subscribe(listener) => unsubscribe`. Messages are plain objects containing
+`protocol: 'metacom:rtc'`, `version: 1`, `source`, `target`, `generation`, and
+either `description: { type, sdp }` or `candidate`. Each reconnect gets a fresh
+generation. The application must authenticate signaling and authorize the peer
+IDs it exposes. BroadcastChannel is a same-origin example, not an authentication
+mechanism. For a known popup or parent window, the example's alternative adapter
+validates both the sender window and its origin:
+
+```js
+import { windowSignaling } from './signaling.mjs';
+
+const signaling = windowSignaling(window.opener, location.origin);
+// The other window supplies its reference to this window and the same origin.
+// Install the answerer first, then start the offerer using that adapter.
+```
+
+Both adapters carry discovery/negotiation messages; RPC, events, and streams use
+the data channel. For remote peers, provide an authenticated signaling service
+and `rtc.configuration: { iceServers: [...] }` with your STUN/TURN settings and
+credentials. No public signaling or ICE servers are configured automatically.
+
+The transport fragments complete messages into versioned binary frames of at
+most 16 KiB, bounded by the negotiated SCTP limit. Defaults are 16 MiB per
+message, 4096 fragments, a 10-second assembly timeout, a 32 MiB send queue, and
+a 256 KiB buffered high-water mark. `rtc.maxMessageBytes`, `maxFragments`,
+`assemblyTimeout`, `maxQueueBytes`, and `highWaterBytes` configure those bounds.
+`write()` returns false under backpressure; await `drain()` before continuing.
+Closing settles drain waiters and discards queued frames. Malformed fragments
+close the transport. `rtc.handshakeTimeout` defaults to 10 seconds; the existing
+Metacom reconnect, call timeout, queue, and restore options still apply.
+Calls already sent are not replayed automatically after disconnection.
+
+### Service worker WebRTC upstream
+
+The supported path is:
+
+```text
+local tabs -> event transport -> service worker MetacomProxy
+          -> MessagePort -> owner tab -> RTCDataChannel -> peer host
+```
+
+The worker selects `transport: 'rtc-bridge'` and supplies
+`bridge: { peerId, authorize(client, request) }`. Call `proxy.open()` when setting
+up its message listeners. Attachments must come from controlled same-origin
+clients and pass the explicit authorization callback. In the owner tab, wait for
+an active controller, then call
+`MetacomRtcBridge.attach(controller, rtcOptions)` and await the returned handle's
+`ready` promise. `handle.close()` releases the bridge; `handle.closed` reports
+its state. The runnable example contains both sides of this setup.
+
+The owner holds the peer connection. The bridge uses generation and worker
+instance IDs, heartbeats, bounded message-port queues, and credits that are
+acknowledged after downstream drain. Its fixed bounds are 16 MiB per packet,
+32 MiB queued per direction, and 1024 queued packets. Worker `bridge` options
+and owner RTC options support `handshakeTimeout`, `pingInterval`, and
+`pongTimeout`; bridge defaults are 15 seconds, 1 second, and 5 seconds.
+
+Owner closure, worker restart, or controller replacement releases the obsolete
+bridge. Attach a fresh owner handle and port after recovery. Browser lifecycle
+rules can terminate the worker; heartbeats do not guarantee persistence. Keep
+the owner tab open while using its connection. Automatic owner election,
+automatic transport fallback, all-tabs-closed operation, direct service worker
+RTC endpoints, a native Node WebRTC runtime, and automatic Node RTC server
+registration are outside this implementation. WS/HTTP upstreams remain explicit
+configuration choices.
+
+See [browser test instructions and verified environments](browser/README.md).
+
 ## Service worker proxy
 
 Multiple tabs can share one server connection held by a service worker. A
