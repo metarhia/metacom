@@ -99,6 +99,7 @@ export interface TransportAdapter {
 
 export interface TransportAttachOptions {
   headers: Record<string, string>;
+  maxMessageSize?: number;
   path?: string;
   verifyClient?: (info: { req: IncomingMessage }) => boolean;
 }
@@ -292,6 +293,8 @@ export interface Options {
   retry?: number;
   websocketPath?: string;
   generateId?: () => string;
+  maxBodySize?: number;
+  maxMessageSize?: number;
 }
 
 export interface ErrorOptions {

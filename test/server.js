@@ -179,3 +179,32 @@ test('Server / listen retries busy port without timeouts', async () => {
   server.httpServer.close();
   blocker.close();
 });
+
+test('Server / rejects oversized requests', async (t) => {
+  const noop = () => {};
+  const console = { log: noop, info: noop, warn: noop, error: noop };
+  const application = { console, auth: {}, getMethod: () => null };
+  const limits = { maxBodySize: 64, maxMessageSize: 64 };
+  const options = { host: 'localhost', port: 8006, protocol: 'http' };
+  const server = new Server(application, { ...options, ...limits });
+  await server.listen();
+  t.after(() => server.close());
+  const args = { name: 'x'.repeat(100) };
+  const packet = { type: 'call', id: randomUUID(), method: 'test/hello', args };
+  const body = JSON.stringify(packet);
+  const res = await fetch(`http://${options.host}:${options.port}/api`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  assert.strictEqual(res.status, 413);
+  const socket = new ProtocolClient(`ws://${options.host}:${options.port}`);
+  await new Promise((resolve) => {
+    socket.once('open', resolve);
+  });
+  const closed = new Promise((resolve) => {
+    socket.once('close', resolve);
+  });
+  socket.send(body);
+  assert.strictEqual(await closed, 1009);
+});
