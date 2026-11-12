@@ -4,6 +4,8 @@
 
 - Add `RtcConnection`: reliable WebRTC data channels negotiated through a
   signaling adapter, with messages scoped by source, target, and generation
+- Add `RtcChannelEndpoint`: bounded message framing and data channel
+  backpressure
 - Breaking: client transports live in `lib/client.js`
 - Breaking: server transports in `lib/transport.js`
 - Renamed `lib/chunks.js` to `lib/chunks-node.js`
