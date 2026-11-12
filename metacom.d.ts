@@ -240,6 +240,7 @@ export interface PacketProxy {
 
 export interface MetacomOptions {
   rtc?: RtcOptions;
+  bridge?: RtcBridgeOptions;
   transport?: string;
   callTimeout?: number;
   reconnectTimeout?: number;
@@ -336,6 +337,51 @@ export class MetacomPeer extends Emitter {
   open(): Promise<void>;
   close(): void;
   broadcast(name: string, data?: unknown): void;
+}
+
+export interface RtcBridgeRequest {
+  protocol: 'metacom:rtc-bridge';
+  version: 1;
+  generation: string;
+  peerId: string;
+  localId: string;
+  kind: 'attach';
+}
+
+export interface RtcBridgeOptions {
+  peerId: string;
+  authorize(
+    client: ClientInfo,
+    request: RtcBridgeRequest,
+  ): boolean | Promise<boolean>;
+  handshakeTimeout?: number;
+  pingInterval?: number;
+  pongTimeout?: number;
+}
+
+export interface ClientInfo {
+  id: string;
+  url: string;
+}
+
+export interface RtcBridgeOwnerOptions extends RtcOptions {
+  pingInterval?: number;
+  pongTimeout?: number;
+}
+
+export class ClientRtcBridgeTransport extends ClientTransport {
+  static capabilities: TransportCapabilities;
+}
+
+export class MetacomRtcBridge {
+  readonly ready: Promise<void>;
+  readonly closed: boolean;
+  static attach(
+    worker: ServiceWorker,
+    options: RtcBridgeOwnerOptions,
+  ): MetacomRtcBridge;
+  constructor(worker: ServiceWorker, options: RtcBridgeOwnerOptions);
+  close(error?: Error): void;
 }
 
 export class ServerTransport extends Emitter {

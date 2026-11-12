@@ -81,7 +81,7 @@ class RtcMockPeer extends RtcTarget {
   }
 
   async setLocalDescription(value) {
-    this.localDescription = value;
+    this.localDescription = { ...value, toJSON: () => value };
   }
 
   async setRemoteDescription(value) {
@@ -116,6 +116,7 @@ const rtcSignals = () => {
     listeners,
     messages,
     send(message) {
+      message = structuredClone(message);
       messages.push(message);
       for (const listener of listeners) queueMicrotask(() => listener(message));
     },
