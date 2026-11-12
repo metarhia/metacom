@@ -229,6 +229,7 @@ export class Metacom extends Emitter {
   send(obj: object): void;
   write(data: string | ArrayBufferView): boolean | void;
   drain(): Promise<void>;
+  setProxy(proxy: PacketProxy | null): void;
   deliver(data: string, timeout?: number): boolean;
 }
 
@@ -280,12 +281,14 @@ export class MetacomProxy extends Emitter {
 }
 
 export interface RouterOptions extends MetacomProxyOptions {
+  upstream?: Metacom;
+  localStreams?: boolean;
   getClients?: () => Promise<Array<{ id: string }> | null>;
 }
 
 export class MetacomRouter extends Emitter {
   readonly instance: string;
-  readonly server: Metacom;
+  readonly server: Metacom | null;
   readonly active: boolean;
   constructor(options: RouterOptions);
   open(): Promise<void>;
@@ -303,6 +306,36 @@ export class MetacomRouter extends Emitter {
   detach(id: string): void;
   port(id: string): MessagePort | undefined;
   receive(port: MessagePort, data: unknown): void;
+}
+
+export interface PeerContext {
+  server: Metacom | null;
+  peerId: string;
+  emit(name: string, data?: unknown): void;
+  broadcast(name: string, data?: unknown): void;
+  getStream(id: string): MetaReadable;
+  createStream(name: string, size: number, id?: string): MetaWritable;
+}
+
+export type PeerHandler = (
+  args: any,
+  context: PeerContext,
+) => Promise<unknown> | unknown;
+
+export interface PeerOptions {
+  rtc: RtcOptions | RtcOptions[];
+  upstream?: Metacom;
+  callTimeout?: number;
+  reconnectTimeout?: number;
+}
+
+export class MetacomPeer extends Emitter {
+  readonly active: boolean;
+  constructor(options: PeerOptions);
+  register(unit: string, methods: Record<string, PeerHandler>): void;
+  open(): Promise<void>;
+  close(): void;
+  broadcast(name: string, data?: unknown): void;
 }
 
 export class ServerTransport extends Emitter {
