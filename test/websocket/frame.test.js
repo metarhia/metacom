@@ -161,17 +161,16 @@ test('Frame: protocolErrorClose isClient masks the payload', () => {
 
 test('Frame: getCloseDetails extracts code and reason', () => {
   const frame = Frame.close(1001, 'going away');
-  const { value, error } = frame.getCloseDetails();
-  assert.strictEqual(error, null);
-  assert.strictEqual(value.code, 1001);
-  assert.strictEqual(value.reason, 'going away');
+  const { code, reason } = frame.getCloseDetails();
+  assert.strictEqual(code, 1001);
+  assert.strictEqual(reason, 'going away');
 });
 
 test('Frame: getCloseDetails with no payload returns null code', () => {
   const frame = Frame.close(null);
-  const result = frame.getCloseDetails();
-  assert.strictEqual(result.value.code, null);
-  assert.strictEqual(result.value.reason, '');
+  const { code, reason } = frame.getCloseDetails();
+  assert.strictEqual(code, null);
+  assert.strictEqual(reason, '');
 });
 
 test('Frame: isControlFrame true for ping, pong, close', () => {

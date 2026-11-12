@@ -464,8 +464,6 @@ export interface Result<T> {
   readonly value: T | null;
   readonly error: Error | null;
   readonly ok: boolean;
-  unwrap(defaultValue?: T): T;
-  map<U>(fn: (value: T) => U): Result<U>;
 }
 
 export interface CloseDetails {
@@ -515,7 +513,7 @@ export declare class Frame {
   unmaskPayload(): void;
   maskPayload(): void;
   toString(): string | null;
-  getCloseDetails(): Result<CloseDetails>;
+  getCloseDetails(): CloseDetails;
   get header(): Buffer;
   toBuffer(): Buffer;
   get isControlFrame(): boolean;
