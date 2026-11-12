@@ -1,10 +1,14 @@
 'use strict';
 
+const http = require('node:http');
+const timers = require('node:timers/promises');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
+const { WebsocketServer } = require('#ws');
 const transport = require('../lib/transport.js');
 const { buildHeaders, ServerTransport, ClientTransport } = transport;
+const { ClientWsTransport } = transport;
 
 test('buildHeaders: returns default headers when cors is falsy', () => {
   const headers = buildHeaders(null);
@@ -132,4 +136,32 @@ test('ServerTransport: error keeps application code, sends 500 as HTTP status', 
   assert.deepEqual(codes, [500, 500, 404]);
   assert.deepEqual(packetCodes, [1001, 'EEXIST', 404]);
   assert.equal(transport.written[0].packet.error.message, 'Domain error');
+});
+
+test('ClientWsTransport: emits close once when connection drops', async () => {
+  const httpServer = http.createServer();
+  const wsServer = new WebsocketServer({ server: httpServer });
+  wsServer.on('connection', (connection) => {
+    connection.on('message', () => connection.terminate());
+  });
+  await new Promise((resolve) => {
+    httpServer.listen(8091, resolve);
+  });
+  const client = new ClientWsTransport('ws://localhost:8091/');
+  const events = [];
+  client.on('close', () => events.push('close'));
+  await client.open();
+  client.write('drop');
+  await timers.setTimeout(100);
+  httpServer.close();
+  assert.deepEqual(events, ['close']);
+});
+
+test('ClientWsTransport: failed open rejects without close event', async () => {
+  const client = new ClientWsTransport('ws://localhost:8092/');
+  const events = [];
+  client.on('close', () => events.push('close'));
+  await assert.rejects(client.open(), /Connection closed/);
+  await timers.setTimeout(50);
+  assert.deepEqual(events, []);
 });
