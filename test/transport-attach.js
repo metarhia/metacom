@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const { Emitter } = require('metautil');
 
 const { Server } = require('../lib/server.js');
+const { Metacom } = require('../lib/metacom.js');
 const transport = require('../lib/transport.js');
 const { ServerTransport, allTransports, registerTransport } = transport;
 const { ClientTransport } = require('../lib/client.js');
@@ -92,4 +93,26 @@ test('Transport attach: event transport connects through port', () => {
   assert.equal(sent.length, 1);
   assert.equal(JSON.parse(sent[0]).error.message, 'Packet structure error');
   dispose(server);
+});
+
+test('Transport registry: Metacom.create uses registered client', () => {
+  class CustomClient extends ClientTransport {
+    static urls = [];
+
+    constructor(url) {
+      super(url);
+      CustomClient.urls.push(url);
+    }
+  }
+  registerTransport('custom', {
+    Client: CustomClient,
+    Server: MockServerTransport,
+    capabilities: MockServerTransport.capabilities,
+  });
+  const url = 'custom://localhost';
+  const metacom = Metacom.create(url, { transport: 'custom' });
+  assert.ok(metacom);
+  assert.deepEqual(CustomClient.urls, [url]);
+  const create = () => Metacom.create(url, { transport: 'unknown' });
+  assert.throws(create, /Unknown transport: 'unknown'/);
 });
