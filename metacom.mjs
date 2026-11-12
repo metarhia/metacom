@@ -550,9 +550,7 @@ class Metacom extends Emitter {
     for (const connection of Metacom.connections) {
       connection.#transport.online();
       if (!connection.active) {
-        connection.open().catch((error) => {
-          connection.emit('error', error);
-        });
+        connection.open().catch((error) => connection.#report(error));
       }
     }
   }
@@ -636,16 +634,13 @@ class Metacom extends Emitter {
   }
 
   #bindTransport() {
-    const escalate = (error) => this.emit('error', error);
-    const report = (error) => {
-      if (this.listenerCount('error') > 0) this.emit('error', error);
-    };
+    const report = (error) => this.#report(error);
 
     this.#transport.on('open', () => {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
       this.emit('open');
-      this.#resume().catch(escalate);
+      this.#resume().catch(report);
     });
 
     this.#transport.on('close', () => {
@@ -653,7 +648,7 @@ class Metacom extends Emitter {
       this.#scheduleReconnect();
     });
 
-    this.#transport.on('error', escalate);
+    this.#transport.on('error', report);
 
     this.#transport.on('status', (status) => {
       this.emit('status', status);
@@ -661,9 +656,14 @@ class Metacom extends Emitter {
     });
 
     this.#transport.on('message', (data) => {
-      if (typeof data === 'string') this.#handlePacket(data).catch(escalate);
-      else this.#handleBinary(data).catch(escalate);
+      if (typeof data === 'string') this.#handlePacket(data).catch(report);
+      else this.#handleBinary(data).catch(report);
     });
+  }
+
+  // Emitter throws on error event without listeners
+  #report(error) {
+    if (this.listenerCount('error') > 0) this.emit('error', error);
   }
 
   #scheduleReconnect() {
@@ -672,7 +672,7 @@ class Metacom extends Emitter {
     if (this.#reconnectTimer) return;
     this.#reconnectTimer = setTimeout(() => {
       this.#reconnectTimer = null;
-      this.open().catch((error) => this.emit('error', error));
+      this.open().catch((error) => this.#report(error));
     }, this.#reconnectTimeout);
   }
 

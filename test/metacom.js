@@ -130,6 +130,13 @@ test('Client / calls', async (t) => {
     const error = await errorPromise;
     assert.match(error.message, /Invalid JSON packet/);
   });
+
+  await t.test('ignores packet errors without error listener', async () => {
+    serverConnection.send('not json');
+    await timers.setTimeout(20);
+    const result = await client.api.test.test();
+    assert.deepStrictEqual(result, { success: true });
+  });
 });
 
 test('Client / stale callback', async (t) => {
