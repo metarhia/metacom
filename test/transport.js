@@ -111,3 +111,25 @@ test('ServerTransport: error with no Error object uses HTTP status text', () => 
   assert.equal(typeof packet.error.message, 'string');
   assert.ok(packet.error.message.length > 0);
 });
+
+// eslint-disable-next-line max-len
+test('ServerTransport: error keeps application code, sends 500 as HTTP status', () => {
+  class TestTransport extends ServerTransport {
+    constructor() {
+      super('127.0.0.1');
+      this.written = [];
+    }
+    write(data, code) {
+      this.written.push({ packet: JSON.parse(data), code });
+    }
+  }
+  const transport = new TestTransport();
+  transport.error(1001, { error: new Error('Domain error') });
+  transport.error('EEXIST', { error: new Error('Already exists') });
+  transport.error(404);
+  const codes = transport.written.map(({ code }) => code);
+  const packetCodes = transport.written.map(({ packet }) => packet.error.code);
+  assert.deepEqual(codes, [500, 500, 404]);
+  assert.deepEqual(packetCodes, [1001, 'EEXIST', 404]);
+  assert.equal(transport.written[0].packet.error.message, 'Domain error');
+});

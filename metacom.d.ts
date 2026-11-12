@@ -217,7 +217,7 @@ export class ServerTransport extends Emitter {
   source: string;
   constructor(source: string);
   close(): void;
-  error(code?: number, options?: ErrorOptions): void;
+  error(code?: number | string, options?: ErrorOptions): void;
   send(obj: object, code?: number): void;
   write(data: string | Buffer, code?: number): void;
 }
