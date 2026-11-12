@@ -1,5 +1,6 @@
 'use strict';
 
+const timers = require('node:timers/promises');
 const { Readable, PassThrough } = require('node:stream');
 const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
@@ -110,6 +111,27 @@ test('MetaWritable', async (t) => {
     const decoded = chunkDecode(packet);
     assert.strictEqual(decoded.id, id);
     assert.deepStrictEqual(decoded.payload, dataView);
+  });
+
+  await t.test('write: waits for transport drain when full', async () => {
+    const written = [];
+    let release = null;
+    const transport = {
+      send: () => {},
+      write: (chunk) => written.push(chunk) > 1,
+      drain: () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    };
+    const writable = new MetaWritable('id', 'name', 6, transport);
+    const chunks = [Buffer.from('abc'), Buffer.from('def')];
+    Readable.from(chunks).pipe(writable);
+    await timers.setTimeout(20);
+    assert.strictEqual(written.length, 1);
+    release();
+    await timers.setTimeout(20);
+    assert.strictEqual(written.length, 2);
   });
 });
 

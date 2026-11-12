@@ -1,4 +1,4 @@
-import { Emitter, generateUUID, jsonParse, split } from './metautil.js';
+import { Emitter, generateUUID, delay, jsonParse, split } from './metautil.js';
 
 // client.js
 
@@ -7,6 +7,8 @@ const { WebSocket } = globalThis;
 const PING_INTERVAL_MS = 20 * 1000;
 const PONG_TIMEOUT_MS = 5 * 1000;
 const HANDSHAKE_TIMEOUT_MS = 5 * 1000;
+const BUFFER_HIGH_WATER_BYTES = 1024 * 1024;
+const DRAIN_INTERVAL_MS = 10;
 
 const startInterval = (listener, interval) => {
   const timer = setInterval(listener, interval);
@@ -24,6 +26,11 @@ class ClientTransport extends Emitter {
 
   send(obj) {
     this.write(JSON.stringify(obj));
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  drain() {
+    return Promise.resolve();
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -79,6 +86,18 @@ class ClientWsTransport extends ClientTransport {
   write(data) {
     if (!this.active) throw new Error('Not connected');
     this.#socket.send(data);
+    return this.#socket.bufferedAmount < BUFFER_HIGH_WATER_BYTES;
+  }
+
+  // Browser WebSocket has no drain event, bufferedAmount is polled
+  async drain() {
+    while (this.#isBuffered()) await delay(DRAIN_INTERVAL_MS);
+  }
+
+  #isBuffered() {
+    const socket = this.#socket;
+    if (!socket) return false;
+    return socket.bufferedAmount >= BUFFER_HIGH_WATER_BYTES;
   }
 }
 
@@ -492,6 +511,8 @@ class MetaReadable extends Emitter {
 }
 
 class MetaWritable extends Emitter {
+  #draining = false;
+
   constructor(id, name, size, transport) {
     super();
     this.id = id;
@@ -507,10 +528,20 @@ class MetaWritable extends Emitter {
     this.transport.send(packet);
   }
 
+  // Transport returns false when its buffer is full, undefined is writable
   write(data) {
     const chunk = chunkEncode(this.id, data);
-    this.transport.write(chunk);
-    return true;
+    const isWritable = this.transport.write(chunk) !== false;
+    if (!isWritable) this.#waitDrain();
+    return isWritable;
+  }
+
+  async #waitDrain() {
+    if (this.#draining) return;
+    this.#draining = true;
+    await this.transport.drain();
+    this.#draining = false;
+    this.emit('drain');
   }
 
   end() {
@@ -715,7 +746,11 @@ class Metacom extends Emitter {
   }
 
   write(data) {
-    this.#transport.write(data);
+    return this.#transport.write(data);
+  }
+
+  drain() {
+    return this.#transport.drain();
   }
 
   send(data) {
@@ -792,7 +827,8 @@ class Metacom extends Emitter {
     const { id } = consumer;
     const upload = async () => {
       for await (const chunk of blob.stream()) {
-        consumer.write(chunk);
+        const isWritable = consumer.write(chunk);
+        if (!isWritable) await consumer.toPromise('drain');
       }
       consumer.end();
     };
