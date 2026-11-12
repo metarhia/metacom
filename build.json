@@ -1,9 +1,14 @@
 {
   "order": [
+    "rtc.js",
+    "rtc-channel.js",
     "client.js",
+    "rtc-bridge.js",
     "chunks-browser.js",
     "streams.js",
     "metacom.js",
+    "router.js",
+    "peer.js",
     "proxy.js"
   ]
 }

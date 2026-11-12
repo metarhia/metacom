@@ -132,6 +132,57 @@ export class ClientWsTransport extends ClientTransport {}
 
 export class ClientHttpTransport extends ClientTransport {}
 
+export interface RtcSignal {
+  protocol: 'metacom:rtc';
+  version: 1;
+  source: string;
+  target: string;
+  generation: string;
+  description?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+}
+
+export interface RtcSignaling {
+  send(message: RtcSignal): void | Promise<void>;
+  subscribe(listener: (message: RtcSignal) => void): () => void;
+}
+
+export interface RtcChannelOptions {
+  maxMessageBytes?: number;
+  maxQueueBytes?: number;
+  highWaterBytes?: number;
+  maxFragments?: number;
+  assemblyTimeout?: number;
+  maxMessageSize?: number;
+}
+
+export interface RtcOptions extends RtcChannelOptions {
+  localId: string;
+  peerId: string;
+  role: 'offerer' | 'answerer';
+  configuration?: RTCConfiguration;
+  signaling: RtcSignaling;
+  handshakeTimeout?: number;
+}
+
+export class RtcConnection extends Emitter {
+  readonly peerConnection: RTCPeerConnection | null;
+  open(options: RtcOptions): Promise<RTCDataChannel>;
+  close(): void;
+}
+
+export class RtcChannelEndpoint extends Emitter {
+  readonly closed: boolean;
+  constructor(channel: RTCDataChannel, options?: RtcChannelOptions);
+  write(data: string | ArrayBuffer | ArrayBufferView): boolean;
+  drain(): Promise<void>;
+  close(error?: Error | null): void;
+}
+
+export class ClientRtcTransport extends ClientTransport {
+  static capabilities: TransportCapabilities;
+}
+
 export class ClientEventTransport extends ClientTransport {
   static instance: ClientEventTransport | null;
   static getInstance(url: string): ClientEventTransport;
@@ -141,6 +192,7 @@ export declare const TRANSPORTS: {
   ws: typeof ClientWsTransport;
   http: typeof ClientHttpTransport;
   event: typeof ClientEventTransport;
+  webrtc: typeof ClientRtcTransport;
   [name: string]: typeof ClientTransport;
 };
 
@@ -177,6 +229,7 @@ export class Metacom extends Emitter {
   send(obj: object): void;
   write(data: string | ArrayBufferView): boolean | void;
   drain(): Promise<void>;
+  setProxy(proxy: PacketProxy | null): void;
   deliver(data: string, timeout?: number): boolean;
 }
 
@@ -186,6 +239,8 @@ export interface PacketProxy {
 }
 
 export interface MetacomOptions {
+  rtc?: RtcOptions;
+  bridge?: RtcBridgeOptions;
   transport?: string;
   callTimeout?: number;
   reconnectTimeout?: number;
@@ -224,6 +279,109 @@ export class MetacomProxy extends Emitter {
   close(): void;
   register(unit: string, methods: Record<string, ProxyHandler>): void;
   broadcast(name: string, data?: unknown): void;
+}
+
+export interface RouterOptions extends MetacomProxyOptions {
+  upstream?: Metacom;
+  localStreams?: boolean;
+  getClients?: () => Promise<Array<{ id: string }> | null>;
+}
+
+export class MetacomRouter extends Emitter {
+  readonly instance: string;
+  readonly server: Metacom | null;
+  readonly active: boolean;
+  constructor(options: RouterOptions);
+  open(): Promise<void>;
+  close(): void;
+  register(unit: string, methods: Record<string, ProxyHandler>): void;
+  broadcast(name: string, data?: unknown): void;
+  attach(
+    port: MessagePort,
+    options?: {
+      id?: string;
+      client?: string;
+      callTimeout?: number;
+    },
+  ): void;
+  detach(id: string): void;
+  port(id: string): MessagePort | undefined;
+  receive(port: MessagePort, data: unknown): void;
+}
+
+export interface PeerContext {
+  server: Metacom | null;
+  peerId: string;
+  emit(name: string, data?: unknown): void;
+  broadcast(name: string, data?: unknown): void;
+  getStream(id: string): MetaReadable;
+  createStream(name: string, size: number, id?: string): MetaWritable;
+}
+
+export type PeerHandler = (
+  args: any,
+  context: PeerContext,
+) => Promise<unknown> | unknown;
+
+export interface PeerOptions {
+  rtc: RtcOptions | RtcOptions[];
+  upstream?: Metacom;
+  callTimeout?: number;
+  reconnectTimeout?: number;
+}
+
+export class MetacomPeer extends Emitter {
+  readonly active: boolean;
+  constructor(options: PeerOptions);
+  register(unit: string, methods: Record<string, PeerHandler>): void;
+  open(): Promise<void>;
+  close(): void;
+  broadcast(name: string, data?: unknown): void;
+}
+
+export interface RtcBridgeRequest {
+  protocol: 'metacom:rtc-bridge';
+  version: 1;
+  generation: string;
+  peerId: string;
+  localId: string;
+  kind: 'attach';
+}
+
+export interface RtcBridgeOptions {
+  peerId: string;
+  authorize(
+    client: ClientInfo,
+    request: RtcBridgeRequest,
+  ): boolean | Promise<boolean>;
+  handshakeTimeout?: number;
+  pingInterval?: number;
+  pongTimeout?: number;
+}
+
+export interface ClientInfo {
+  id: string;
+  url: string;
+}
+
+export interface RtcBridgeOwnerOptions extends RtcOptions {
+  pingInterval?: number;
+  pongTimeout?: number;
+}
+
+export class ClientRtcBridgeTransport extends ClientTransport {
+  static capabilities: TransportCapabilities;
+}
+
+export class MetacomRtcBridge {
+  readonly ready: Promise<void>;
+  readonly closed: boolean;
+  static attach(
+    worker: ServiceWorker,
+    options: RtcBridgeOwnerOptions,
+  ): MetacomRtcBridge;
+  constructor(worker: ServiceWorker, options: RtcBridgeOwnerOptions);
+  close(error?: Error): void;
 }
 
 export class ServerTransport extends Emitter {

@@ -2,6 +2,12 @@
 
 const { Metacom, MetacomError } = require('./lib/metacom.js');
 const { MetacomProxy } = require('./lib/proxy.js');
+const { MetacomRouter } = require('./lib/router.js');
+const { MetacomPeer } = require('./lib/peer.js');
+const {
+  ClientRtcBridgeTransport,
+  MetacomRtcBridge,
+} = require('./lib/rtc-bridge.js');
 const server = require('./lib/server.js');
 const { Server, Client, Context, Session, createProxy } = server;
 const transport = require('./lib/transport.js');
@@ -10,6 +16,9 @@ const { registerTransport, getTransport, allTransports } = transport;
 const { ClientWsTransport, ServerWsTransport } = transport;
 const { ClientHttpTransport, ServerHttpTransport } = transport;
 const { ClientEventTransport, ServerEventTransport } = transport;
+const { ClientRtcTransport } = require('./lib/client.js');
+const { RtcConnection } = require('./lib/rtc.js');
+const { RtcChannelEndpoint } = require('./lib/rtc-channel.js');
 const { TRANSPORTS } = require('./lib/client.js');
 const { MetaReadable, MetaWritable } = require('./lib/streams.js');
 const { chunkEncode, chunkDecode } = require('./lib/chunks-node.js');
@@ -18,6 +27,10 @@ const ws = require('./lib/websocket/ws.js');
 module.exports = {
   Metacom,
   MetacomProxy,
+  MetacomRouter,
+  MetacomPeer,
+  ClientRtcBridgeTransport,
+  MetacomRtcBridge,
   MetacomError,
   Server,
   Client,
@@ -35,6 +48,9 @@ module.exports = {
   ClientHttpTransport,
   ServerHttpTransport,
   ClientEventTransport,
+  ClientRtcTransport,
+  RtcConnection,
+  RtcChannelEndpoint,
   ServerEventTransport,
   TRANSPORTS,
   MetaReadable,

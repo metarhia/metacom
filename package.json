@@ -55,6 +55,7 @@
   "scripts": {
     "build": "metarhia-build lib",
     "test": "npm run -s lint && npm run types && node --test",
+    "test:browser": "reslop t -- node --test browser/rtc.integration.js",
     "bench": "node benchmarks/encoders-benchmark.js",
     "types": "tsc -p tsconfig.json",
     "lint": "eslint . && prettier --check \"**/*.{js,jsx,mjs,cjs,ts,tsx,json,md,mdx,yaml,yml}\"",

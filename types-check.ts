@@ -3,12 +3,15 @@ import {
   Client,
   ClientEventTransport,
   ClientHttpTransport,
+  ClientRtcTransport,
   ClientTransport,
   ClientWsTransport,
   Context,
   Metacom,
   MetacomError,
   MetacomProxy,
+  MetacomPeer,
+  MetacomRtcBridge,
   MetaReadable,
   MetaWritable,
   Server,
@@ -29,6 +32,7 @@ import type {
   StreamPacket,
   TransportAdapter,
   TransportCapabilities,
+  RtcSignaling,
 } from './metacom.js';
 
 type Assert<T extends true> = T;
@@ -111,6 +115,8 @@ const _exports: Record<string, unknown> = {
   Metacom,
   MetacomError,
   MetacomProxy,
+  MetacomPeer,
+  MetacomRtcBridge,
   MetaReadable,
   MetaWritable,
   Server,
@@ -130,6 +136,21 @@ async function _usage(): Promise<void> {
   await server.listen();
 
   const metacom = await Metacom.connect('ws://localhost:8000');
+  const rtc = new ClientRtcTransport('peer');
+  await rtc.open({
+    rtc: {
+      localId: 'caller',
+      peerId: 'host',
+      role: 'offerer',
+      signaling: {
+        send() {},
+        subscribe() {
+          return () => {};
+        },
+      },
+    },
+  });
+  rtc.close();
   const uploader: BlobUploader = metacom.createBlobUploader(new Blob(['test']));
   await uploader.upload();
   await metacom.load('system');
@@ -137,3 +158,37 @@ async function _usage(): Promise<void> {
 }
 
 void _usage;
+
+async function _rtcExamples(worker: ServiceWorker, signaling: RtcSignaling) {
+  const host = new MetacomPeer({
+    rtc: {
+      localId: 'host',
+      peerId: 'caller',
+      role: 'answerer',
+      signaling,
+    },
+  });
+  host.register('demo', {
+    echo: (args, context) => {
+      context.emit('demo/changed', args);
+      return args;
+    },
+    download: ({ id }, context) => {
+      const stream = context.createStream('bytes', 1, id);
+      stream.write(new Uint8Array([7]));
+      stream.end();
+    },
+  });
+  await host.open();
+  const bridge = MetacomRtcBridge.attach(worker, {
+    localId: 'caller',
+    peerId: 'host',
+    role: 'offerer',
+    signaling,
+  });
+  await bridge.ready;
+  bridge.close();
+  host.close();
+}
+
+void _rtcExamples;

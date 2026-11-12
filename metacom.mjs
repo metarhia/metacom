@@ -1,5 +1,502 @@
 import { Emitter, generateUUID, delay, jsonParse, split } from './metautil.js';
 
+// rtc.js
+
+const RTC_PROTOCOL = 'metacom:rtc';
+const RTC_VERSION = 1;
+const RTC_TIMEOUT_MS = 10000;
+const RTC_MAX_CANDIDATES = 256;
+
+// One negotiation generation owns all its listeners and asynchronous work.
+class RtcConnection extends Emitter {
+  #attempt = null;
+  #retired = new Set();
+
+  get peerConnection() {
+    return this.#attempt?.pc ?? null;
+  }
+
+  open(options) {
+    if (this.#attempt) return this.#attempt.promise;
+    const { RTCPeerConnection: PeerConnection } = globalThis;
+    if (!PeerConnection) {
+      return Promise.reject(new Error('WebRTC is unavailable in this context'));
+    }
+    const { localId, peerId, role, signaling } = options ?? {};
+    const validRole = role === 'offerer' || role === 'answerer';
+    if (!localId || !peerId || localId === peerId || !validRole) {
+      return Promise.reject(new TypeError('Invalid RTC peer identity or role'));
+    }
+    if (!signaling?.send || !signaling?.subscribe) {
+      return Promise.reject(new TypeError('RTC signaling adapter is required'));
+    }
+    const pc = new PeerConnection(options.configuration);
+    const attempt = {
+      pc,
+      options,
+      channel: null,
+      listeners: [],
+      candidates: [],
+      generation: role === 'offerer' ? generateUUID() : null,
+      remote: false,
+      description: false,
+      ready: false,
+      unsubscribe: null,
+      timer: null,
+      serial: Promise.resolve(),
+    };
+    attempt.promise = new Promise((resolve, reject) => {
+      attempt.resolve = resolve;
+      attempt.reject = reject;
+    });
+    this.#attempt = attempt;
+    const fail = (error) => this.#finish(attempt, error);
+    const listen = (target, name, handler) => {
+      target.addEventListener(name, handler);
+      attempt.listeners.push(() => target.removeEventListener(name, handler));
+    };
+    attempt.listen = listen;
+    listen(pc, 'icecandidate', ({ candidate }) => {
+      if (!candidate || !attempt.generation) return;
+      const value = candidate.toJSON ? candidate.toJSON() : candidate;
+      this.#send(attempt, { candidate: value }).catch(fail);
+    });
+    const onState = () => {
+      const states = [pc.connectionState, pc.iceConnectionState];
+      if (states.includes('failed') || states.includes('closed')) {
+        fail(new Error('RTC connection failed'));
+      }
+    };
+    listen(pc, 'connectionstatechange', onState);
+    listen(pc, 'iceconnectionstatechange', onState);
+    listen(pc, 'datachannel', ({ channel }) => {
+      if (role !== 'answerer' || attempt.channel) {
+        channel.close();
+        return void fail(new Error('Unexpected RTC data channel'));
+      }
+      this.#channel(attempt, channel);
+    });
+    try {
+      attempt.unsubscribe = signaling.subscribe((message) => {
+        attempt.serial = attempt.serial
+          .then(() => this.#receive(attempt, message))
+          .catch(fail);
+      });
+      if (typeof attempt.unsubscribe !== 'function') {
+        throw new TypeError(
+          'RTC subscribe must return an unsubscribe function',
+        );
+      }
+      attempt.timer = setTimeout(() => {
+        fail(new Error('RTC handshake timeout'));
+      }, options.handshakeTimeout ?? RTC_TIMEOUT_MS);
+      if (role === 'offerer') {
+        this.#channel(
+          attempt,
+          pc.createDataChannel('metacom', { ordered: true }),
+        );
+        this.#offer(attempt).catch(fail);
+      }
+    } catch (error) {
+      fail(error);
+    }
+    return attempt.promise;
+  }
+
+  async #send(attempt, body) {
+    if (this.#attempt !== attempt) return;
+    const { localId: source, peerId: target, signaling } = attempt.options;
+    const generation = attempt.generation;
+    const protocol = RTC_PROTOCOL;
+    const version = RTC_VERSION;
+    const payload = body.description
+      ? {
+          description: {
+            type: body.description.type,
+            sdp: body.description.sdp,
+          },
+        }
+      : body;
+    await signaling.send({
+      protocol,
+      version,
+      source,
+      target,
+      generation,
+      ...payload,
+    });
+  }
+
+  async #offer(attempt) {
+    const description = await attempt.pc.createOffer();
+    if (this.#attempt !== attempt) return;
+    await attempt.pc.setLocalDescription(description);
+    await this.#send(attempt, { description: attempt.pc.localDescription });
+  }
+
+  async #receive(attempt, message) {
+    if (this.#attempt !== attempt || !message) return;
+    const { protocol, version, source, target, generation } = message;
+    const { localId, peerId, role } = attempt.options;
+    if (protocol !== RTC_PROTOCOL || source !== peerId || target !== localId) {
+      return;
+    }
+    if (
+      version !== RTC_VERSION ||
+      typeof generation !== 'string' ||
+      !generation
+    ) {
+      throw new Error('Invalid RTC signaling envelope');
+    }
+    if (this.#retired.has(generation)) return;
+    if (attempt.generation && attempt.generation !== generation) return;
+    const { description, candidate } = message;
+    if (!!description === (candidate !== undefined)) {
+      throw new Error('Invalid RTC signaling payload');
+    }
+    if (description) {
+      const type = role === 'answerer' ? 'offer' : 'answer';
+      if (description.type !== type || typeof description.sdp !== 'string') {
+        throw new Error('Invalid RTC description');
+      }
+      if (attempt.description) return;
+      attempt.description = true;
+      attempt.generation = generation;
+      await attempt.pc.setRemoteDescription(description);
+      if (this.#attempt !== attempt) return;
+      attempt.remote = true;
+      for (const item of attempt.candidates) {
+        await attempt.pc.addIceCandidate(item);
+      }
+      attempt.candidates = [];
+      if (role === 'answerer') {
+        const answer = await attempt.pc.createAnswer();
+        if (this.#attempt !== attempt) return;
+        await attempt.pc.setLocalDescription(answer);
+        await this.#send(attempt, { description: attempt.pc.localDescription });
+      }
+      return;
+    }
+    if (!candidate || typeof candidate.candidate !== 'string') {
+      throw new Error('Invalid RTC ICE candidate');
+    }
+    if (!attempt.generation) attempt.generation = generation;
+    if (attempt.remote) {
+      await attempt.pc.addIceCandidate(candidate);
+    } else {
+      if (attempt.candidates.length >= RTC_MAX_CANDIDATES) {
+        throw new Error('RTC ICE candidate limit exceeded');
+      }
+      attempt.candidates.push(candidate);
+    }
+  }
+
+  #channel(attempt, channel) {
+    const unreliable =
+      channel.maxRetransmits !== null ||
+      channel.maxPacketLifeTime !== null ||
+      !channel.ordered;
+    if (unreliable || channel.label !== 'metacom') {
+      channel.close();
+      return void this.#finish(
+        attempt,
+        new Error('Reliable ordered RTC channel required'),
+      );
+    }
+    attempt.channel = channel;
+    channel.binaryType = 'arraybuffer';
+    const ready = () => {
+      if (this.#attempt !== attempt || attempt.ready) return;
+      attempt.ready = true;
+      clearTimeout(attempt.timer);
+      attempt.resolve(channel);
+    };
+    attempt.listen(channel, 'open', ready);
+    attempt.listen(channel, 'close', () => {
+      this.#finish(attempt, new Error('RTC channel closed'));
+    });
+    attempt.listen(channel, 'error', () => {
+      this.#finish(attempt, new Error('RTC channel error'));
+    });
+    if (channel.readyState === 'open') ready();
+  }
+
+  #finish(attempt, error) {
+    if (this.#attempt !== attempt) return;
+    this.#attempt = null;
+    clearTimeout(attempt.timer);
+    for (const remove of attempt.listeners) remove();
+    if (typeof attempt.unsubscribe === 'function') attempt.unsubscribe();
+    if (attempt.generation) {
+      this.#retired.add(attempt.generation);
+      if (this.#retired.size > 256) {
+        this.#retired.delete(this.#retired.values().next().value);
+      }
+    }
+    attempt.candidates = [];
+    attempt.channel?.close();
+    attempt.pc.close();
+    if (!attempt.ready) attempt.reject(error);
+    this.emit('close', error);
+  }
+
+  close() {
+    if (this.#attempt) {
+      this.#finish(this.#attempt, new Error('RTC connection closed'));
+    }
+  }
+}
+
+// rtc-channel.js
+
+const RTC_HEADER_BYTES = 16;
+const RTC_FRAME_BYTES = 16384;
+const RTC_MESSAGE_BYTES = 16 * 1024 * 1024;
+const RTC_QUEUE_BYTES = 32 * 1024 * 1024;
+const RTC_HIGH_WATER_BYTES = 256 * 1024;
+const RTC_FRAGMENT_LIMIT = 4096;
+const RTC_ENCODER = new TextEncoder();
+const RTC_DECODER = new TextDecoder('utf-8', { fatal: true });
+
+const rtcBytes = (data) => {
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  }
+  throw new TypeError('RTC data must be text or binary');
+};
+
+const rtcPositive = (value, name) => {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`Invalid RTC ${name}`);
+  }
+  return value;
+};
+
+// Binary envelopes preserve message boundaries across fragmentation.
+class RtcChannelEndpoint extends Emitter {
+  #channel;
+  #options;
+  #queue = [];
+  #bytes = 0;
+  #sequence = 0;
+  #received = 0;
+  #assembly = null;
+  #waiters = [];
+  #listeners = [];
+  closed = false;
+
+  constructor(channel, options = {}) {
+    super();
+    const messageBytes = options.maxMessageBytes ?? RTC_MESSAGE_BYTES;
+    const queueBytes = options.maxQueueBytes ?? RTC_QUEUE_BYTES;
+    const highWater = options.highWaterBytes ?? RTC_HIGH_WATER_BYTES;
+    const fragments = options.maxFragments ?? RTC_FRAGMENT_LIMIT;
+    const timeout = options.assemblyTimeout ?? 10000;
+    const negotiated = options.maxMessageSize || RTC_FRAME_BYTES;
+    const frameBytes = Math.min(negotiated, RTC_FRAME_BYTES);
+    for (const [name, value] of Object.entries({
+      messageBytes,
+      queueBytes,
+      highWater,
+      fragments,
+      timeout,
+      frameBytes,
+    })) {
+      rtcPositive(value, name);
+    }
+    if (frameBytes <= RTC_HEADER_BYTES || frameBytes > highWater) {
+      throw new RangeError('RTC frame size exceeds buffer or header limit');
+    }
+    this.#channel = channel;
+    this.#options = {
+      messageBytes,
+      queueBytes,
+      highWater,
+      fragments,
+      timeout,
+      frameBytes,
+    };
+    channel.binaryType = 'arraybuffer';
+    channel.bufferedAmountLowThreshold = Math.min(
+      Math.floor(highWater / 2),
+      highWater - frameBytes,
+    );
+    const listen = (name, listener) => {
+      channel.addEventListener(name, listener);
+      this.#listeners.push(() => channel.removeEventListener(name, listener));
+    };
+    listen('bufferedamountlow', () => this.#flush());
+    listen('close', () => this.close(new Error('RTC channel closed')));
+    listen('error', () => this.close(new Error('RTC channel error')));
+    listen('message', ({ data }) => {
+      try {
+        this.#receive(data);
+      } catch (error) {
+        this.close(error);
+      }
+    });
+  }
+
+  write(data) {
+    if (this.closed || this.#channel.readyState !== 'open') {
+      throw new Error('RTC channel is not connected');
+    }
+    const isText = typeof data === 'string';
+    const payload = isText ? RTC_ENCODER.encode(data) : rtcBytes(data);
+    const { messageBytes, fragments, frameBytes, queueBytes } = this.#options;
+    const capacity = frameBytes - RTC_HEADER_BYTES;
+    const count = Math.max(1, Math.ceil(payload.length / capacity));
+    const size = payload.length + count * RTC_HEADER_BYTES;
+    if (payload.length > messageBytes || count > fragments) {
+      throw new RangeError('RTC message limit exceeded');
+    }
+    if (this.#bytes + size > queueBytes) {
+      throw new RangeError('RTC send queue overflow');
+    }
+    this.#sequence = (this.#sequence % 0xffffffff) + 1;
+    const id = this.#sequence;
+    for (let index = 0; index < count; index++) {
+      const offset = index * capacity;
+      const part = payload.subarray(offset, offset + capacity);
+      const frame = new Uint8Array(RTC_HEADER_BYTES + part.length);
+      const header = new DataView(frame.buffer);
+      frame.set([0x4d, 0x43, 1, isText ? 0 : 1]);
+      header.setUint32(4, id);
+      header.setUint32(8, payload.length);
+      header.setUint32(12, offset);
+      frame.set(part, RTC_HEADER_BYTES);
+      this.#queue.push(frame);
+    }
+    this.#bytes += size;
+    this.#flush();
+    if (this.closed) throw new Error('RTC send failed');
+    return this.#writable();
+  }
+
+  #writable() {
+    return (
+      this.#queue.length === 0 &&
+      this.#channel.bufferedAmount < this.#options.highWater
+    );
+  }
+
+  #flush() {
+    if (this.closed) return;
+    const { highWater } = this.#options;
+    try {
+      while (this.#queue.length) {
+        const frame = this.#queue[0];
+        if (this.#channel.bufferedAmount + frame.length > highWater) break;
+        this.#channel.send(frame);
+        this.#queue.shift();
+        this.#bytes -= frame.length;
+      }
+    } catch (error) {
+      return void this.close(error);
+    }
+    if (this.#writable()) this.#settle();
+  }
+
+  drain() {
+    if (this.closed || this.#writable()) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.#waiters.push(resolve);
+    });
+  }
+
+  #settle() {
+    for (const resolve of this.#waiters) resolve();
+    this.#waiters = [];
+  }
+
+  #receive(data) {
+    if (this.closed) return;
+    const frame = rtcBytes(data);
+    const { messageBytes, fragments, frameBytes, timeout } = this.#options;
+    if (
+      frame.length < RTC_HEADER_BYTES ||
+      frame.length > frameBytes ||
+      frame[0] !== 0x4d ||
+      frame[1] !== 0x43 ||
+      frame[2] !== 1 ||
+      frame[3] > 1
+    ) {
+      throw new Error('Invalid RTC frame');
+    }
+    const header = new DataView(
+      frame.buffer,
+      frame.byteOffset,
+      RTC_HEADER_BYTES,
+    );
+    const id = header.getUint32(4);
+    const length = header.getUint32(8);
+    const offset = header.getUint32(12);
+    const payload = frame.subarray(RTC_HEADER_BYTES);
+    if (
+      !id ||
+      length > messageBytes ||
+      payload.length + offset > length ||
+      (length > 0 && payload.length === 0)
+    ) {
+      throw new Error('Invalid RTC fragment size');
+    }
+    let assembly = this.#assembly;
+    if (!assembly) {
+      const expected = (this.#received % 0xffffffff) + 1;
+      if (offset !== 0 || id !== expected) {
+        throw new Error('Invalid RTC message order');
+      }
+      const timer = setTimeout(
+        () => this.close(new Error('RTC assembly timeout')),
+        timeout,
+      );
+      assembly = {
+        id,
+        length,
+        type: frame[3],
+        data: new Uint8Array(length),
+        offset: 0,
+        count: 0,
+        timer,
+      };
+      this.#assembly = assembly;
+    }
+    if (
+      assembly.id !== id ||
+      assembly.length !== length ||
+      assembly.type !== frame[3] ||
+      assembly.offset !== offset ||
+      ++assembly.count > fragments
+    ) {
+      throw new Error('Invalid RTC fragment order');
+    }
+    assembly.data.set(payload, offset);
+    assembly.offset += payload.length;
+    if (assembly.offset !== length) return;
+    clearTimeout(assembly.timer);
+    this.#assembly = null;
+    this.#received = id;
+    const result =
+      assembly.type === 0 ? RTC_DECODER.decode(assembly.data) : assembly.data;
+    this.emit('message', result);
+  }
+
+  close(error = null) {
+    if (this.closed) return;
+    this.closed = true;
+    for (const remove of this.#listeners) remove();
+    this.#listeners = [];
+    if (this.#assembly) clearTimeout(this.#assembly.timer);
+    this.#assembly = null;
+    this.#queue = [];
+    this.#bytes = 0;
+    this.#settle();
+    this.#channel.close();
+    this.emit('close', error);
+  }
+}
+
 // client.js
 
 const { WebSocket } = globalThis;
@@ -56,17 +553,27 @@ class ClientWsTransport extends ClientTransport {
       const socket = new WebSocket(this.url);
       socket.binaryType = 'arraybuffer';
       this.#socket = socket;
-      // Error is always followed by close, listening to both emits twice
-      const onClose = (event) => {
+      const rejectOpen = () => {
+        if (!this.#opening) return;
+        this.#opening = null;
         this.#socket = null;
-        if (this.#opening) {
-          this.#opening = null;
-          return void reject(new Error('Connection closed'));
-        }
+        reject(new Error('Connection closed'));
+        // Node.js 22 reports a refused handshake with error and no close.
+        // close() in that turn re-enters and overflows the stack.
+        if (socket.readyState !== WebSocket.CONNECTING) return;
+        queueMicrotask(() => {
+          if (socket.readyState === WebSocket.CONNECTING) socket.close();
+        });
+      };
+      const onClose = (event) => {
+        if (this.#opening) return void rejectOpen();
+        this.#socket = null;
+        if (!this.active) return;
         this.active = false;
         this.emit('close', event);
       };
       const onOpen = () => {
+        if (!this.#opening) return;
         this.active = true;
         this.emit('open');
         this.#opening = null;
@@ -74,6 +581,7 @@ class ClientWsTransport extends ClientTransport {
       };
       socket.addEventListener('open', onOpen, { once: true });
       socket.addEventListener('close', onClose, { once: true });
+      socket.addEventListener('error', rejectOpen, { once: true });
       socket.addEventListener('message', ({ data }) => {
         this.emit('message', data);
       });
@@ -146,6 +654,81 @@ class ClientHttpTransport extends ClientTransport {
     const id = request?.id ?? '';
     const packet = { type: 'callback', id, error };
     this.emit('message', JSON.stringify(packet));
+  }
+}
+
+class ClientRtcTransport extends ClientTransport {
+  static capabilities = { duplex: true, streams: true, events: true };
+  #connection = new RtcConnection();
+  #endpoint = null;
+  #opening = null;
+  #cycle = 0;
+
+  constructor(url) {
+    super(url);
+    this.#connection.on('close', (error) => this.#release(error));
+  }
+
+  open(options = {}) {
+    if (this.active) return Promise.resolve();
+    if (this.#opening) return this.#opening;
+    const cycle = ++this.#cycle;
+    this.#opening = this.#connection
+      .open(options.rtc)
+      .then((channel) => {
+        if (cycle !== this.#cycle) throw new Error('RTC connection closed');
+        const maxMessageSize =
+          this.#connection.peerConnection.sctp?.maxMessageSize;
+        const endpoint = new RtcChannelEndpoint(channel, {
+          ...options.rtc,
+          maxMessageSize,
+        });
+        this.#endpoint = endpoint;
+        endpoint.on('message', (data) => this.emit('message', data));
+        endpoint.on('close', (error) => {
+          this.#release(error);
+          this.#connection.close();
+        });
+        this.active = true;
+        this.emit('open');
+      })
+      .catch((error) => {
+        this.#connection.close();
+        throw error;
+      })
+      .finally(() => {
+        if (cycle === this.#cycle) this.#opening = null;
+      });
+    return this.#opening;
+  }
+
+  #release(error) {
+    if (!this.active && !this.#opening) return;
+    this.#cycle++;
+    this.#opening = null;
+    this.active = false;
+    const endpoint = this.#endpoint;
+    this.#endpoint = null;
+    endpoint?.close();
+    this.emit('close', error);
+  }
+
+  close() {
+    this.#connection.close();
+    this.#release();
+  }
+
+  write(data) {
+    if (!this.active) throw new Error('RTC transport is not connected');
+    return this.#endpoint.write(data);
+  }
+
+  drain() {
+    return this.#endpoint?.drain() ?? Promise.resolve();
+  }
+
+  announce(id) {
+    this.send({ type: 'metacom:stream', id });
   }
 }
 
@@ -372,7 +955,513 @@ const TRANSPORTS = {
   ws: ClientWsTransport,
   http: ClientHttpTransport,
   event: ClientEventTransport,
+  webrtc: ClientRtcTransport,
 };
+
+// rtc-bridge.js
+
+const RTC_BRIDGE_PROTOCOL = 'metacom:rtc-bridge';
+const RTC_BRIDGE_MAX_BYTES = 16 * 1024 * 1024;
+const RTC_BRIDGE_QUEUE_BYTES = 32 * 1024 * 1024;
+const RTC_BRIDGE_ENCODER = new TextEncoder();
+
+const rtcBridgeSize = (data) => {
+  if (typeof data === 'string') return RTC_BRIDGE_ENCODER.encode(data).length;
+  if (ArrayBuffer.isView(data)) return data.byteLength;
+  throw new TypeError('Invalid RTC bridge packet');
+};
+
+// One credit per direction: ACK follows delivery and downstream drain.
+class RtcBridgeLink extends Emitter {
+  #port;
+  #generation;
+  #deliver;
+  #listener;
+  #queue = [];
+  #bytes = 0;
+  #sequence = 0;
+  #received = 0;
+  #inflight = null;
+  #receiving = false;
+  #waiters = [];
+  closed = false;
+
+  constructor(port, generation, deliver) {
+    super();
+    this.#port = port;
+    this.#generation = generation;
+    this.#deliver = deliver;
+    this.#listener = ({ data }) => {
+      if (
+        data?.protocol !== RTC_BRIDGE_PROTOCOL ||
+        data.generation !== generation
+      ) {
+        return;
+      }
+      this.#receive(data).catch((error) => this.close(error));
+    };
+    port.addEventListener('message', this.#listener);
+    port.start();
+  }
+
+  post(kind, body = {}) {
+    if (this.closed) return;
+    this.#port.postMessage({
+      protocol: RTC_BRIDGE_PROTOCOL,
+      version: 1,
+      generation: this.#generation,
+      kind,
+      ...body,
+    });
+  }
+
+  write(packet) {
+    if (this.closed) throw new Error('RTC bridge closed');
+    const bytes = rtcBridgeSize(packet);
+    if (
+      bytes > RTC_BRIDGE_MAX_BYTES ||
+      this.#bytes + bytes > RTC_BRIDGE_QUEUE_BYTES ||
+      this.#queue.length >= 1024
+    ) {
+      throw new RangeError('RTC bridge queue limit exceeded');
+    }
+    const copy =
+      typeof packet === 'string'
+        ? packet
+        : new Uint8Array(
+            packet.buffer,
+            packet.byteOffset,
+            packet.byteLength,
+          ).slice();
+    this.#queue.push({ packet: copy, bytes });
+    this.#bytes += bytes;
+    this.#flush();
+    return false;
+  }
+
+  #flush() {
+    if (this.closed || this.#inflight) return;
+    const next = this.#queue.shift();
+    if (!next) {
+      for (const resolve of this.#waiters) resolve();
+      this.#waiters = [];
+      return;
+    }
+    this.#inflight = { ...next, sequence: ++this.#sequence };
+    this.post('data', { packet: next.packet, sequence: this.#sequence });
+  }
+
+  async #receive(data) {
+    if (this.closed) return;
+    if (data.version !== 1) throw new Error('RTC bridge version mismatch');
+    if (data.kind === 'close') {
+      return void this.close(
+        new Error(data.message ?? 'RTC bridge closed'),
+        false,
+      );
+    }
+    if (data.kind === 'ack') {
+      if (data.sequence !== this.#inflight?.sequence) {
+        throw new Error('Invalid RTC bridge ACK');
+      }
+      this.#bytes -= this.#inflight.bytes;
+      this.#inflight = null;
+      this.#flush();
+    } else if (data.kind === 'data') {
+      if (
+        this.#receiving ||
+        data.sequence !== this.#received + 1 ||
+        rtcBridgeSize(data.packet) > RTC_BRIDGE_MAX_BYTES
+      ) {
+        throw new Error('Invalid RTC bridge credit or packet');
+      }
+      this.#receiving = true;
+      await this.#deliver(data.packet);
+      this.#receiving = false;
+      this.#received = data.sequence;
+      this.post('ack', { sequence: data.sequence });
+    }
+  }
+
+  drain() {
+    if (this.closed || (!this.#inflight && !this.#queue.length)) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.#waiters.push(resolve);
+    });
+  }
+
+  close(error = null, notify = true) {
+    if (this.closed) return;
+    if (notify) this.post('close', { message: error?.message });
+    this.closed = true;
+    this.#port.removeEventListener('message', this.#listener);
+    this.#port.close();
+    this.#queue = [];
+    this.#inflight = null;
+    this.#bytes = 0;
+    for (const resolve of this.#waiters) resolve();
+    this.#waiters = [];
+    this.emit('close', error);
+  }
+}
+
+class ClientRtcBridgeTransport extends ClientTransport {
+  static capabilities = { duplex: true, streams: true, events: true };
+  #instance = generateUUID();
+  #scope = null;
+  #listener = null;
+  #options = null;
+  #link = null;
+  #opening = null;
+  #pending = null;
+  #generation = null;
+  #retired = new Set();
+  #timer = null;
+  #heartbeat = null;
+  #lastPing = 0;
+  #epoch = 0;
+
+  open(options = {}) {
+    if (this.active) return Promise.resolve();
+    if (this.#opening) return this.#opening;
+    const scope = globalThis.self;
+    if (
+      !scope?.clients ||
+      !scope.location ||
+      typeof options.bridge?.authorize !== 'function'
+    ) {
+      return Promise.reject(
+        new Error(
+          'RTC bridge requires a worker and explicit client authorization',
+        ),
+      );
+    }
+    this.#options = options.bridge;
+    this.#scope = scope;
+    if (!this.#listener) {
+      this.#listener = (event) => {
+        this.#control(event).catch((error) => {
+          const port = event.ports?.[0];
+          port?.postMessage({
+            protocol: RTC_BRIDGE_PROTOCOL,
+            version: 1,
+            generation: event.data?.generation,
+            kind: 'error',
+            message: error.message,
+          });
+          port?.close();
+        });
+      };
+      scope.addEventListener('message', this.#listener);
+    }
+    this.#opening = new Promise((resolve, reject) => {
+      this.#pending = { resolve, reject };
+    });
+    this.#timer = setTimeout(
+      () => this.#release(new Error('RTC bridge handshake timeout')),
+      options.bridge.handshakeTimeout ?? 15000,
+    );
+    return this.#opening;
+  }
+
+  async #control(event) {
+    const data = event.data;
+    if (data?.protocol !== RTC_BRIDGE_PROTOCOL) return;
+    const { generation } = data;
+    if (data.kind === 'ping') {
+      if (generation === this.#generation && this.#link) {
+        this.#lastPing = Date.now();
+        this.#link.post('pong', { instance: this.#instance });
+      } else {
+        event.source?.postMessage({
+          type: 'metacom:rtc-bridge:reset',
+          generation,
+        });
+      }
+      return;
+    }
+    if (data.kind !== 'attach') return;
+    const port = event.ports?.[0];
+    if (!port) return;
+    const epoch = this.#epoch;
+    const source = event.source;
+    const expectedOrigin = this.#scope.location.origin;
+    const clients = await this.#scope.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: false,
+    });
+    const controlled = clients.some((client) => client.id === source?.id);
+    const wrongOrigin = event.origin && event.origin !== expectedOrigin;
+    if (
+      data.version !== 1 ||
+      typeof generation !== 'string' ||
+      !generation ||
+      this.#retired.has(generation) ||
+      data.peerId !== this.#options.peerId ||
+      !controlled ||
+      new URL(source.url).origin !== expectedOrigin ||
+      wrongOrigin
+    ) {
+      throw new Error('RTC bridge attachment rejected');
+    }
+    const authorized = await this.#options.authorize(source, data);
+    if (!authorized) throw new Error('RTC bridge attachment rejected');
+    if (epoch !== this.#epoch || !this.#listener) return void port.close();
+    if (this.#link) throw new Error('RTC bridge owner already attached');
+    this.#generation = generation;
+    const link = new RtcBridgeLink(port, generation, (packet) => {
+      this.emit('message', packet);
+    });
+    this.#link = link;
+    link.on('close', (error) => this.#release(error));
+    const handshake = ({ data: message }) => {
+      if (
+        message?.protocol !== RTC_BRIDGE_PROTOCOL ||
+        message.generation !== generation ||
+        message.kind !== 'ready'
+      ) {
+        return;
+      }
+      port.removeEventListener('message', handshake);
+      if (
+        message.version !== 1 ||
+        message.instance !== this.#instance ||
+        message.peerId !== this.#options.peerId
+      ) {
+        return void this.#release(
+          new Error('Invalid RTC bridge ready message'),
+        );
+      }
+      clearTimeout(this.#timer);
+      this.#timer = null;
+      this.active = true;
+      this.#lastPing = Date.now();
+      this.#heartbeat = setInterval(() => {
+        if (Date.now() - this.#lastPing > (this.#options.pongTimeout ?? 5000)) {
+          this.#release(new Error('RTC bridge owner heartbeat timeout'));
+        }
+      }, this.#options.pingInterval ?? 1000);
+      this.#heartbeat.unref?.();
+      link.post('ready-ack', { instance: this.#instance });
+      this.#pending?.resolve();
+      this.#pending = null;
+      this.#opening = null;
+      this.emit('open');
+    };
+    port.addEventListener('message', handshake);
+    link.post('accepted', {
+      instance: this.#instance,
+      peerId: this.#options.peerId,
+    });
+  }
+
+  #release(error = new Error('RTC bridge closed')) {
+    this.#epoch++;
+    const wasOpen = this.active || this.#pending !== null;
+    this.active = false;
+    clearTimeout(this.#timer);
+    clearInterval(this.#heartbeat);
+    const link = this.#link;
+    this.#link = null;
+    if (this.#generation) this.#retired.add(this.#generation);
+    if (this.#retired.size > 256) {
+      this.#retired.delete(this.#retired.values().next().value);
+    }
+    this.#generation = null;
+    this.#pending?.reject(error);
+    this.#pending = null;
+    this.#opening = null;
+    link?.close(error);
+    if (wasOpen) this.emit('close', error);
+  }
+
+  close() {
+    this.#epoch++;
+    this.#scope?.removeEventListener('message', this.#listener);
+    this.#listener = null;
+    this.#release();
+  }
+
+  write(data) {
+    if (!this.active) throw new Error('RTC bridge is not connected');
+    return this.#link.write(data);
+  }
+
+  drain() {
+    return this.#link?.drain() ?? Promise.resolve();
+  }
+  announce(id) {
+    this.send({ type: 'metacom:stream', id });
+  }
+}
+
+class MetacomRtcBridge {
+  static attach(worker, rtcOptions) {
+    return new MetacomRtcBridge(worker, rtcOptions);
+  }
+
+  #worker;
+  #rtc;
+  #port;
+  #link = null;
+  #transport = new ClientRtcTransport('rtc-bridge-owner');
+  #generation = generateUUID();
+  #instance = null;
+  #resolve;
+  #reject;
+  #timer;
+  #heartbeat = null;
+  #lastPong = Date.now();
+  #container;
+  #onReset;
+  #onController;
+  #onPageHide;
+  #onPort;
+  closed = false;
+
+  constructor(worker, rtcOptions) {
+    this.#worker = worker;
+    this.#rtc = rtcOptions;
+    this.ready = new Promise((resolve, reject) => {
+      this.#resolve = resolve;
+      this.#reject = reject;
+    });
+    this.ready.catch(() => {});
+    const { port1, port2 } = new MessageChannel();
+    this.#port = port1;
+    this.#onPort = ({ data }) => {
+      if (
+        data?.protocol !== RTC_BRIDGE_PROTOCOL ||
+        data.generation !== this.#generation
+      ) {
+        return;
+      }
+      this.#receive(data).catch((error) => this.close(error));
+    };
+    port1.addEventListener('message', this.#onPort);
+    port1.start();
+    this.#container = globalThis.navigator?.serviceWorker;
+    this.#onReset = ({ data }) => {
+      if (
+        data?.type === 'metacom:rtc-bridge:reset' &&
+        data.generation === this.#generation
+      ) {
+        this.close(new Error('RTC bridge worker restarted'));
+      }
+    };
+    this.#onController = () => {
+      const controller = this.#container.controller;
+      if (controller && controller !== worker) {
+        this.close(new Error('RTC bridge controller replaced'));
+      }
+    };
+    this.#onPageHide = () => this.close();
+    this.#container?.addEventListener('message', this.#onReset);
+    this.#container?.addEventListener('controllerchange', this.#onController);
+    globalThis.window?.addEventListener('pagehide', this.#onPageHide);
+    this.#timer = setTimeout(
+      () => this.close(new Error('RTC bridge handshake timeout')),
+      rtcOptions.handshakeTimeout ?? 15000,
+    );
+    try {
+      worker.postMessage(
+        {
+          protocol: RTC_BRIDGE_PROTOCOL,
+          version: 1,
+          kind: 'attach',
+          generation: this.#generation,
+          peerId: rtcOptions.peerId,
+          localId: rtcOptions.localId,
+        },
+        [port2],
+      );
+    } catch (error) {
+      this.close(error);
+    }
+  }
+
+  async #receive(data) {
+    if (this.closed) return;
+    if (data.version !== 1) throw new Error('RTC bridge version mismatch');
+    if (data.kind === 'error') throw new Error(data.message);
+    if (data.kind === 'accepted') {
+      if (
+        this.#link ||
+        data.peerId !== this.#rtc.peerId ||
+        typeof data.instance !== 'string'
+      ) {
+        throw new Error('Invalid RTC bridge acceptance');
+      }
+      this.#instance = data.instance;
+      this.#link = new RtcBridgeLink(
+        this.#port,
+        this.#generation,
+        async (packet) => {
+          if (!this.#transport.write(packet)) await this.#transport.drain();
+        },
+      );
+      this.#link.on('close', (error) => this.close(error));
+      this.#transport.on('message', (packet) => this.#link.write(packet));
+      this.#transport.on('close', () =>
+        this.close(new Error('RTC bridge peer disconnected')),
+      );
+      await this.#transport.open({ rtc: this.#rtc });
+      if (this.closed) return;
+      this.#link.post('ready', {
+        instance: this.#instance,
+        peerId: this.#rtc.peerId,
+      });
+    } else if (data.kind === 'ready-ack') {
+      if (data.instance !== this.#instance) {
+        throw new Error('RTC bridge worker changed');
+      }
+      clearTimeout(this.#timer);
+      this.#lastPong = Date.now();
+      this.#resolve();
+      this.#heartbeat = setInterval(() => {
+        if (Date.now() - this.#lastPong > (this.#rtc.pongTimeout ?? 5000)) {
+          return void this.close(
+            new Error('RTC bridge worker heartbeat timeout'),
+          );
+        }
+        this.#worker.postMessage({
+          protocol: RTC_BRIDGE_PROTOCOL,
+          version: 1,
+          kind: 'ping',
+          generation: this.#generation,
+        });
+      }, this.#rtc.pingInterval ?? 1000);
+      this.#heartbeat.unref?.();
+    } else if (data.kind === 'pong') {
+      if (data.instance !== this.#instance) {
+        throw new Error('RTC bridge worker changed');
+      }
+      this.#lastPong = Date.now();
+    }
+  }
+
+  close(error = new Error('RTC bridge owner closed')) {
+    if (this.closed) return;
+    this.closed = true;
+    clearTimeout(this.#timer);
+    clearInterval(this.#heartbeat);
+    this.#container?.removeEventListener('message', this.#onReset);
+    this.#container?.removeEventListener(
+      'controllerchange',
+      this.#onController,
+    );
+    globalThis.window?.removeEventListener('pagehide', this.#onPageHide);
+    this.#port.removeEventListener('message', this.#onPort);
+    this.#link?.close(error);
+    this.#transport.close();
+    this.#port.close();
+    this.#reject(error);
+  }
+}
+
+TRANSPORTS['rtc-bridge'] = ClientRtcBridgeTransport;
 
 // chunks-browser.js
 
@@ -790,6 +1879,13 @@ class Metacom extends Emitter {
     this.#transport.send(data);
   }
 
+  setProxy(proxy) {
+    if (proxy && this.#proxy && this.#proxy !== proxy) {
+      throw new Error('Metacom already has a packet router');
+    }
+    this.#proxy = proxy;
+  }
+
   deliver(data, timeout = this.#callTimeout) {
     const isReady = this.active && !this.#restoring;
     const isDirect = isReady || this.#queueSize === 0;
@@ -1027,19 +2123,13 @@ class Metacom extends Emitter {
 
 Metacom.initialize();
 
-// proxy.js
+// router.js
 
 const ROUTE_TIMEOUT_MS = 7 * 1000;
 const SWEEP_INTERVAL_MS = 10 * 1000;
 const PROXY_QUEUE_SIZE = 1000;
 const BAD_REQUEST = { message: 'Bad Request', code: 400 };
 const UNAVAILABLE = { message: 'Service Unavailable', code: 503 };
-
-const getWorkerUrl = () => {
-  const { protocol, host } = self.location;
-  const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${host}`;
-};
 
 const sendError = (port, id, error) => {
   const packet = { type: 'callback', id, error };
@@ -1071,14 +2161,26 @@ const parseMethod = (method) => {
 class ProxyContext {
   #port = null;
   #ports = null;
+  #streams;
 
-  constructor(server, port, ports) {
+  constructor(server, port, ports, streams) {
     this.server = server;
     this.#port = port;
     this.#ports = ports;
+    this.#streams = streams;
+    this.peerId = ports.get(port).id;
+  }
+
+  getStream(id) {
+    return this.#streams.get(id);
+  }
+
+  createStream(name, size, id) {
+    return this.#streams.create(name, size, id);
   }
 
   emit(name, data) {
+    if (!this.#ports.has(this.#port)) return;
     this.#port.postMessage(encodeEvent(name, data));
   }
 
@@ -1090,8 +2192,10 @@ class ProxyContext {
   }
 }
 
-class MetacomProxy extends Emitter {
+class MetacomRouter extends Emitter {
   #instance = generateUUID();
+  #getClients = null;
+  #localStreams = false;
   #ports = new Map();
   #peers = new Map();
   #calls = new Map();
@@ -1106,36 +2210,39 @@ class MetacomProxy extends Emitter {
   #sweepInterval = SWEEP_INTERVAL_MS;
   #sweepTimer = null;
 
+  get instance() {
+    return this.#instance;
+  }
+
   get server() {
     return this.#server;
   }
 
   get active() {
-    return this.#server.active;
+    return this.#server?.active ?? false;
   }
 
   constructor(options = {}) {
     super();
-    if (typeof self === 'undefined') {
-      throw new Error('MetacomProxy must run in ServiceWorker context');
-    }
     const { callTimeout, sweepInterval } = options;
     if (callTimeout) this.#callTimeout = callTimeout;
     if (sweepInterval) this.#sweepInterval = sweepInterval;
+    this.#localStreams = options.localStreams ?? false;
+    this.#getClients = options.getClients ?? null;
     this.#server = this.#createServer(options);
-    self.addEventListener('message', (event) => {
-      if (event.data) this.#control(event);
-    });
   }
 
   #createServer(options) {
-    const url = options.url ?? getWorkerUrl();
+    const url = options.url;
+    if (!url && !options.upstream) return null;
     const queueSize = options.queueSize ?? PROXY_QUEUE_SIZE;
     const proxy = {
       packet: (packet, data) => this.#route(packet, data),
       binary: (id, data) => this.#routeBinary(id, data),
     };
-    const server = Metacom.create(url, { ...options, proxy, queueSize });
+    const server =
+      options.upstream ?? Metacom.create(url, { ...options, proxy, queueSize });
+    if (options.upstream) server.setProxy(proxy);
     server.on('open', () => this.#notify(true));
     server.on('close', () => {
       this.#abortStreams();
@@ -1146,23 +2253,25 @@ class MetacomProxy extends Emitter {
   }
 
   async open() {
-    if (this.#server.active) return;
+    if (!this.#server) return;
+    if (this.#server?.active) return;
     this.#connecting = !this.#attempted;
     try {
       await this.#server.open();
     } finally {
       this.#connecting = false;
       this.#attempted = true;
-      if (!this.#server.active) this.#describePending();
+      if (!this.#server?.active) this.#describePending();
     }
   }
 
   close() {
+    for (const id of [...this.#peers.keys()]) this.detach(id);
     clearInterval(this.#sweepTimer);
     this.#sweepTimer = null;
     this.#calls.clear();
     this.#streams.clear();
-    this.#server.close();
+    this.#server?.close();
   }
 
   // Local method shadows server method with the same name
@@ -1184,49 +2293,39 @@ class MetacomProxy extends Emitter {
     if (this.listenerCount('error') > 0) this.emit('error', error);
   }
 
-  #control(event) {
-    const { type, id } = event.data;
-    if (type === 'metacom:connect') this.#connect(event);
-    else if (type === 'metacom:ping') this.#pong(id, event.source);
-    else if (type === 'metacom:disconnect') this.#disconnect(id);
-    else if (type === 'metacom:online') Metacom.online();
-    else if (type === 'metacom:offline') Metacom.offline();
+  port(id) {
+    return this.#peers.get(id);
   }
 
-  #connect(event) {
-    const port = event.ports[0];
+  attach(port, options = {}) {
     if (!port) return;
-    const { id = '', callTimeout = this.#callTimeout } = event.data;
-    const client = event.source ? event.source.id : '';
-    this.#disconnect(id);
+    const {
+      id = generateUUID(),
+      client = '',
+      callTimeout = this.#callTimeout,
+    } = options;
+    this.detach(id);
     this.#ports.set(port, { id, client, callTimeout });
     if (id) this.#peers.set(id, port);
     port.addEventListener('message', ({ data }) => {
-      this.#receive(port, data);
+      this.receive(port, data);
     });
     port.start();
     const instance = this.#instance;
-    const connected = this.#server.active;
+    const connected = this.#server?.active;
     port.postMessage({ type: 'metacom:ready', instance, connected });
     this.#startSweep();
     this.emit('connect', id);
     if (!connected) this.open().catch((error) => this.#escalate(error));
   }
 
-  // Unknown tab means the worker was restarted and lost its ports
-  #pong(id, source) {
-    const port = this.#peers.get(id);
-    const instance = this.#instance;
-    if (port) return void port.postMessage({ type: 'metacom:pong', instance });
-    if (source) source.postMessage({ type: 'metacom:reset' });
-  }
-
-  #disconnect(id) {
+  detach(id) {
     const port = this.#peers.get(id);
     if (port) this.#removePort(port);
   }
 
   #removePort(port) {
+    if (!this.#ports.has(port)) return;
     const { id } = this.#ports.get(port);
     this.#ports.delete(port);
     this.#peers.delete(id);
@@ -1238,6 +2337,9 @@ class MetacomProxy extends Emitter {
       const stream = entry[1];
       if (stream.port !== port) continue;
       this.#streams.delete(streamId);
+      if (stream.readable) {
+        stream.readable.terminate().catch((error) => this.#escalate(error));
+      }
       const isUploading = stream.upload && stream.expires === 0;
       if (isUploading) this.#terminateUpload(streamId);
     }
@@ -1246,7 +2348,7 @@ class MetacomProxy extends Emitter {
   }
 
   #terminateUpload(id) {
-    if (!this.#server.active) return;
+    if (!this.#server?.active) return;
     this.#server.send({ type: 'stream', id, status: 'terminate' });
   }
 
@@ -1272,10 +2374,9 @@ class MetacomProxy extends Emitter {
 
   // Closed tab is not listed by the browser, its port gives no signal
   async #sweepClients() {
-    const { clients } = self;
-    if (!clients) return;
-    const query = { includeUncontrolled: true, type: 'all' };
-    const list = await clients.matchAll(query);
+    if (!this.#getClients) return;
+    const list = await this.#getClients();
+    if (!list) return;
     const alive = new Set();
     for (let i = 0; i < list.length; i++) alive.add(list[i].id);
     for (const entry of this.#ports) {
@@ -1297,11 +2398,11 @@ class MetacomProxy extends Emitter {
     for (const port of this.#ports.keys()) port.postMessage(data);
   }
 
-  #receive(port, data) {
+  receive(port, data) {
     const peer = this.#ports.get(port);
     if (!peer) return;
     if (typeof data === 'string') return void this.#receivePacket(port, data);
-    if (ArrayBuffer.isView(data)) return void this.#forwardChunk(data);
+    if (ArrayBuffer.isView(data)) return void this.#forwardChunk(port, data);
     const isAnnounce = data?.type === 'metacom:stream';
     if (isAnnounce) this.#expectStream(port, data.id);
   }
@@ -1334,13 +2435,19 @@ class MetacomProxy extends Emitter {
 
   async #invoke(port, packet, handler) {
     const { id, args } = packet;
-    const context = new ProxyContext(this.#server, port, this.#ports);
+    const streams = {
+      get: (id) => this.getStream(port, id),
+      create: (name, size, id) => this.createStream(port, name, size, id),
+    };
+    const context = new ProxyContext(this.#server, port, this.#ports, streams);
     try {
       const result = await handler(args, context);
-      port.postMessage(encodeCallback(id, result));
+      if (this.#ports.has(port)) port.postMessage(encodeCallback(id, result));
     } catch (error) {
       const code = typeof error.code === 'number' ? error.code : 500;
-      sendError(port, id, { message: error.message, code });
+      if (this.#ports.has(port)) {
+        sendError(port, id, { message: error.message, code });
+      }
     }
   }
 
@@ -1348,7 +2455,7 @@ class MetacomProxy extends Emitter {
   #introspect(port, packet, data) {
     const { id, args } = packet;
     const units = Array.isArray(args) ? args : [];
-    const isReachable = this.#server.active || this.#connecting;
+    const isReachable = this.#server?.active || this.#connecting;
     if (isReachable) return void this.#forwardCall(port, id, data, units);
     this.#sendInterface(port, id, units);
   }
@@ -1395,6 +2502,12 @@ class MetacomProxy extends Emitter {
   }
 
   #forwardCall(port, id, data, units) {
+    if (this.#calls.has(id)) {
+      return void sendError(port, id, {
+        message: 'Duplicate call id',
+        code: 409,
+      });
+    }
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + callTimeout;
     this.#calls.set(id, { port, expires, units });
@@ -1414,7 +2527,12 @@ class MetacomProxy extends Emitter {
   // Finished upload keeps its route for a while to pass server errors
   #forwardStream(port, packet, data) {
     const { id, status } = packet;
-    if (!this.#server.active) {
+    if (this.#localStreams) return void this.#localStream(port, packet, data);
+    const existing = this.#streams.get(id);
+    if (existing && existing.port !== port) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    if (!this.#server?.active) {
       this.#streams.delete(id);
       return void sendError(port, id, UNAVAILABLE);
     }
@@ -1424,13 +2542,130 @@ class MetacomProxy extends Emitter {
     this.#server.write(data);
   }
 
-  #forwardChunk(data) {
-    if (this.#server.active) this.#server.write(data);
+  getStream(port, id) {
+    const stream = this.#streams.get(id);
+    if (!stream || stream.port !== port || !stream.upload || stream.forwarded) {
+      throw new Error('Local stream is not available');
+    }
+    stream.local = true;
+    stream.readable ??= new MetaReadable(
+      id,
+      stream.packet.name,
+      stream.packet.size,
+    );
+    return stream.readable;
+  }
+
+  createStream(port, name, size, id = generateUUID()) {
+    if (!this.#ports.has(port)) throw new Error('Peer disconnected');
+    const existing = this.#streams.get(id);
+    if (existing && (existing.port !== port || existing.upload)) {
+      throw new Error('Stream id already in use');
+    }
+    if (typeof name !== 'string' || !Number.isSafeInteger(size) || size < 0) {
+      throw new TypeError('Invalid stream metadata');
+    }
+    this.#streams.set(id, { port, upload: false, expires: 0 });
+    const transport = {
+      send: (packet) => {
+        if (!this.#ports.has(port)) return;
+        port.postMessage(JSON.stringify(packet));
+        if (packet.status) this.#streams.delete(id);
+      },
+      write: (data) => {
+        if (!this.#ports.has(port)) throw new Error('Peer disconnected');
+        return port.postMessage(data);
+      },
+      drain: () => port.drain?.() ?? Promise.resolve(),
+    };
+    return new MetaWritable(id, name, size, transport);
+  }
+
+  #localStream(port, packet, data) {
+    const { id, name, size, status } = packet;
+    let stream = this.#streams.get(id);
+    if (stream && stream.port !== port) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    if (status === undefined) {
+      if (
+        stream ||
+        typeof name !== 'string' ||
+        !Number.isSafeInteger(size) ||
+        size < 0
+      ) {
+        return void sendError(port, id, BAD_REQUEST);
+      }
+      stream = {
+        port,
+        packet,
+        init: data,
+        upload: true,
+        expires: Date.now() + this.#callTimeout,
+      };
+      this.#streams.set(id, stream);
+      return;
+    }
+    if (!stream?.upload || !['end', 'terminate'].includes(status)) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    if (stream.local || !this.#server) {
+      const readable = this.getStream(port, id);
+      const finishing =
+        status === 'end' ? readable.close() : readable.terminate();
+      finishing.catch((error) => {
+        if (this.#ports.has(port)) {
+          sendError(port, id, { message: error.message, code: 400 });
+        }
+      });
+      this.#streams.delete(id);
+      return;
+    }
+    if (!this.#server.active) return void sendError(port, id, UNAVAILABLE);
+    if (!stream.forwarded) this.#server.write(stream.init);
+    this.#server.write(data);
+    stream.forwarded = true;
+    stream.expires = Date.now() + this.#callTimeout;
+  }
+
+  #localChunk(port, data) {
+    const { id, payload } = chunkDecode(data);
+    const stream = this.#streams.get(id);
+    if (!stream?.upload || stream.port !== port) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    stream.expires = 0;
+    if (stream.local || !this.#server) {
+      const readable = this.getStream(port, id);
+      readable.push(payload).catch((error) => {
+        if (this.#ports.has(port)) {
+          sendError(port, id, { message: error.message, code: 400 });
+        }
+      });
+      return;
+    }
+    if (!this.#server.active) return void sendError(port, id, UNAVAILABLE);
+    if (!stream.forwarded) this.#server.write(stream.init);
+    stream.forwarded = true;
+    this.#server.write(data);
+  }
+
+  #forwardChunk(port, data) {
+    if (this.#localStreams) return void this.#localChunk(port, data);
+    if (!this.#server?.active) return;
+    const { id } = chunkDecode(data);
+    const stream = this.#streams.get(id);
+    if (stream?.port !== port || !stream.upload) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    if (this.#server?.active) this.#server.write(data);
   }
 
   // Tab creates download stream id before the call that fills the stream
   #expectStream(port, id) {
     if (typeof id !== 'string' || id === '') return;
+    const existing = this.#streams.get(id);
+    if (existing && existing.port !== port) return;
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + 2 * callTimeout;
     this.#streams.set(id, { port, expires, upload: false });
@@ -1479,17 +2714,191 @@ class MetacomProxy extends Emitter {
   }
 }
 
+// peer.js
+
+class MetacomPeer extends Emitter {
+  #router;
+  #options;
+  #sessions = new Map();
+  #closed = true;
+
+  constructor(options) {
+    super();
+    this.#options = options;
+    this.#router = new MetacomRouter({ ...options, localStreams: true });
+    this.#router.on('error', (error) => this.#report(error));
+  }
+
+  get active() {
+    for (const session of this.#sessions.values()) {
+      if (session.transport.active) return true;
+    }
+    return false;
+  }
+
+  register(unit, methods) {
+    this.#router.register(unit, methods);
+  }
+
+  broadcast(name, data) {
+    this.#router.broadcast(name, data);
+  }
+
+  open() {
+    if (!this.#closed) return Promise.resolve();
+    const peers = Array.isArray(this.#options.rtc)
+      ? this.#options.rtc
+      : [this.#options.rtc];
+    const ids = new Set();
+    for (const rtc of peers) {
+      if (!rtc || ids.has(rtc.peerId)) {
+        return Promise.reject(new Error('Unique RTC peers required'));
+      }
+      ids.add(rtc.peerId);
+    }
+    this.#closed = false;
+    for (const rtc of peers) {
+      this.#connect(rtc).catch((error) => this.#report(error));
+    }
+    return Promise.resolve();
+  }
+
+  async #connect(rtc) {
+    const transport = new ClientRtcTransport(rtc.peerId);
+    const session = { transport, timer: null, rtc };
+    const messageListeners = new Set();
+    this.#sessions.set(rtc.peerId, session);
+    const port = {
+      postMessage: (data) => {
+        if (typeof data === 'object' && !ArrayBuffer.isView(data)) return true;
+        return transport.write(data);
+      },
+      drain: () => transport.drain(),
+      addEventListener: (name, listener) => {
+        if (name !== 'message') return;
+        const onMessage = (data) => {
+          const packet = typeof data === 'string' ? jsonParse(data) : data;
+          listener({ data: packet?.type === 'metacom:stream' ? packet : data });
+        };
+        messageListeners.add(onMessage);
+        transport.on('message', onMessage);
+      },
+      start: () => {},
+      close: () => {
+        for (const listener of messageListeners) {
+          transport.off('message', listener);
+        }
+        messageListeners.clear();
+        transport.close();
+      },
+    };
+    transport.on('open', () => {
+      this.#router.attach(port, { id: rtc.peerId });
+      this.emit('connect', rtc.peerId);
+    });
+    transport.on('close', () => {
+      this.#router.detach(rtc.peerId);
+      if (this.#closed || session.timer) return;
+      session.timer = setTimeout(() => {
+        session.timer = null;
+        transport.open({ rtc }).catch((error) => this.#report(error));
+      }, this.#options.reconnectTimeout ?? 2000);
+      this.emit('disconnect', rtc.peerId);
+    });
+    await transport.open({ rtc });
+  }
+
+  #report(error) {
+    if (this.listenerCount('error')) this.emit('error', error);
+  }
+
+  close() {
+    if (this.#closed) return;
+    this.#closed = true;
+    for (const { transport, timer } of this.#sessions.values()) {
+      clearTimeout(timer);
+      transport.close();
+    }
+    this.#sessions.clear();
+    this.#router.close();
+  }
+}
+
+// proxy.js
+
+const getWorkerUrl = () => {
+  const { protocol, host } = self.location;
+  const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${scheme}//${host}`;
+};
+
+class MetacomProxy extends MetacomRouter {
+  #scope;
+  #listener;
+
+  constructor(options = {}) {
+    const scope = globalThis.self;
+    if (!scope) {
+      throw new Error('MetacomProxy must run in ServiceWorker context');
+    }
+    const getClients = async () => {
+      if (!scope.clients) return null;
+      return scope.clients.matchAll({ includeUncontrolled: true, type: 'all' });
+    };
+    super({ ...options, url: options.url ?? getWorkerUrl(), getClients });
+    this.#scope = scope;
+    this.#listener = (event) => this.#control(event);
+    scope.addEventListener('message', this.#listener);
+  }
+
+  #control(event) {
+    if (!event.data) return;
+    const { type, id } = event.data;
+    if (type === 'metacom:connect') {
+      this.attach(event.ports[0], {
+        ...event.data,
+        client: event.source?.id ?? '',
+      });
+    } else if (type === 'metacom:ping') {
+      const port = this.port(id);
+      if (port) {
+        port.postMessage({ type: 'metacom:pong', instance: this.instance });
+      } else {
+        event.source?.postMessage({ type: 'metacom:reset' });
+      }
+    } else if (type === 'metacom:disconnect') {
+      this.detach(id);
+    } else if (type === 'metacom:online') {
+      Metacom.online();
+    } else if (type === 'metacom:offline') {
+      Metacom.offline();
+    }
+  }
+
+  close() {
+    this.#scope.removeEventListener?.('message', this.#listener);
+    super.close();
+  }
+}
+
 export {
+  RtcConnection,
+  RtcChannelEndpoint,
   ClientTransport,
   ClientWsTransport,
   ClientHttpTransport,
   ClientEventTransport,
+  ClientRtcTransport,
   TRANSPORTS,
+  ClientRtcBridgeTransport,
+  MetacomRtcBridge,
   chunkEncode,
   chunkDecode,
   MetaReadable,
   MetaWritable,
   Metacom,
   MetacomError,
+  MetacomRouter,
+  MetacomPeer,
   MetacomProxy,
 };
