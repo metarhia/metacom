@@ -155,11 +155,15 @@ export class Metacom extends Emitter {
   api: Record<string, Emitter>;
   readonly active: boolean;
 
-  constructor(url: string, transport: Transport, options?: MetacomOptions);
+  constructor(
+    url: string,
+    transport: ClientTransport,
+    options?: MetacomOptions,
+  );
   open(): Promise<void>;
   close(): void;
   load(...units: Array<string>): Promise<void>;
-  getStream(id: string): MetaReadable | MetaWritable;
+  getStream(id: string): MetaReadable;
   createStream(name: string, size: number): MetaWritable;
   createReadable(): MetaReadable;
   createBlobUploader(blob: Blob): BlobUploader;
@@ -217,6 +221,9 @@ export class ServerTransport extends Emitter {
   source: string;
   constructor(source: string);
   close(): void;
+  getCookies(): Record<string, string>;
+  sendSessionCookie(token: string): void;
+  removeSessionCookie(): void;
   error(code?: number | string, options?: ErrorOptions): void;
   send(obj: object, code?: number): void;
   write(data: string | Buffer, code?: number): void;
@@ -481,6 +488,11 @@ export declare class Frame {
   static pong(payload?: Buffer | string): Frame;
   static emptyClientPingBuffer(): Buffer;
   static emptyClientPongBuffer(): Buffer;
+  static closeBuffer(
+    code?: number | null,
+    reason?: string,
+    isClient?: boolean,
+  ): Buffer;
   static errorClose(type: string, isClient?: boolean): Buffer;
   static protocolErrorClose(type: string, isClient?: boolean): Buffer;
   static isProtocolErrorType(type: string): boolean;
@@ -512,7 +524,7 @@ export declare class Connection extends EventEmitter {
   sendBinary(buffer: Buffer): boolean;
   sendPing(payload?: Buffer | string): boolean;
   sendPong(payload?: Buffer | string): boolean;
-  sendClose(reason?: string, code?: number): boolean;
+  sendClose(reason?: string, code?: number): void;
   terminate(): void;
 
   on(
