@@ -85,7 +85,7 @@ export interface TransportCapabilities {
 }
 
 export interface TransportAdapter {
-  Client: new (url: string) => ClientTransport;
+  Client: typeof ClientTransport;
   Server: (new (...args: unknown[]) => ServerTransport) & {
     capabilities: TransportCapabilities;
   };
@@ -117,6 +117,7 @@ export class ClientTransport extends Emitter {
   url: string;
   active: boolean;
   constructor(url: string);
+  static create(url: string): ClientTransport;
   open(options?: MetacomOptions): Promise<void>;
   close(): void;
   send(obj: object): void;
@@ -140,6 +141,7 @@ export declare const TRANSPORTS: {
   ws: typeof ClientWsTransport;
   http: typeof ClientHttpTransport;
   event: typeof ClientEventTransport;
+  [name: string]: typeof ClientTransport;
 };
 
 export function buildHeaders(
@@ -184,6 +186,7 @@ export interface PacketProxy {
 }
 
 export interface MetacomOptions {
+  transport?: string;
   callTimeout?: number;
   reconnectTimeout?: number;
   queueSize?: number;
