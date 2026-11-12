@@ -4,6 +4,10 @@ const { Metacom, MetacomError } = require('./lib/metacom.js');
 const { MetacomProxy } = require('./lib/proxy.js');
 const { MetacomRouter } = require('./lib/router.js');
 const { MetacomPeer } = require('./lib/peer.js');
+const {
+  ClientRtcBridgeTransport,
+  MetacomRtcBridge,
+} = require('./lib/rtc-bridge.js');
 const server = require('./lib/server.js');
 const { Server, Client, Context, Session, createProxy } = server;
 const transport = require('./lib/transport.js');
@@ -25,6 +29,8 @@ module.exports = {
   MetacomProxy,
   MetacomRouter,
   MetacomPeer,
+  ClientRtcBridgeTransport,
+  MetacomRtcBridge,
   MetacomError,
   Server,
   Client,

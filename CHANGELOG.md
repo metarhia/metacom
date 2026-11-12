@@ -10,6 +10,8 @@
   exports
 - Add `MetacomRouter`: browser-safe routing extracted from `MetacomProxy`
 - Add `MetacomPeer` to host local and forwarded APIs over RTC in tabs
+- Add `MetacomRtcBridge` to route worker upstreams through authorized RTC
+  owner tabs
 - Breaking: client transports live in `lib/client.js`
 - Breaking: server transports in `lib/transport.js`
 - Renamed `lib/chunks.js` to `lib/chunks-node.js`
