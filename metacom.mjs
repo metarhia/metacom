@@ -1,4 +1,4 @@
-import { Emitter, generateUUID, jsonParse } from './metautil.js';
+import { Emitter, generateUUID, jsonParse, split } from './metautil.js';
 
 // client.js
 
@@ -335,10 +335,11 @@ const TRANSPORTS = {
 
 const ID_LENGTH_BYTES = 1;
 const MAX_ID_LENGTH = 255;
+const TEXT_ENCODER = new TextEncoder();
+const TEXT_DECODER = new TextDecoder();
 
 const chunkEncode = (id, payload) => {
-  const encoder = new TextEncoder();
-  const idBuffer = encoder.encode(id);
+  const idBuffer = TEXT_ENCODER.encode(id);
   const idLength = idBuffer.length;
   if (idLength > MAX_ID_LENGTH) {
     const limit = `maximum of ${MAX_ID_LENGTH} characters`;
@@ -354,8 +355,7 @@ const chunkEncode = (id, payload) => {
 const chunkDecode = (chunk) => {
   const idLength = chunk[0];
   const idBuffer = chunk.subarray(ID_LENGTH_BYTES, ID_LENGTH_BYTES + idLength);
-  const decoder = new TextDecoder();
-  const id = decoder.decode(idBuffer);
+  const id = TEXT_DECODER.decode(idBuffer);
   const payload = chunk.subarray(ID_LENGTH_BYTES + idLength);
   return { id, payload };
 };
@@ -393,7 +393,7 @@ class MetaReadable extends Emitter {
   async push(data) {
     while (this.queue.length > this.highWaterMark) {
       this.checkStreamLimits();
-      await this.waitEvent(PULL_EVENT);
+      await this.toPromise(PULL_EVENT);
     }
     this.queue.push(data);
     if (this.queue.length === 1) this.emit(PUSH_EVENT);
@@ -440,7 +440,7 @@ class MetaReadable extends Emitter {
   async stop(force = false) {
     if (!force) {
       while (this.streaming && this.bytesRead !== this.size) {
-        await this.waitEvent(PULL_EVENT);
+        await this.toPromise(PULL_EVENT);
       }
     }
     this.streaming = false;
@@ -451,7 +451,7 @@ class MetaReadable extends Emitter {
 
   async read() {
     if (this.queue.length > 0) return this.pull();
-    const finisher = await this.waitEvent(PUSH_EVENT);
+    const finisher = await this.toPromise(PUSH_EVENT);
     if (finisher === null) return null;
     return this.pull();
   }
@@ -471,12 +471,6 @@ class MetaReadable extends Emitter {
     if (this.highWaterMark > MAX_HIGH_WATER_MARK) {
       throw new Error('Stream overflow occurred');
     }
-  }
-
-  waitEvent(event) {
-    return new Promise((resolve) => {
-      this.once(event, resolve);
-    });
   }
 
   async *[Symbol.asyncIterator]() {
@@ -570,16 +564,12 @@ class Metacom extends Emitter {
     }
   }
 
+  // Page and worker both expose their global scope as self
   static initialize() {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', Metacom.online);
-      window.addEventListener('offline', Metacom.offline);
-      return;
-    }
-    if (typeof self !== 'undefined') {
-      self.addEventListener('online', Metacom.online);
-      self.addEventListener('offline', Metacom.offline);
-    }
+    const scope = globalThis.self;
+    if (!scope) return;
+    scope.addEventListener('online', Metacom.online);
+    scope.addEventListener('offline', Metacom.offline);
   }
 
   api = {};
@@ -812,10 +802,9 @@ class Metacom extends Emitter {
   }
 
   #handleEvent(packet) {
-    const { name } = packet;
-    const slash = name.indexOf('/');
-    const unit = slash === -1 ? name : name.slice(0, slash);
-    const eventName = slash === -1 ? '' : name.slice(slash + 1);
+    const route = split(packet.name, '/');
+    const unit = route[0];
+    const eventName = route[1];
     const metacomUnit = this.api[unit];
     if (metacomUnit) metacomUnit.emit(eventName, packet.data);
   }
@@ -877,9 +866,7 @@ class Metacom extends Emitter {
   }
 
   #introspect(units) {
-    const createSystemMethod = this.#scaffold('system');
-    const introspect = createSystemMethod('introspect');
-    return introspect(units);
+    return this.#request('system/introspect', units);
   }
 
   // Server methods appear in loaded units after proxy reaches the server
@@ -896,38 +883,48 @@ class Metacom extends Emitter {
       const unit = units[i];
       if (!Object.hasOwn(introspection, unit)) continue;
       const methods = this.api[unit] ?? new Emitter();
-      const request = this.#scaffold(unit);
       const methodNames = Object.keys(introspection[unit]);
       for (let j = 0; j < methodNames.length; j++) {
         const methodName = methodNames[j];
         if (Object.hasOwn(methods, methodName)) continue;
-        methods[methodName] = request(methodName);
+        const method = `${unit}/${methodName}`;
+        methods[methodName] = async (args = {}) => this.#request(method, args);
       }
       this.api[unit] = methods;
     }
   }
 
-  #call(id, data) {
-    const promise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        if (!this.#calls.has(id)) return;
+  #request(method, args) {
+    const id = this.#generateId();
+    const packet = { type: 'call', id, method, args };
+    const data = JSON.stringify(packet);
+    const promise = this.#expect(id);
+    try {
+      const isAccepted = this.#post(data);
+      if (!isAccepted) this.#fail(id, new MetacomError(QUEUE_OVERFLOW));
+    } catch (error) {
+      this.#fail(id, error);
+    }
+    return promise;
+  }
+
+  // Kept apart from #request so the pending timer does not retain data
+  #expect(id) {
+    return new Promise((resolve, reject) => {
+      const onTimeout = () => {
         this.#calls.delete(id);
         reject(new Error('Request timeout'));
-      }, this.#callTimeout);
-      this.#calls.set(id, { resolve, reject, timeout });
-      const fail = (error) => {
-        this.#calls.delete(id);
-        clearTimeout(timeout);
-        reject(error);
       };
-      try {
-        const isAccepted = this.#post(data);
-        if (!isAccepted) fail(new MetacomError(QUEUE_OVERFLOW));
-      } catch (error) {
-        fail(error);
-      }
+      const timeout = setTimeout(onTimeout, this.#callTimeout);
+      this.#calls.set(id, { resolve, reject, timeout });
     });
-    return promise;
+  }
+
+  #fail(id, error) {
+    const { reject, timeout } = this.#calls.get(id);
+    this.#calls.delete(id);
+    clearTimeout(timeout);
+    reject(error);
   }
 
   // Own calls skip the queue while the session is being restored
@@ -935,21 +932,6 @@ class Metacom extends Emitter {
     if (!this.active) return this.deliver(data);
     this.#transport.write(data);
     return true;
-  }
-
-  #scaffold(unit, version) {
-    const createMethod = (methodName) => {
-      const suffix = version ? `.${version}` : '';
-      const target = `${unit}${suffix}/${methodName}`;
-      const method = async (args = {}) => {
-        const id = this.#generateId();
-        const packet = { type: 'call', id, method: target, args };
-        const data = JSON.stringify(packet);
-        return this.#call(id, data);
-      };
-      return method;
-    };
-    return createMethod;
   }
 }
 
@@ -960,7 +942,6 @@ Metacom.initialize();
 const ROUTE_TIMEOUT_MS = 7 * 1000;
 const SWEEP_INTERVAL_MS = 10 * 1000;
 const PROXY_QUEUE_SIZE = 1000;
-const CONTROL_PREFIX = 'metacom:';
 const BAD_REQUEST = { message: 'Bad Request', code: 400 };
 const UNAVAILABLE = { message: 'Service Unavailable', code: 503 };
 
@@ -985,14 +966,16 @@ const encodeEvent = (name, data) => {
   return JSON.stringify(packet);
 };
 
+const encodeCallback = (id, result) => {
+  const packet = { type: 'callback', id, result };
+  return JSON.stringify(packet);
+};
+
 // Method format: unit/name or unit.version/name
 const parseMethod = (method) => {
-  const slash = method.indexOf('/');
-  const target = slash === -1 ? method : method.slice(0, slash);
-  const name = slash === -1 ? '' : method.slice(slash + 1);
-  const dot = target.indexOf('.');
-  const unit = dot === -1 ? target : target.slice(0, dot);
-  return { unit, name };
+  const route = split(method, '/');
+  const target = split(route[0], '.');
+  return { unit: target[0], name: route[1] };
 };
 
 class ProxyContext {
@@ -1051,9 +1034,7 @@ class MetacomProxy extends Emitter {
     if (sweepInterval) this.#sweepInterval = sweepInterval;
     this.#server = this.#createServer(options);
     self.addEventListener('message', (event) => {
-      const type = event.data?.type;
-      const isControl = typeof type === 'string';
-      if (isControl && type.startsWith(CONTROL_PREFIX)) this.#control(event);
+      if (event.data) this.#control(event);
     });
   }
 
@@ -1159,12 +1140,12 @@ class MetacomProxy extends Emitter {
     const { id } = this.#ports.get(port);
     this.#ports.delete(port);
     this.#peers.delete(id);
-    for (const callId of this.#calls.keys()) {
-      const call = this.#calls.get(callId);
-      if (call.port === port) this.#calls.delete(callId);
+    for (const entry of this.#calls) {
+      if (entry[1].port === port) this.#calls.delete(entry[0]);
     }
-    for (const streamId of this.#streams.keys()) {
-      const stream = this.#streams.get(streamId);
+    for (const entry of this.#streams) {
+      const streamId = entry[0];
+      const stream = entry[1];
       if (stream.port !== port) continue;
       this.#streams.delete(streamId);
       const isUploading = stream.upload && stream.expires === 0;
@@ -1188,14 +1169,13 @@ class MetacomProxy extends Emitter {
 
   #sweep() {
     const now = Date.now();
-    for (const id of this.#calls.keys()) {
-      const call = this.#calls.get(id);
-      if (call.expires <= now) this.#calls.delete(id);
+    for (const entry of this.#calls) {
+      if (entry[1].expires <= now) this.#calls.delete(entry[0]);
     }
-    for (const id of this.#streams.keys()) {
-      const { expires } = this.#streams.get(id);
+    for (const entry of this.#streams) {
+      const { expires } = entry[1];
       const isExpired = expires !== 0 && expires <= now;
-      if (isExpired) this.#streams.delete(id);
+      if (isExpired) this.#streams.delete(entry[0]);
     }
     this.#sweepClients().catch((error) => this.#escalate(error));
   }
@@ -1208,10 +1188,10 @@ class MetacomProxy extends Emitter {
     const list = await clients.matchAll(query);
     const alive = new Set();
     for (let i = 0; i < list.length; i++) alive.add(list[i].id);
-    for (const port of this.#ports.keys()) {
-      const { client } = this.#ports.get(port);
+    for (const entry of this.#ports) {
+      const { client } = entry[1];
       const isClosed = client !== '' && !alive.has(client);
-      if (isClosed) this.#removePort(port);
+      if (isClosed) this.#removePort(entry[0]);
     }
   }
 
@@ -1267,8 +1247,7 @@ class MetacomProxy extends Emitter {
     const context = new ProxyContext(this.#server, port, this.#ports);
     try {
       const result = await handler(args, context);
-      const callback = { type: 'callback', id, result };
-      port.postMessage(JSON.stringify(callback));
+      port.postMessage(encodeCallback(id, result));
     } catch (error) {
       const code = typeof error.code === 'number' ? error.code : 500;
       sendError(port, id, { message: error.message, code });
@@ -1285,14 +1264,15 @@ class MetacomProxy extends Emitter {
   }
 
   #sendInterface(port, id, units) {
-    const callback = { type: 'callback', id, result: this.#describe(units) };
-    port.postMessage(JSON.stringify(callback));
+    const result = this.#describe(units);
+    port.postMessage(encodeCallback(id, result));
   }
 
   // Introspection waits for the first connection attempt only
   #describePending() {
-    for (const id of this.#calls.keys()) {
-      const { port, units } = this.#calls.get(id);
+    for (const entry of this.#calls) {
+      const id = entry[0];
+      const { port, units } = entry[1];
       if (!units) continue;
       this.#calls.delete(id);
       this.#sendInterface(port, id, units);
@@ -1321,8 +1301,7 @@ class MetacomProxy extends Emitter {
       if (Object.hasOwn(result, unit)) this.#interfaces.set(unit, result[unit]);
       else this.#interfaces.delete(unit);
     }
-    const callback = { type: 'callback', id, result: this.#describe(units) };
-    return JSON.stringify(callback);
+    return encodeCallback(id, this.#describe(units));
   }
 
   #forwardCall(port, id, data, units) {
@@ -1399,8 +1378,9 @@ class MetacomProxy extends Emitter {
 
   // Server forgets streams on reconnect, expected downloads stay routed
   #abortStreams() {
-    for (const id of this.#streams.keys()) {
-      const { port, expires, upload } = this.#streams.get(id);
+    for (const entry of this.#streams) {
+      const id = entry[0];
+      const { port, expires, upload } = entry[1];
       if (expires !== 0) continue;
       if (upload) sendError(port, id, UNAVAILABLE);
       else sendTerminate(port, id);
