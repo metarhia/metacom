@@ -3,6 +3,7 @@ import {
   Client,
   ClientEventTransport,
   ClientHttpTransport,
+  ClientRtcTransport,
   ClientTransport,
   ClientWsTransport,
   Context,
@@ -130,6 +131,21 @@ async function _usage(): Promise<void> {
   await server.listen();
 
   const metacom = await Metacom.connect('ws://localhost:8000');
+  const rtc = new ClientRtcTransport('peer');
+  await rtc.open({
+    rtc: {
+      localId: 'caller',
+      peerId: 'host',
+      role: 'offerer',
+      signaling: {
+        send() {},
+        subscribe() {
+          return () => {};
+        },
+      },
+    },
+  });
+  rtc.close();
   const uploader: BlobUploader = metacom.createBlobUploader(new Blob(['test']));
   await uploader.upload();
   await metacom.load('system');
