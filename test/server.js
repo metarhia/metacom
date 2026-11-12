@@ -6,7 +6,7 @@ const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
 
-const { Server } = require('../lib/server.js');
+const { Server, Session } = require('../lib/server.js');
 const { ProtocolClient } = require('./websocket/protocolClient.js');
 
 const parseStatusCode = (statusLine) => {
@@ -220,4 +220,23 @@ test('Server / rejects oversized requests', async (t) => {
   });
   socket.send(body);
   assert.strictEqual(await closed, 1009);
+});
+
+test('Session / saves writes made in one tick once', async () => {
+  const saved = [];
+  const saveSession = async (token, data) => {
+    saved.push({ token, data: { ...data } });
+  };
+  const context = { console: { error: () => {} }, auth: { saveSession } };
+  const session = new Session('token', {}, context);
+  Object.assign(session.state, { a: 1, b: 2 });
+  session.state.c = 3;
+  await new Promise(setImmediate);
+  session.state.d = 4;
+  await new Promise(setImmediate);
+  const last = { a: 1, b: 2, c: 3, d: 4 };
+  assert.deepStrictEqual(saved, [
+    { token: 'token', data: { a: 1, b: 2, c: 3 } },
+    { token: 'token', data: last },
+  ]);
 });
