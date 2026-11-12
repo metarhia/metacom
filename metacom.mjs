@@ -417,7 +417,6 @@ class MetaReadable extends Emitter {
     this.emit('end');
     writable.end();
     await waitEvent(writable, 'close');
-    await this.close();
     writable.off('error', onError);
   }
 
@@ -436,7 +435,11 @@ class MetaReadable extends Emitter {
 
   async close() {
     await this.stop(false);
-    this.status = 'closed';
+    const { bytesRead, size } = this;
+    const isComplete = bytesRead === size;
+    this.status = isComplete ? 'closed' : 'terminated';
+    if (isComplete) return;
+    throw new Error(`Stream size mismatch: ${bytesRead} of ${size} bytes`);
   }
 
   async terminate() {
@@ -446,7 +449,7 @@ class MetaReadable extends Emitter {
 
   async stop(force = false) {
     if (!force) {
-      while (this.streaming && this.bytesRead !== this.size) {
+      while (this.streaming && this.queue.length > 0) {
         await this.toPromise(PULL_EVENT);
       }
     }
@@ -843,11 +846,12 @@ class Metacom extends Emitter {
       return;
     }
     if (!stream) throw new Error(`Stream ${id} is not initialized`);
-    if (status === 'end') {
-      await stream.close();
-      this.#streams.delete(id);
-    } else if (status === 'terminate') {
-      await stream.terminate();
+    const isEnd = status === 'end';
+    if (!isEnd && status !== 'terminate') return;
+    try {
+      if (isEnd) await stream.close();
+      else await stream.terminate();
+    } finally {
       this.#streams.delete(id);
     }
   }
