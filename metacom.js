@@ -3,6 +3,7 @@
 const { Metacom, MetacomError } = require('./lib/metacom.js');
 const { MetacomProxy } = require('./lib/proxy.js');
 const { MetacomRouter } = require('./lib/router.js');
+const { MetacomPeer } = require('./lib/peer.js');
 const server = require('./lib/server.js');
 const { Server, Client, Context, Session, createProxy } = server;
 const transport = require('./lib/transport.js');
@@ -23,6 +24,7 @@ module.exports = {
   Metacom,
   MetacomProxy,
   MetacomRouter,
+  MetacomPeer,
   MetacomError,
   Server,
   Client,

@@ -10,6 +10,7 @@ import {
   Metacom,
   MetacomError,
   MetacomProxy,
+  MetacomPeer,
   MetaReadable,
   MetaWritable,
   Server,
@@ -76,7 +77,7 @@ type _ProxyRegister = Assert<
 >;
 
 type _ProxyContextServer = Assert<
-  ProxyContext['server'] extends Metacom ? true : false
+  ProxyContext['server'] extends Metacom | null ? true : false
 >;
 
 type _ClientStreamId = Assert<
@@ -112,6 +113,7 @@ const _exports: Record<string, unknown> = {
   Metacom,
   MetacomError,
   MetacomProxy,
+  MetacomPeer,
   MetaReadable,
   MetaWritable,
   Server,

@@ -9,6 +9,7 @@
 - Add opt-in `webrtc` client transport `ClientRtcTransport` and browser
   exports
 - Add `MetacomRouter`: browser-safe routing extracted from `MetacomProxy`
+- Add `MetacomPeer` to host local and forwarded APIs over RTC in tabs
 - Breaking: client transports live in `lib/client.js`
 - Breaking: server transports in `lib/transport.js`
 - Renamed `lib/chunks.js` to `lib/chunks-node.js`
@@ -20,8 +21,10 @@
 - Add `Metacom.create()` to build a connection without opening it
 - Event transport: worker handshake, heartbeat, reconnect after worker restart
 - Remove closed tabs with their routes, terminate their uploads
-- Breaking: `proxy` option is an object with `packet` and `binary` methods
+- Breaking: `proxy` option is removed, `setProxy(proxy)` takes an object with
+  `packet` and `binary` methods
 - Breaking: server stream without tab id is not delivered through the proxy
+- Router accepts `metacom:stream` announcements sent as text
 - Fix chunk order: read websocket binary frames as `ArrayBuffer`
 - Fix reconnect after failed `open()` and duplicate error on failed connect
 

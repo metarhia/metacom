@@ -1221,13 +1221,11 @@ class Metacom extends Emitter {
     super();
     const callTimeout = options.callTimeout;
     const reconnectTimeout = options.reconnectTimeout;
-    const proxy = options.proxy;
     const queueSize = options.queueSize;
     const restore = options.restore;
     const generateId = options.generateId;
     if (callTimeout) this.#callTimeout = callTimeout;
     if (reconnectTimeout) this.#reconnectTimeout = reconnectTimeout;
-    if (proxy) this.#proxy = proxy;
     if (queueSize) this.#queueSize = queueSize;
     if (restore) this.#restore = restore;
     if (generateId) this.#generateId = generateId;
@@ -1343,6 +1341,13 @@ class Metacom extends Emitter {
 
   send(data) {
     this.#transport.send(data);
+  }
+
+  setProxy(proxy) {
+    if (proxy && this.#proxy && this.#proxy !== proxy) {
+      throw new Error('Metacom already has a packet router');
+    }
+    this.#proxy = proxy;
   }
 
   deliver(data, timeout = this.#callTimeout) {
@@ -1610,6 +1615,18 @@ const encodeCallback = (id, result) => {
   return JSON.stringify(packet);
 };
 
+// Stream route: port that owns it, direction, and local upload state
+const createRoute = (port, upload, expires) => ({
+  port,
+  upload,
+  expires,
+  packet: null,
+  init: null,
+  readable: null,
+  local: false,
+  forwarded: false,
+});
+
 // Method format: unit/name or unit.version/name
 const parseMethod = (method) => {
   const route = split(method, '/');
@@ -1620,14 +1637,26 @@ const parseMethod = (method) => {
 class ProxyContext {
   #port = null;
   #ports = null;
+  #streams;
 
-  constructor(server, port, ports) {
+  constructor(server, port, ports, streams) {
     this.server = server;
     this.#port = port;
     this.#ports = ports;
+    this.#streams = streams;
+    this.peerId = ports.get(port).id;
+  }
+
+  getStream(id) {
+    return this.#streams.get(id);
+  }
+
+  createStream(name, size, id) {
+    return this.#streams.create(name, size, id);
   }
 
   emit(name, data) {
+    if (!this.#ports.has(this.#port)) return;
     this.#port.postMessage(encodeEvent(name, data));
   }
 
@@ -1642,6 +1671,7 @@ class ProxyContext {
 class MetacomRouter extends Emitter {
   #instance = generateUUID();
   #getClients = null;
+  #localStreams = false;
   #ports = new Map();
   #peers = new Map();
   #calls = new Map();
@@ -1665,7 +1695,7 @@ class MetacomRouter extends Emitter {
   }
 
   get active() {
-    return this.#server.active;
+    return this.#server?.active ?? false;
   }
 
   constructor(options = {}) {
@@ -1673,18 +1703,22 @@ class MetacomRouter extends Emitter {
     const { callTimeout, sweepInterval } = options;
     if (callTimeout) this.#callTimeout = callTimeout;
     if (sweepInterval) this.#sweepInterval = sweepInterval;
+    this.#localStreams = options.localStreams ?? false;
     this.#getClients = options.getClients ?? null;
     this.#server = this.#createServer(options);
   }
 
   #createServer(options) {
     const url = options.url;
+    if (!url && !options.upstream) return null;
     const queueSize = options.queueSize ?? PROXY_QUEUE_SIZE;
+    const upstreamOptions = { ...options, queueSize };
     const proxy = {
       packet: (packet, data) => this.#route(packet, data),
       binary: (id, data) => this.#routeBinary(id, data),
     };
-    const server = Metacom.create(url, { ...options, proxy, queueSize });
+    const server = options.upstream ?? Metacom.create(url, upstreamOptions);
+    server.setProxy(proxy);
     server.on('open', () => this.#notify(true));
     server.on('close', () => {
       this.#abortStreams();
@@ -1695,7 +1729,7 @@ class MetacomRouter extends Emitter {
   }
 
   async open() {
-    if (this.#server.active) return;
+    if (!this.#server || this.#server.active) return;
     this.#connecting = !this.#attempted;
     try {
       await this.#server.open();
@@ -1707,11 +1741,12 @@ class MetacomRouter extends Emitter {
   }
 
   close() {
+    for (const id of [...this.#peers.keys()]) this.detach(id);
     clearInterval(this.#sweepTimer);
     this.#sweepTimer = null;
     this.#calls.clear();
     this.#streams.clear();
-    this.#server.close();
+    this.#server?.close();
   }
 
   // Local method shadows server method with the same name
@@ -1752,7 +1787,7 @@ class MetacomRouter extends Emitter {
     });
     port.start();
     const instance = this.#instance;
-    const connected = this.#server.active;
+    const connected = this.#server?.active;
     port.postMessage({ type: 'metacom:ready', instance, connected });
     this.#startSweep();
     this.emit('connect', id);
@@ -1777,6 +1812,9 @@ class MetacomRouter extends Emitter {
       const stream = entry[1];
       if (stream.port !== port) continue;
       this.#streams.delete(streamId);
+      if (stream.readable) {
+        stream.readable.terminate().catch((error) => this.#escalate(error));
+      }
       const isUploading = stream.upload && stream.expires === 0;
       if (isUploading) this.#terminateUpload(streamId);
     }
@@ -1785,7 +1823,7 @@ class MetacomRouter extends Emitter {
   }
 
   #terminateUpload(id) {
-    if (!this.#server.active) return;
+    if (!this.#server?.active) return;
     this.#server.send({ type: 'stream', id, status: 'terminate' });
   }
 
@@ -1853,6 +1891,7 @@ class MetacomRouter extends Emitter {
     }
     if (type === 'call') return void this.#dispatchCall(port, packet, data);
     if (type === 'stream') return void this.#forwardStream(port, packet, data);
+    if (type === 'metacom:stream') return void this.#expectStream(port, id);
     sendError(port, id, BAD_REQUEST);
   }
 
@@ -1872,23 +1911,29 @@ class MetacomRouter extends Emitter {
 
   async #invoke(port, packet, handler) {
     const { id, args } = packet;
-    const context = new ProxyContext(this.#server, port, this.#ports);
+    const streams = {
+      get: (id) => this.getStream(port, id),
+      create: (name, size, id) => this.createStream(port, name, size, id),
+    };
+    const context = new ProxyContext(this.#server, port, this.#ports, streams);
     try {
       const result = await handler(args, context);
       if (this.#ports.has(port)) port.postMessage(encodeCallback(id, result));
     } catch (error) {
       const code = typeof error.code === 'number' ? error.code : 500;
-      if (this.#ports.has(port)) {
-        sendError(port, id, { message: error.message, code });
-      }
+      this.#replyError(port, id, error.message, code);
     }
+  }
+
+  #replyError(port, id, message, code) {
+    if (this.#ports.has(port)) sendError(port, id, { message, code });
   }
 
   // Offline tab gets local and cached methods, the rest after reconnect
   #introspect(port, packet, data) {
     const { id, args } = packet;
     const units = Array.isArray(args) ? args : [];
-    const isReachable = this.#server.active || this.#connecting;
+    const isReachable = this.#server?.active || this.#connecting;
     if (isReachable) return void this.#forwardCall(port, id, data, units);
     this.#sendInterface(port, id, units);
   }
@@ -1960,28 +2005,136 @@ class MetacomRouter extends Emitter {
   // Finished upload keeps its route for a while to pass server errors
   #forwardStream(port, packet, data) {
     const { id, status } = packet;
+    if (this.#localStreams) return void this.#localStream(port, packet, data);
     const existing = this.#streams.get(id);
     if (existing && existing.port !== port) {
       return void sendError(port, id, BAD_REQUEST);
     }
-    if (!this.#server.active) {
+    if (!this.#server?.active) {
       this.#streams.delete(id);
       return void sendError(port, id, UNAVAILABLE);
     }
     const { callTimeout } = this.#ports.get(port);
     const expires = status === undefined ? 0 : Date.now() + callTimeout;
-    this.#streams.set(id, { port, expires, upload: true });
+    this.#streams.set(id, createRoute(port, true, expires));
     this.#server.write(data);
   }
 
+  getStream(port, id) {
+    const stream = this.#streams.get(id);
+    if (!stream || stream.port !== port || !stream.upload || stream.forwarded) {
+      throw new Error('Local stream is not available');
+    }
+    stream.local = true;
+    stream.readable ??= new MetaReadable(
+      id,
+      stream.packet.name,
+      stream.packet.size,
+    );
+    return stream.readable;
+  }
+
+  createStream(port, name, size, id = generateUUID()) {
+    if (!this.#ports.has(port)) throw new Error('Peer disconnected');
+    const existing = this.#streams.get(id);
+    if (existing && (existing.port !== port || existing.upload)) {
+      throw new Error('Stream id already in use');
+    }
+    if (typeof name !== 'string' || !Number.isSafeInteger(size) || size < 0) {
+      throw new TypeError('Invalid stream metadata');
+    }
+    this.#streams.set(id, createRoute(port, false, 0));
+    const transport = {
+      send: (packet) => {
+        if (!this.#ports.has(port)) return;
+        port.postMessage(JSON.stringify(packet));
+        if (packet.status) this.#streams.delete(id);
+      },
+      write: (data) => {
+        if (!this.#ports.has(port)) throw new Error('Peer disconnected');
+        return port.postMessage(data);
+      },
+      drain: () => port.drain?.() ?? Promise.resolve(),
+    };
+    return new MetaWritable(id, name, size, transport);
+  }
+
+  #localStream(port, packet, data) {
+    const { id, name, size, status } = packet;
+    let stream = this.#streams.get(id);
+    if (stream && stream.port !== port) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    if (status === undefined) {
+      if (
+        stream ||
+        typeof name !== 'string' ||
+        !Number.isSafeInteger(size) ||
+        size < 0
+      ) {
+        return void sendError(port, id, BAD_REQUEST);
+      }
+      stream = createRoute(port, true, Date.now() + this.#callTimeout);
+      stream.packet = packet;
+      stream.init = data;
+      this.#streams.set(id, stream);
+      return;
+    }
+    if (!stream?.upload || !['end', 'terminate'].includes(status)) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    if (stream.local || !this.#server) {
+      const readable = this.getStream(port, id);
+      const finishing =
+        status === 'end' ? readable.close() : readable.terminate();
+      finishing.catch((error) => {
+        this.#replyError(port, id, error.message, 400);
+      });
+      this.#streams.delete(id);
+      return;
+    }
+    if (!this.#forwardUpload(port, id, stream, data)) return;
+    stream.expires = Date.now() + this.#callTimeout;
+  }
+
+  // Upload not claimed by a local handler goes upstream, its init first
+  #forwardUpload(port, id, stream, data) {
+    if (!this.#server.active) {
+      sendError(port, id, UNAVAILABLE);
+      return false;
+    }
+    if (!stream.forwarded) this.#server.write(stream.init);
+    stream.forwarded = true;
+    this.#server.write(data);
+    return true;
+  }
+
+  #localChunk(port, data) {
+    const { id, payload } = chunkDecode(data);
+    const stream = this.#streams.get(id);
+    if (!stream?.upload || stream.port !== port) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
+    stream.expires = 0;
+    if (stream.local || !this.#server) {
+      const readable = this.getStream(port, id);
+      readable.push(payload).catch((error) => {
+        this.#replyError(port, id, error.message, 400);
+      });
+      return;
+    }
+    this.#forwardUpload(port, id, stream, data);
+  }
+
   #forwardChunk(port, data) {
-    if (!this.#server.active) return;
+    if (this.#localStreams) return void this.#localChunk(port, data);
+    if (!this.#server?.active) return;
     const { id } = chunkDecode(data);
     const stream = this.#streams.get(id);
     if (stream?.port !== port || !stream.upload) {
       return void sendError(port, id, BAD_REQUEST);
     }
-    if (this.#server.active) this.#server.write(data);
+    this.#server.write(data);
   }
 
   // Tab creates download stream id before the call that fills the stream
@@ -1991,7 +2144,7 @@ class MetacomRouter extends Emitter {
     if (existing && existing.port !== port) return;
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + 2 * callTimeout;
-    this.#streams.set(id, { port, expires, upload: false });
+    this.#streams.set(id, createRoute(port, false, expires));
   }
 
   #route(packet, data) {
@@ -2034,6 +2187,113 @@ class MetacomRouter extends Emitter {
       else sendTerminate(port, id);
       this.#streams.delete(id);
     }
+  }
+}
+
+// peer.js
+
+class MetacomPeer extends Emitter {
+  #router;
+  #options;
+  #sessions = new Map();
+  #closed = true;
+
+  constructor(options) {
+    super();
+    this.#options = options;
+    this.#router = new MetacomRouter({ ...options, localStreams: true });
+    this.#router.on('error', (error) => this.#report(error));
+  }
+
+  get active() {
+    for (const session of this.#sessions.values()) {
+      if (session.transport.active) return true;
+    }
+    return false;
+  }
+
+  register(unit, methods) {
+    this.#router.register(unit, methods);
+  }
+
+  broadcast(name, data) {
+    this.#router.broadcast(name, data);
+  }
+
+  open() {
+    if (!this.#closed) return Promise.resolve();
+    const peers = Array.isArray(this.#options.rtc)
+      ? this.#options.rtc
+      : [this.#options.rtc];
+    const ids = new Set();
+    for (const rtc of peers) {
+      if (!rtc || ids.has(rtc.peerId)) {
+        return Promise.reject(new Error('Unique RTC peers required'));
+      }
+      ids.add(rtc.peerId);
+    }
+    this.#closed = false;
+    for (const rtc of peers) {
+      this.#connect(rtc).catch((error) => this.#report(error));
+    }
+    return Promise.resolve();
+  }
+
+  async #connect(rtc) {
+    const transport = new ClientRtcTransport(rtc.peerId);
+    const session = { transport, timer: null, rtc };
+    const messageListeners = new Set();
+    this.#sessions.set(rtc.peerId, session);
+    const port = {
+      postMessage: (data) => {
+        if (typeof data === 'object' && !ArrayBuffer.isView(data)) return true;
+        return transport.write(data);
+      },
+      drain: () => transport.drain(),
+      addEventListener: (name, listener) => {
+        if (name !== 'message') return;
+        const onMessage = (data) => listener({ data });
+        messageListeners.add(onMessage);
+        transport.on('message', onMessage);
+      },
+      start: () => {},
+      close: () => {
+        for (const listener of messageListeners) {
+          transport.off('message', listener);
+        }
+        messageListeners.clear();
+        transport.close();
+      },
+    };
+    transport.on('open', () => {
+      this.#router.attach(port, { id: rtc.peerId });
+      this.emit('connect', rtc.peerId);
+    });
+    transport.on('close', () => {
+      this.#router.detach(rtc.peerId);
+      if (this.#closed || session.timer) return;
+      session.timer = setTimeout(() => {
+        session.timer = null;
+        transport.open({ rtc }).catch((error) => this.#report(error));
+      }, this.#options.reconnectTimeout ?? 2000);
+      this.emit('disconnect', rtc.peerId);
+    });
+    await transport.open({ rtc });
+  }
+
+  #report(error) {
+    if (this.listenerCount('error')) this.emit('error', error);
+  }
+
+  close() {
+    if (this.#closed) return;
+    this.#closed = true;
+    for (const { transport, timer } of this.#sessions.values()) {
+      clearTimeout(timer);
+      transport.close();
+    }
+    this.#sessions.clear();
+    this.#router.close();
   }
 }
 
@@ -2110,5 +2370,6 @@ export {
   Metacom,
   MetacomError,
   MetacomRouter,
+  MetacomPeer,
   MetacomProxy,
 };
