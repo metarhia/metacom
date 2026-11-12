@@ -8,7 +8,15 @@ const assert = require('node:assert/strict');
 const { WebsocketServer } = require('#ws');
 const transport = require('../lib/transport.js');
 const { buildHeaders, ServerTransport, ClientTransport } = transport;
-const { ClientWsTransport } = transport;
+const { ClientWsTransport, isApiPath } = transport;
+
+test('isApiPath: matches /api and its subpaths only', () => {
+  assert.equal(isApiPath('/api'), true);
+  assert.equal(isApiPath('/api?token=1'), true);
+  assert.equal(isApiPath('/api/unit/method?name=Max'), true);
+  assert.equal(isApiPath('/apiary'), false);
+  assert.equal(isApiPath('/'), false);
+});
 
 test('buildHeaders: returns default headers when cors is falsy', () => {
   const headers = buildHeaders(null);
