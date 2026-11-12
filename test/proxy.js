@@ -658,3 +658,11 @@ test('MetacomProxy: load waits for the first connection', async (t) => {
   await loading;
   assert.deepStrictEqual(await tab.api.test.echo({ a: 1 }), { a: 1 });
 });
+
+test('Metacom.create: callers share one Metacom over worker', () => {
+  const worker = { postMessage() {} };
+  const first = Metacom.create(URL, { worker });
+  const second = Metacom.create(URL, { worker, callTimeout: 100 });
+  ClientEventTransport.instance = null;
+  assert.strictEqual(first, second);
+});
