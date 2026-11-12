@@ -99,6 +99,8 @@ export interface TransportAdapter {
 
 export interface TransportAttachOptions {
   headers: Record<string, string>;
+  generateId?: () => string;
+  maxBodySize?: number;
   maxMessageSize?: number;
   path?: string;
   verifyClient?: (info: { req: IncomingMessage }) => boolean;
@@ -244,6 +246,7 @@ export class ServerHttpTransport extends ServerTransport {
     res: ServerResponse,
     options?: TransportOptions,
   );
+  receive(): Promise<void>;
   write(data: string | Buffer, httpCode?: number): void;
   options(): void;
   getCookies(): Record<string, string>;
@@ -304,6 +307,8 @@ export interface ErrorOptions {
 
 export interface TransportOptions {
   headers?: Record<string, string>;
+  maxBodySize?: number;
+  generateId?: () => string;
 }
 
 export interface Auth {
