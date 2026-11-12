@@ -92,6 +92,19 @@ test('Server / calls', async (t) => {
     assert.strictEqual(response.result, `Hello, ${args.name}`);
   });
 
+  await t.test('handles HTTP REST call from URL', async () => {
+    const url = `http://${options.host}:${options.port}/api/test/hello`;
+    const res = await fetch(`${url}?name=Max`);
+    const response = await res.json();
+    assert.strictEqual(response.type, 'callback');
+    assert.strictEqual(response.result, 'Hello, Max');
+  });
+
+  await t.test('rejects HTTP RPC with GET method', async () => {
+    const res = await fetch(`http://${options.host}:${options.port}/api`);
+    assert.strictEqual(res.status, 403);
+  });
+
   await t.test('WS RPC handles', async () => {
     const id = randomUUID();
     const args = { name: 'Max' };
