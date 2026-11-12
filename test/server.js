@@ -1,5 +1,6 @@
 'use strict';
 
+const http = require('node:http');
 const timers = require('node:timers/promises');
 const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
@@ -162,4 +163,19 @@ test('Server / calls', async (t) => {
     });
     assert.strictEqual(parseStatusCode(res.statusLine), 403);
   });
+});
+
+test('Server / listen retries busy port without timeouts', async () => {
+  const noop = () => {};
+  const console = { log: noop, info: noop, warn: noop, error: noop };
+  const application = { console, auth: {}, getMethod: () => null };
+  const options = { host: 'localhost', port: 8005, protocol: 'http' };
+  const blocker = http.createServer();
+  await new Promise((resolve) => {
+    blocker.listen(options.port, options.host, resolve);
+  });
+  const server = new Server(application, { ...options, retry: 2 });
+  await assert.rejects(server.listen(), { code: 'EADDRINUSE' });
+  server.httpServer.close();
+  blocker.close();
 });
