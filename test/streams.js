@@ -166,6 +166,27 @@ test('MetaReadable', async (t) => {
     await Promise.all(pushes);
   });
 
+  await t.test('close: rejects when size does not match', async () => {
+    const short = new MetaReadable('id1', 'name', 10);
+    const long = new MetaReadable('id2', 'name', 2);
+    await short.push(Buffer.alloc(4));
+    await long.push(Buffer.alloc(4));
+    short.read();
+    long.read();
+    await assert.rejects(short.close(), /Stream size mismatch: 4 of 10 bytes/);
+    await assert.rejects(long.close(), /Stream size mismatch: 4 of 2 bytes/);
+    assert.strictEqual(short.status, 'terminated');
+  });
+
+  await t.test('close: waits for queued chunks to be read', async () => {
+    const stream = new MetaReadable('id', 'name', 4);
+    await stream.push(Buffer.alloc(4));
+    const closing = stream.close();
+    await stream.read();
+    await closing;
+    assert.strictEqual(stream.status, 'closed');
+  });
+
   await t.test('pipe: writes chunks to node:stream Writable', async () => {
     const data = Buffer.from('chunk-1/chunk-2');
     const stream = new MetaReadable('id', 'name', data.length);
