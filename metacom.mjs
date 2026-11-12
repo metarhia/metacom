@@ -368,6 +368,12 @@ const DEFAULT_HIGH_WATER_MARK = 32;
 const MAX_LISTENERS = 10;
 const MAX_HIGH_WATER_MARK = 1000;
 
+// Works for both node:stream Writable and metautil Emitter
+const waitEvent = (emitter, eventName) => {
+  const executor = (resolve) => emitter.once(eventName, resolve);
+  return new Promise(executor);
+};
+
 class MetaReadable extends Emitter {
   queue = [];
   streaming = true;
@@ -399,13 +405,13 @@ class MetaReadable extends Emitter {
     writable.once('error', onError);
     for await (const chunk of this) {
       const needDrain = !writable.write(chunk);
-      if (needDrain) await writable.waitEvent('drain');
+      if (needDrain) await waitEvent(writable, 'drain');
     }
     this.emit('end');
     writable.end();
-    await writable.waitEvent('close');
+    await waitEvent(writable, 'close');
     await this.close();
-    writable.removeListener('error', onError);
+    writable.off('error', onError);
   }
 
   pipe(writable) {

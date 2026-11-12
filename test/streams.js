@@ -1,6 +1,6 @@
 'use strict';
 
-const { Readable } = require('node:stream');
+const { Readable, PassThrough } = require('node:stream');
 const { randomUUID } = require('node:crypto');
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -138,5 +138,19 @@ test('MetaReadable', async (t) => {
     const arrayBuffer = await blob.arrayBuffer();
     const received = new Uint8Array(arrayBuffer);
     assert.deepStrictEqual(received, dataView);
+  });
+
+  await t.test('pipe: writes chunks to node:stream Writable', async () => {
+    const data = Buffer.from('chunk-1/chunk-2');
+    const stream = new MetaReadable('id', 'name', data.length);
+    const writable = new PassThrough();
+    const chunks = [];
+    writable.on('data', (chunk) => chunks.push(chunk));
+    const finished = stream.finalize(writable);
+    await stream.push(data.subarray(0, 8));
+    await stream.push(data.subarray(8));
+    await stream.close();
+    await finished;
+    assert.deepStrictEqual(Buffer.concat(chunks), data);
   });
 });
