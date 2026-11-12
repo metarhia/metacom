@@ -131,6 +131,22 @@ test('Server / calls', async (t) => {
     assert.strictEqual(response.result, `Hello, ${args.name}`);
   });
 
+  await t.test('rejects call packet with non-string method', async () => {
+    const packet = { type: 'call', id: randomUUID(), method: 1 };
+    const socket = new ProtocolClient(`ws://${options.host}:${options.port}`);
+    await new Promise((resolve) => {
+      socket.once('open', resolve);
+    });
+    socket.send(JSON.stringify(packet));
+    const responsePacket = await new Promise((resolve) => {
+      socket.once('message', resolve);
+    });
+    const response = JSON.parse(responsePacket.toString());
+    socket.close();
+    assert.strictEqual(response.type, 'callback');
+    assert.strictEqual(response.error.message, 'Packet structure error');
+  });
+
   await t.test('rejects websocket upgrade on invalid path', async () => {
     const res = await ProtocolClient.attemptHandshake({
       host: options.host,
