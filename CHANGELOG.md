@@ -8,6 +8,7 @@
   backpressure
 - Add opt-in `webrtc` client transport `ClientRtcTransport` and browser
   exports
+- Add `MetacomRouter`: browser-safe routing extracted from `MetacomProxy`
 - Breaking: client transports live in `lib/client.js`
 - Breaking: server transports in `lib/transport.js`
 - Renamed `lib/chunks.js` to `lib/chunks-node.js`
