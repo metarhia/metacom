@@ -97,3 +97,20 @@ test('Router: reject foreign chunks and announcements', async (t) => {
   router.detach('a');
   router.detach('b');
 });
+
+test('Router: announcement sent as text routes the download', async (t) => {
+  Metacom.transport.routertest = RouterTransport;
+  const router = new MetacomRouter({ url: 'peer', transport: 'routertest' });
+  t.after(() => {
+    router.close();
+    delete Metacom.transport.routertest;
+  });
+  await router.open();
+  const port = new RouterPort();
+  router.attach(port, { id: 'tab' });
+  const announce = { type: 'metacom:stream', id: 'download' };
+  router.receive(port, JSON.stringify(announce));
+  const init = { type: 'stream', id: 'download', name: 'file', size: 1 };
+  RouterTransport.last.emit('message', JSON.stringify(init));
+  assert.deepEqual(JSON.parse(port.packets.at(-1)), init);
+});
