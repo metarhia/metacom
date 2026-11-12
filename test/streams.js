@@ -140,6 +140,32 @@ test('MetaReadable', async (t) => {
     assert.deepStrictEqual(received, dataView);
   });
 
+  await t.test('push: keeps order of chunks over highWaterMark', async () => {
+    const count = 60;
+    const options = { highWaterMark: 2 };
+    const stream = new MetaReadable('id', 'name', count, options);
+    const pushes = [];
+    for (let i = 0; i < count; i++) pushes.push(stream.push(Buffer.from([i])));
+    const received = [];
+    for await (const chunk of stream) {
+      received.push(chunk[0]);
+      if (received.length === count) break;
+    }
+    await Promise.all(pushes);
+    const expected = Array.from({ length: count }, (_, i) => i);
+    assert.deepStrictEqual(received, expected);
+  });
+
+  await t.test('push: rejects when too many chunks wait', async () => {
+    const stream = new MetaReadable('id', 'name', 0, { highWaterMark: 1 });
+    const pushes = [];
+    for (let i = 0; i < 1002; i++) pushes.push(stream.push(Buffer.from([i])));
+    const overflow = stream.push(Buffer.from([0]));
+    await assert.rejects(overflow, /Stream overflow occurred/);
+    await stream.terminate();
+    await Promise.all(pushes);
+  });
+
   await t.test('pipe: writes chunks to node:stream Writable', async () => {
     const data = Buffer.from('chunk-1/chunk-2');
     const stream = new MetaReadable('id', 'name', data.length);
