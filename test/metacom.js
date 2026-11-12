@@ -434,3 +434,26 @@ test('Client / different ID generation strategies', async (t) => {
     client.close();
   });
 });
+
+test('Client / terminates streams on disconnect', async (t) => {
+  const id = randomUUID();
+  const { httpServer, wsServer } = createWsServer();
+  await listen(httpServer, 8094);
+  t.after(() => void httpServer.close());
+  wsServer.on('connection', (connection) => {
+    const packet = { type: 'stream', id, name: 'file', size: 10 };
+    connection.send(JSON.stringify(packet));
+    connection.on('message', () => connection.terminate());
+  });
+  const options = { reconnectTimeout: 10_000 };
+  const client = await Metacom.connect('ws://localhost:8094/', options);
+  t.after(() => void client.close());
+  await timers.setTimeout(50);
+  const stream = client.getStream(id);
+  const closed = client.toPromise('close');
+  client.write('drop');
+  await closed;
+  await timers.setTimeout(10);
+  assert.strictEqual(stream.status, 'terminated');
+  assert.throws(() => client.getStream(id), /is not initialized/);
+});
