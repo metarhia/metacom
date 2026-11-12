@@ -1,5 +1,7 @@
 {
   "order": [
+    "rtc.js",
+    "rtc-channel.js",
     "client.js",
     "chunks-browser.js",
     "streams.js",

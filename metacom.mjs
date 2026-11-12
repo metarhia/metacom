@@ -1,5 +1,491 @@
 import { Emitter, generateUUID, delay, jsonParse, split } from './metautil.js';
 
+// rtc.js
+
+const RTC_PROTOCOL = 'metacom:rtc';
+const RTC_VERSION = 1;
+const RTC_TIMEOUT_MS = 10000;
+const RTC_MAX_CANDIDATES = 256;
+
+// One negotiation generation owns all its listeners and asynchronous work.
+class RtcConnection extends Emitter {
+  #attempt = null;
+  #retired = new Set();
+
+  get peerConnection() {
+    return this.#attempt?.pc ?? null;
+  }
+
+  open(options) {
+    if (this.#attempt) return this.#attempt.promise;
+    const { RTCPeerConnection: PeerConnection } = globalThis;
+    if (!PeerConnection) {
+      return Promise.reject(new Error('WebRTC is unavailable in this context'));
+    }
+    const { localId, peerId, role, signaling } = options ?? {};
+    const validRole = role === 'offerer' || role === 'answerer';
+    if (!localId || !peerId || localId === peerId || !validRole) {
+      return Promise.reject(new TypeError('Invalid RTC peer identity or role'));
+    }
+    if (!signaling?.send || !signaling?.subscribe) {
+      return Promise.reject(new TypeError('RTC signaling adapter is required'));
+    }
+    const pc = new PeerConnection(options.configuration);
+    const attempt = {
+      pc,
+      options,
+      channel: null,
+      listeners: [],
+      candidates: [],
+      generation: role === 'offerer' ? generateUUID() : null,
+      remote: false,
+      description: false,
+      ready: false,
+      unsubscribe: null,
+      timer: null,
+      serial: Promise.resolve(),
+    };
+    attempt.promise = new Promise((resolve, reject) => {
+      attempt.resolve = resolve;
+      attempt.reject = reject;
+    });
+    this.#attempt = attempt;
+    const fail = (error) => this.#finish(attempt, error);
+    const listen = (target, name, handler) => {
+      target.addEventListener(name, handler);
+      attempt.listeners.push(() => target.removeEventListener(name, handler));
+    };
+    attempt.listen = listen;
+    listen(pc, 'icecandidate', ({ candidate }) => {
+      if (!candidate || !attempt.generation) return;
+      const value = candidate.toJSON ? candidate.toJSON() : candidate;
+      this.#send(attempt, { candidate: value }).catch(fail);
+    });
+    const onState = () => {
+      const states = [pc.connectionState, pc.iceConnectionState];
+      if (states.includes('failed') || states.includes('closed')) {
+        fail(new Error('RTC connection failed'));
+      }
+    };
+    listen(pc, 'connectionstatechange', onState);
+    listen(pc, 'iceconnectionstatechange', onState);
+    listen(pc, 'datachannel', ({ channel }) => {
+      if (role !== 'answerer' || attempt.channel) {
+        channel.close();
+        return void fail(new Error('Unexpected RTC data channel'));
+      }
+      this.#channel(attempt, channel);
+    });
+    try {
+      attempt.unsubscribe = signaling.subscribe((message) => {
+        attempt.serial = attempt.serial
+          .then(() => this.#receive(attempt, message))
+          .catch(fail);
+      });
+      if (typeof attempt.unsubscribe !== 'function') {
+        throw new TypeError(
+          'RTC subscribe must return an unsubscribe function',
+        );
+      }
+      attempt.timer = setTimeout(() => {
+        fail(new Error('RTC handshake timeout'));
+      }, options.handshakeTimeout ?? RTC_TIMEOUT_MS);
+      if (role === 'offerer') {
+        this.#channel(
+          attempt,
+          pc.createDataChannel('metacom', { ordered: true }),
+        );
+        this.#offer(attempt).catch(fail);
+      }
+    } catch (error) {
+      fail(error);
+    }
+    return attempt.promise;
+  }
+
+  async #send(attempt, body) {
+    if (this.#attempt !== attempt) return;
+    const { localId: source, peerId: target, signaling } = attempt.options;
+    const generation = attempt.generation;
+    const protocol = RTC_PROTOCOL;
+    const version = RTC_VERSION;
+    await signaling.send({
+      protocol,
+      version,
+      source,
+      target,
+      generation,
+      ...body,
+    });
+  }
+
+  async #offer(attempt) {
+    const description = await attempt.pc.createOffer();
+    if (this.#attempt !== attempt) return;
+    await attempt.pc.setLocalDescription(description);
+    await this.#send(attempt, { description: attempt.pc.localDescription });
+  }
+
+  async #receive(attempt, message) {
+    if (this.#attempt !== attempt || !message) return;
+    const { protocol, version, source, target, generation } = message;
+    const { localId, peerId, role } = attempt.options;
+    if (protocol !== RTC_PROTOCOL || source !== peerId || target !== localId) {
+      return;
+    }
+    if (
+      version !== RTC_VERSION ||
+      typeof generation !== 'string' ||
+      !generation
+    ) {
+      throw new Error('Invalid RTC signaling envelope');
+    }
+    if (this.#retired.has(generation)) return;
+    if (attempt.generation && attempt.generation !== generation) return;
+    const { description, candidate } = message;
+    if (!!description === (candidate !== undefined)) {
+      throw new Error('Invalid RTC signaling payload');
+    }
+    if (description) {
+      const type = role === 'answerer' ? 'offer' : 'answer';
+      if (description.type !== type || typeof description.sdp !== 'string') {
+        throw new Error('Invalid RTC description');
+      }
+      if (attempt.description) return;
+      attempt.description = true;
+      attempt.generation = generation;
+      await attempt.pc.setRemoteDescription(description);
+      if (this.#attempt !== attempt) return;
+      attempt.remote = true;
+      for (const item of attempt.candidates) {
+        await attempt.pc.addIceCandidate(item);
+      }
+      attempt.candidates = [];
+      if (role === 'answerer') {
+        const answer = await attempt.pc.createAnswer();
+        if (this.#attempt !== attempt) return;
+        await attempt.pc.setLocalDescription(answer);
+        await this.#send(attempt, { description: attempt.pc.localDescription });
+      }
+      return;
+    }
+    if (!candidate || typeof candidate.candidate !== 'string') {
+      throw new Error('Invalid RTC ICE candidate');
+    }
+    if (!attempt.generation) attempt.generation = generation;
+    if (attempt.remote) {
+      await attempt.pc.addIceCandidate(candidate);
+    } else {
+      if (attempt.candidates.length >= RTC_MAX_CANDIDATES) {
+        throw new Error('RTC ICE candidate limit exceeded');
+      }
+      attempt.candidates.push(candidate);
+    }
+  }
+
+  #channel(attempt, channel) {
+    const unreliable =
+      channel.maxRetransmits !== null ||
+      channel.maxPacketLifeTime !== null ||
+      !channel.ordered;
+    if (unreliable || channel.label !== 'metacom') {
+      channel.close();
+      return void this.#finish(
+        attempt,
+        new Error('Reliable ordered RTC channel required'),
+      );
+    }
+    attempt.channel = channel;
+    channel.binaryType = 'arraybuffer';
+    const ready = () => {
+      if (this.#attempt !== attempt || attempt.ready) return;
+      attempt.ready = true;
+      clearTimeout(attempt.timer);
+      attempt.resolve(channel);
+    };
+    attempt.listen(channel, 'open', ready);
+    attempt.listen(channel, 'close', () => {
+      this.#finish(attempt, new Error('RTC channel closed'));
+    });
+    attempt.listen(channel, 'error', () => {
+      this.#finish(attempt, new Error('RTC channel error'));
+    });
+    if (channel.readyState === 'open') ready();
+  }
+
+  #finish(attempt, error) {
+    if (this.#attempt !== attempt) return;
+    this.#attempt = null;
+    clearTimeout(attempt.timer);
+    for (const remove of attempt.listeners) remove();
+    if (typeof attempt.unsubscribe === 'function') attempt.unsubscribe();
+    if (attempt.generation) {
+      this.#retired.add(attempt.generation);
+      if (this.#retired.size > 256) {
+        this.#retired.delete(this.#retired.values().next().value);
+      }
+    }
+    attempt.candidates = [];
+    attempt.channel?.close();
+    attempt.pc.close();
+    if (!attempt.ready) attempt.reject(error);
+    this.emit('close', error);
+  }
+
+  close() {
+    if (this.#attempt) {
+      this.#finish(this.#attempt, new Error('RTC connection closed'));
+    }
+  }
+}
+
+// rtc-channel.js
+
+const RTC_HEADER_BYTES = 16;
+const RTC_FRAME_BYTES = 16384;
+const RTC_MESSAGE_BYTES = 16 * 1024 * 1024;
+const RTC_QUEUE_BYTES = 32 * 1024 * 1024;
+const RTC_HIGH_WATER_BYTES = 256 * 1024;
+const RTC_FRAGMENT_LIMIT = 4096;
+const RTC_ENCODER = new TextEncoder();
+const RTC_DECODER = new TextDecoder('utf-8', { fatal: true });
+
+const rtcBytes = (data) => {
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  }
+  throw new TypeError('RTC data must be text or binary');
+};
+
+const rtcPositive = (value, name) => {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new RangeError(`Invalid RTC ${name}`);
+  }
+  return value;
+};
+
+// Binary envelopes preserve message boundaries across fragmentation.
+class RtcChannelEndpoint extends Emitter {
+  #channel;
+  #options;
+  #queue = [];
+  #bytes = 0;
+  #sequence = 0;
+  #received = 0;
+  #assembly = null;
+  #waiters = [];
+  #listeners = [];
+  closed = false;
+
+  constructor(channel, options = {}) {
+    super();
+    const messageBytes = options.maxMessageBytes ?? RTC_MESSAGE_BYTES;
+    const queueBytes = options.maxQueueBytes ?? RTC_QUEUE_BYTES;
+    const highWater = options.highWaterBytes ?? RTC_HIGH_WATER_BYTES;
+    const fragments = options.maxFragments ?? RTC_FRAGMENT_LIMIT;
+    const timeout = options.assemblyTimeout ?? 10000;
+    const negotiated = options.maxMessageSize || RTC_FRAME_BYTES;
+    const frameBytes = Math.min(negotiated, RTC_FRAME_BYTES);
+    for (const [name, value] of Object.entries({
+      messageBytes,
+      queueBytes,
+      highWater,
+      fragments,
+      timeout,
+      frameBytes,
+    })) {
+      rtcPositive(value, name);
+    }
+    if (frameBytes <= RTC_HEADER_BYTES || frameBytes > highWater) {
+      throw new RangeError('RTC frame size exceeds buffer or header limit');
+    }
+    this.#channel = channel;
+    this.#options = {
+      messageBytes,
+      queueBytes,
+      highWater,
+      fragments,
+      timeout,
+      frameBytes,
+    };
+    channel.binaryType = 'arraybuffer';
+    channel.bufferedAmountLowThreshold = Math.floor(highWater / 2);
+    const listen = (name, listener) => {
+      channel.addEventListener(name, listener);
+      this.#listeners.push(() => channel.removeEventListener(name, listener));
+    };
+    listen('bufferedamountlow', () => this.#flush());
+    listen('close', () => this.close(new Error('RTC channel closed')));
+    listen('error', () => this.close(new Error('RTC channel error')));
+    listen('message', ({ data }) => {
+      try {
+        this.#receive(data);
+      } catch (error) {
+        this.close(error);
+      }
+    });
+  }
+
+  write(data) {
+    if (this.closed || this.#channel.readyState !== 'open') {
+      throw new Error('RTC channel is not connected');
+    }
+    const isText = typeof data === 'string';
+    const payload = isText ? RTC_ENCODER.encode(data) : rtcBytes(data);
+    const { messageBytes, fragments, frameBytes, queueBytes } = this.#options;
+    const capacity = frameBytes - RTC_HEADER_BYTES;
+    const count = Math.max(1, Math.ceil(payload.length / capacity));
+    const size = payload.length + count * RTC_HEADER_BYTES;
+    if (payload.length > messageBytes || count > fragments) {
+      throw new RangeError('RTC message limit exceeded');
+    }
+    if (this.#bytes + size > queueBytes) {
+      throw new RangeError('RTC send queue overflow');
+    }
+    this.#sequence = (this.#sequence % 0xffffffff) + 1;
+    const id = this.#sequence;
+    for (let index = 0; index < count; index++) {
+      const offset = index * capacity;
+      const part = payload.subarray(offset, offset + capacity);
+      const frame = new Uint8Array(RTC_HEADER_BYTES + part.length);
+      const header = new DataView(frame.buffer);
+      frame.set([0x4d, 0x43, 1, isText ? 0 : 1]);
+      header.setUint32(4, id);
+      header.setUint32(8, payload.length);
+      header.setUint32(12, offset);
+      frame.set(part, RTC_HEADER_BYTES);
+      this.#queue.push(frame);
+    }
+    this.#bytes += size;
+    this.#flush();
+    if (this.closed) throw new Error('RTC send failed');
+    return this.#writable();
+  }
+
+  #writable() {
+    return (
+      this.#queue.length === 0 &&
+      this.#channel.bufferedAmount < this.#options.highWater
+    );
+  }
+
+  #flush() {
+    if (this.closed) return;
+    const { highWater } = this.#options;
+    try {
+      while (this.#queue.length) {
+        const frame = this.#queue[0];
+        if (this.#channel.bufferedAmount + frame.length > highWater) break;
+        this.#channel.send(frame);
+        this.#queue.shift();
+        this.#bytes -= frame.length;
+      }
+    } catch (error) {
+      return void this.close(error);
+    }
+    if (this.#writable()) this.#settle();
+  }
+
+  drain() {
+    if (this.closed || this.#writable()) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.#waiters.push(resolve);
+    });
+  }
+
+  #settle() {
+    for (const resolve of this.#waiters) resolve();
+    this.#waiters = [];
+  }
+
+  #receive(data) {
+    if (this.closed) return;
+    const frame = rtcBytes(data);
+    const { messageBytes, fragments, frameBytes, timeout } = this.#options;
+    if (
+      frame.length < RTC_HEADER_BYTES ||
+      frame.length > frameBytes ||
+      frame[0] !== 0x4d ||
+      frame[1] !== 0x43 ||
+      frame[2] !== 1 ||
+      frame[3] > 1
+    ) {
+      throw new Error('Invalid RTC frame');
+    }
+    const header = new DataView(
+      frame.buffer,
+      frame.byteOffset,
+      RTC_HEADER_BYTES,
+    );
+    const id = header.getUint32(4);
+    const length = header.getUint32(8);
+    const offset = header.getUint32(12);
+    const payload = frame.subarray(RTC_HEADER_BYTES);
+    if (
+      !id ||
+      length > messageBytes ||
+      payload.length + offset > length ||
+      (length > 0 && payload.length === 0)
+    ) {
+      throw new Error('Invalid RTC fragment size');
+    }
+    let assembly = this.#assembly;
+    if (!assembly) {
+      const expected = (this.#received % 0xffffffff) + 1;
+      if (offset !== 0 || id !== expected) {
+        throw new Error('Invalid RTC message order');
+      }
+      const timer = setTimeout(
+        () => this.close(new Error('RTC assembly timeout')),
+        timeout,
+      );
+      assembly = {
+        id,
+        length,
+        type: frame[3],
+        data: new Uint8Array(length),
+        offset: 0,
+        count: 0,
+        timer,
+      };
+      this.#assembly = assembly;
+    }
+    if (
+      assembly.id !== id ||
+      assembly.length !== length ||
+      assembly.type !== frame[3] ||
+      assembly.offset !== offset ||
+      ++assembly.count > fragments
+    ) {
+      throw new Error('Invalid RTC fragment order');
+    }
+    assembly.data.set(payload, offset);
+    assembly.offset += payload.length;
+    if (assembly.offset !== length) return;
+    clearTimeout(assembly.timer);
+    this.#assembly = null;
+    this.#received = id;
+    const result =
+      assembly.type === 0 ? RTC_DECODER.decode(assembly.data) : assembly.data;
+    this.emit('message', result);
+  }
+
+  close(error = null) {
+    if (this.closed) return;
+    this.closed = true;
+    for (const remove of this.#listeners) remove();
+    this.#listeners = [];
+    if (this.#assembly) clearTimeout(this.#assembly.timer);
+    this.#assembly = null;
+    this.#queue = [];
+    this.#bytes = 0;
+    this.#settle();
+    this.#channel.close();
+    this.emit('close', error);
+  }
+}
+
 // client.js
 
 const { WebSocket } = globalThis;
@@ -146,6 +632,81 @@ class ClientHttpTransport extends ClientTransport {
     const id = request?.id ?? '';
     const packet = { type: 'callback', id, error };
     this.emit('message', JSON.stringify(packet));
+  }
+}
+
+class ClientRtcTransport extends ClientTransport {
+  static capabilities = { duplex: true, streams: true, events: true };
+  #connection = new RtcConnection();
+  #endpoint = null;
+  #opening = null;
+  #cycle = 0;
+
+  constructor(url) {
+    super(url);
+    this.#connection.on('close', (error) => this.#release(error));
+  }
+
+  open(options = {}) {
+    if (this.active) return Promise.resolve();
+    if (this.#opening) return this.#opening;
+    const cycle = ++this.#cycle;
+    this.#opening = this.#connection
+      .open(options.rtc)
+      .then((channel) => {
+        if (cycle !== this.#cycle) throw new Error('RTC connection closed');
+        const maxMessageSize =
+          this.#connection.peerConnection.sctp?.maxMessageSize;
+        const endpoint = new RtcChannelEndpoint(channel, {
+          ...options.rtc,
+          maxMessageSize,
+        });
+        this.#endpoint = endpoint;
+        endpoint.on('message', (data) => this.emit('message', data));
+        endpoint.on('close', (error) => {
+          this.#release(error);
+          this.#connection.close();
+        });
+        this.active = true;
+        this.emit('open');
+      })
+      .catch((error) => {
+        this.#connection.close();
+        throw error;
+      })
+      .finally(() => {
+        if (cycle === this.#cycle) this.#opening = null;
+      });
+    return this.#opening;
+  }
+
+  #release(error) {
+    if (!this.active && !this.#opening) return;
+    this.#cycle++;
+    this.#opening = null;
+    this.active = false;
+    const endpoint = this.#endpoint;
+    this.#endpoint = null;
+    endpoint?.close();
+    this.emit('close', error);
+  }
+
+  close() {
+    this.#connection.close();
+    this.#release();
+  }
+
+  write(data) {
+    if (!this.active) throw new Error('RTC transport is not connected');
+    return this.#endpoint.write(data);
+  }
+
+  drain() {
+    return this.#endpoint?.drain() ?? Promise.resolve();
+  }
+
+  announce(id) {
+    this.send({ type: 'metacom:stream', id });
   }
 }
 
@@ -372,6 +933,7 @@ const TRANSPORTS = {
   ws: ClientWsTransport,
   http: ClientHttpTransport,
   event: ClientEventTransport,
+  webrtc: ClientRtcTransport,
 };
 
 // chunks-browser.js
@@ -1480,10 +2042,13 @@ class MetacomProxy extends Emitter {
 }
 
 export {
+  RtcConnection,
+  RtcChannelEndpoint,
   ClientTransport,
   ClientWsTransport,
   ClientHttpTransport,
   ClientEventTransport,
+  ClientRtcTransport,
   TRANSPORTS,
   chunkEncode,
   chunkDecode,

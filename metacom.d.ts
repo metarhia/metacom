@@ -132,6 +132,57 @@ export class ClientWsTransport extends ClientTransport {}
 
 export class ClientHttpTransport extends ClientTransport {}
 
+export interface RtcSignal {
+  protocol: 'metacom:rtc';
+  version: 1;
+  source: string;
+  target: string;
+  generation: string;
+  description?: RTCSessionDescriptionInit;
+  candidate?: RTCIceCandidateInit;
+}
+
+export interface RtcSignaling {
+  send(message: RtcSignal): void | Promise<void>;
+  subscribe(listener: (message: RtcSignal) => void): () => void;
+}
+
+export interface RtcChannelOptions {
+  maxMessageBytes?: number;
+  maxQueueBytes?: number;
+  highWaterBytes?: number;
+  maxFragments?: number;
+  assemblyTimeout?: number;
+  maxMessageSize?: number;
+}
+
+export interface RtcOptions extends RtcChannelOptions {
+  localId: string;
+  peerId: string;
+  role: 'offerer' | 'answerer';
+  configuration?: RTCConfiguration;
+  signaling: RtcSignaling;
+  handshakeTimeout?: number;
+}
+
+export class RtcConnection extends Emitter {
+  readonly peerConnection: RTCPeerConnection | null;
+  open(options: RtcOptions): Promise<RTCDataChannel>;
+  close(): void;
+}
+
+export class RtcChannelEndpoint extends Emitter {
+  readonly closed: boolean;
+  constructor(channel: RTCDataChannel, options?: RtcChannelOptions);
+  write(data: string | ArrayBuffer | ArrayBufferView): boolean;
+  drain(): Promise<void>;
+  close(error?: Error | null): void;
+}
+
+export class ClientRtcTransport extends ClientTransport {
+  static capabilities: TransportCapabilities;
+}
+
 export class ClientEventTransport extends ClientTransport {
   static instance: ClientEventTransport | null;
   static getInstance(url: string): ClientEventTransport;
@@ -141,6 +192,7 @@ export declare const TRANSPORTS: {
   ws: typeof ClientWsTransport;
   http: typeof ClientHttpTransport;
   event: typeof ClientEventTransport;
+  webrtc: typeof ClientRtcTransport;
   [name: string]: typeof ClientTransport;
 };
 
@@ -186,6 +238,7 @@ export interface PacketProxy {
 }
 
 export interface MetacomOptions {
+  rtc?: RtcOptions;
   transport?: string;
   callTimeout?: number;
   reconnectTimeout?: number;

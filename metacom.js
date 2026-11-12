@@ -10,6 +10,9 @@ const { registerTransport, getTransport, allTransports } = transport;
 const { ClientWsTransport, ServerWsTransport } = transport;
 const { ClientHttpTransport, ServerHttpTransport } = transport;
 const { ClientEventTransport, ServerEventTransport } = transport;
+const { ClientRtcTransport } = require('./lib/client.js');
+const { RtcConnection } = require('./lib/rtc.js');
+const { RtcChannelEndpoint } = require('./lib/rtc-channel.js');
 const { TRANSPORTS } = require('./lib/client.js');
 const { MetaReadable, MetaWritable } = require('./lib/streams.js');
 const { chunkEncode, chunkDecode } = require('./lib/chunks-node.js');
@@ -35,6 +38,9 @@ module.exports = {
   ClientHttpTransport,
   ServerHttpTransport,
   ClientEventTransport,
+  ClientRtcTransport,
+  RtcConnection,
+  RtcChannelEndpoint,
   ServerEventTransport,
   TRANSPORTS,
   MetaReadable,
