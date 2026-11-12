@@ -354,12 +354,15 @@ test('MetacomProxy: rejects new call when queue is full', async (t) => {
 });
 
 test('MetacomProxy: drops expired calls on flush', async (t) => {
+  const callTimeout = 50;
   const { connect } = await setup(t);
-  const tab = await connect('tab1', { callTimeout: 50 });
+  const tab = await connect('tab1', { callTimeout });
   await tab.load('test');
   const socket = await goOffline();
   const expired = tab.api.test.echo({ order: 1 });
   await assert.rejects(expired, new Error('Request timeout'));
+  // Queue deadline starts when the proxy receives the call
+  await timers.setTimeout(callTimeout);
   const fresh = tab.api.test.echo({ order: 2 });
   socket.open();
   assert.deepStrictEqual(await fresh, { order: 2 });
