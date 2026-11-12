@@ -2,6 +2,7 @@
 
 const { Metacom, MetacomError } = require('./lib/metacom.js');
 const { MetacomProxy } = require('./lib/proxy.js');
+const { MetacomRouter } = require('./lib/router.js');
 const server = require('./lib/server.js');
 const { Server, Client, Context, Session, createProxy } = server;
 const transport = require('./lib/transport.js');
@@ -21,6 +22,7 @@ const ws = require('./lib/websocket/ws.js');
 module.exports = {
   Metacom,
   MetacomProxy,
+  MetacomRouter,
   MetacomError,
   Server,
   Client,

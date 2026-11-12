@@ -6,6 +6,7 @@
     "chunks-browser.js",
     "streams.js",
     "metacom.js",
+    "router.js",
     "proxy.js"
   ]
 }

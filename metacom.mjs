@@ -1589,19 +1589,13 @@ class Metacom extends Emitter {
 
 Metacom.initialize();
 
-// proxy.js
+// router.js
 
 const ROUTE_TIMEOUT_MS = 7 * 1000;
 const SWEEP_INTERVAL_MS = 10 * 1000;
 const PROXY_QUEUE_SIZE = 1000;
 const BAD_REQUEST = { message: 'Bad Request', code: 400 };
 const UNAVAILABLE = { message: 'Service Unavailable', code: 503 };
-
-const getWorkerUrl = () => {
-  const { protocol, host } = self.location;
-  const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${scheme}//${host}`;
-};
 
 const sendError = (port, id, error) => {
   const packet = { type: 'callback', id, error };
@@ -1652,8 +1646,9 @@ class ProxyContext {
   }
 }
 
-class MetacomProxy extends Emitter {
+class MetacomRouter extends Emitter {
   #instance = generateUUID();
+  #getClients = null;
   #ports = new Map();
   #peers = new Map();
   #calls = new Map();
@@ -1668,6 +1663,10 @@ class MetacomProxy extends Emitter {
   #sweepInterval = SWEEP_INTERVAL_MS;
   #sweepTimer = null;
 
+  get instance() {
+    return this.#instance;
+  }
+
   get server() {
     return this.#server;
   }
@@ -1678,20 +1677,15 @@ class MetacomProxy extends Emitter {
 
   constructor(options = {}) {
     super();
-    if (typeof self === 'undefined') {
-      throw new Error('MetacomProxy must run in ServiceWorker context');
-    }
     const { callTimeout, sweepInterval } = options;
     if (callTimeout) this.#callTimeout = callTimeout;
     if (sweepInterval) this.#sweepInterval = sweepInterval;
+    this.#getClients = options.getClients ?? null;
     this.#server = this.#createServer(options);
-    self.addEventListener('message', (event) => {
-      if (event.data) this.#control(event);
-    });
   }
 
   #createServer(options) {
-    const url = options.url ?? getWorkerUrl();
+    const url = options.url;
     const queueSize = options.queueSize ?? PROXY_QUEUE_SIZE;
     const proxy = {
       packet: (packet, data) => this.#route(packet, data),
@@ -1746,25 +1740,22 @@ class MetacomProxy extends Emitter {
     if (this.listenerCount('error') > 0) this.emit('error', error);
   }
 
-  #control(event) {
-    const { type, id } = event.data;
-    if (type === 'metacom:connect') this.#connect(event);
-    else if (type === 'metacom:ping') this.#pong(id, event.source);
-    else if (type === 'metacom:disconnect') this.#disconnect(id);
-    else if (type === 'metacom:online') Metacom.online();
-    else if (type === 'metacom:offline') Metacom.offline();
+  port(id) {
+    return this.#peers.get(id);
   }
 
-  #connect(event) {
-    const port = event.ports[0];
+  attach(port, options = {}) {
     if (!port) return;
-    const { id = '', callTimeout = this.#callTimeout } = event.data;
-    const client = event.source ? event.source.id : '';
-    this.#disconnect(id);
+    const {
+      id = generateUUID(),
+      client = '',
+      callTimeout = this.#callTimeout,
+    } = options;
+    this.detach(id);
     this.#ports.set(port, { id, client, callTimeout });
     if (id) this.#peers.set(id, port);
     port.addEventListener('message', ({ data }) => {
-      this.#receive(port, data);
+      this.receive(port, data);
     });
     port.start();
     const instance = this.#instance;
@@ -1775,20 +1766,13 @@ class MetacomProxy extends Emitter {
     if (!connected) this.open().catch((error) => this.#escalate(error));
   }
 
-  // Unknown tab means the worker was restarted and lost its ports
-  #pong(id, source) {
-    const port = this.#peers.get(id);
-    const instance = this.#instance;
-    if (port) return void port.postMessage({ type: 'metacom:pong', instance });
-    if (source) source.postMessage({ type: 'metacom:reset' });
-  }
-
-  #disconnect(id) {
+  detach(id) {
     const port = this.#peers.get(id);
     if (port) this.#removePort(port);
   }
 
   #removePort(port) {
+    if (!this.#ports.has(port)) return;
     const { id } = this.#ports.get(port);
     this.#ports.delete(port);
     this.#peers.delete(id);
@@ -1834,10 +1818,9 @@ class MetacomProxy extends Emitter {
 
   // Closed tab is not listed by the browser, its port gives no signal
   async #sweepClients() {
-    const { clients } = self;
-    if (!clients) return;
-    const query = { includeUncontrolled: true, type: 'all' };
-    const list = await clients.matchAll(query);
+    if (!this.#getClients) return;
+    const list = await this.#getClients();
+    if (!list) return;
     const alive = new Set();
     for (let i = 0; i < list.length; i++) alive.add(list[i].id);
     for (const entry of this.#ports) {
@@ -1859,11 +1842,11 @@ class MetacomProxy extends Emitter {
     for (const port of this.#ports.keys()) port.postMessage(data);
   }
 
-  #receive(port, data) {
+  receive(port, data) {
     const peer = this.#ports.get(port);
     if (!peer) return;
     if (typeof data === 'string') return void this.#receivePacket(port, data);
-    if (ArrayBuffer.isView(data)) return void this.#forwardChunk(data);
+    if (ArrayBuffer.isView(data)) return void this.#forwardChunk(port, data);
     const isAnnounce = data?.type === 'metacom:stream';
     if (isAnnounce) this.#expectStream(port, data.id);
   }
@@ -1899,10 +1882,12 @@ class MetacomProxy extends Emitter {
     const context = new ProxyContext(this.#server, port, this.#ports);
     try {
       const result = await handler(args, context);
-      port.postMessage(encodeCallback(id, result));
+      if (this.#ports.has(port)) port.postMessage(encodeCallback(id, result));
     } catch (error) {
       const code = typeof error.code === 'number' ? error.code : 500;
-      sendError(port, id, { message: error.message, code });
+      if (this.#ports.has(port)) {
+        sendError(port, id, { message: error.message, code });
+      }
     }
   }
 
@@ -1957,6 +1942,12 @@ class MetacomProxy extends Emitter {
   }
 
   #forwardCall(port, id, data, units) {
+    if (this.#calls.has(id)) {
+      return void sendError(port, id, {
+        message: 'Duplicate call id',
+        code: 409,
+      });
+    }
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + callTimeout;
     this.#calls.set(id, { port, expires, units });
@@ -1976,6 +1967,10 @@ class MetacomProxy extends Emitter {
   // Finished upload keeps its route for a while to pass server errors
   #forwardStream(port, packet, data) {
     const { id, status } = packet;
+    const existing = this.#streams.get(id);
+    if (existing && existing.port !== port) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
     if (!this.#server.active) {
       this.#streams.delete(id);
       return void sendError(port, id, UNAVAILABLE);
@@ -1986,13 +1981,21 @@ class MetacomProxy extends Emitter {
     this.#server.write(data);
   }
 
-  #forwardChunk(data) {
+  #forwardChunk(port, data) {
+    if (!this.#server.active) return;
+    const { id } = chunkDecode(data);
+    const stream = this.#streams.get(id);
+    if (stream?.port !== port || !stream.upload) {
+      return void sendError(port, id, BAD_REQUEST);
+    }
     if (this.#server.active) this.#server.write(data);
   }
 
   // Tab creates download stream id before the call that fills the stream
   #expectStream(port, id) {
     if (typeof id !== 'string' || id === '') return;
+    const existing = this.#streams.get(id);
+    if (existing && existing.port !== port) return;
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + 2 * callTimeout;
     this.#streams.set(id, { port, expires, upload: false });
@@ -2041,6 +2044,63 @@ class MetacomProxy extends Emitter {
   }
 }
 
+// proxy.js
+
+const getWorkerUrl = () => {
+  const { protocol, host } = self.location;
+  const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${scheme}//${host}`;
+};
+
+class MetacomProxy extends MetacomRouter {
+  #scope;
+  #listener;
+
+  constructor(options = {}) {
+    const scope = globalThis.self;
+    if (!scope) {
+      throw new Error('MetacomProxy must run in ServiceWorker context');
+    }
+    const getClients = async () => {
+      if (!scope.clients) return null;
+      return scope.clients.matchAll({ includeUncontrolled: true, type: 'all' });
+    };
+    super({ ...options, url: options.url ?? getWorkerUrl(), getClients });
+    this.#scope = scope;
+    this.#listener = (event) => this.#control(event);
+    scope.addEventListener('message', this.#listener);
+  }
+
+  #control(event) {
+    if (!event.data) return;
+    const { type, id } = event.data;
+    if (type === 'metacom:connect') {
+      this.attach(event.ports[0], {
+        ...event.data,
+        client: event.source?.id ?? '',
+      });
+    } else if (type === 'metacom:ping') {
+      const port = this.port(id);
+      if (port) {
+        port.postMessage({ type: 'metacom:pong', instance: this.instance });
+      } else {
+        event.source?.postMessage({ type: 'metacom:reset' });
+      }
+    } else if (type === 'metacom:disconnect') {
+      this.detach(id);
+    } else if (type === 'metacom:online') {
+      Metacom.online();
+    } else if (type === 'metacom:offline') {
+      Metacom.offline();
+    }
+  }
+
+  close() {
+    this.#scope.removeEventListener?.('message', this.#listener);
+    super.close();
+  }
+}
+
 export {
   RtcConnection,
   RtcChannelEndpoint,
@@ -2056,5 +2116,6 @@ export {
   MetaWritable,
   Metacom,
   MetacomError,
+  MetacomRouter,
   MetacomProxy,
 };

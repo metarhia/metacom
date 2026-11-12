@@ -279,6 +279,32 @@ export class MetacomProxy extends Emitter {
   broadcast(name: string, data?: unknown): void;
 }
 
+export interface RouterOptions extends MetacomProxyOptions {
+  getClients?: () => Promise<Array<{ id: string }> | null>;
+}
+
+export class MetacomRouter extends Emitter {
+  readonly instance: string;
+  readonly server: Metacom;
+  readonly active: boolean;
+  constructor(options: RouterOptions);
+  open(): Promise<void>;
+  close(): void;
+  register(unit: string, methods: Record<string, ProxyHandler>): void;
+  broadcast(name: string, data?: unknown): void;
+  attach(
+    port: MessagePort,
+    options?: {
+      id?: string;
+      client?: string;
+      callTimeout?: number;
+    },
+  ): void;
+  detach(id: string): void;
+  port(id: string): MessagePort | undefined;
+  receive(port: MessagePort, data: unknown): void;
+}
+
 export class ServerTransport extends Emitter {
   source: string;
   constructor(source: string);
