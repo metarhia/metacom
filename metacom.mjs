@@ -45,14 +45,15 @@ class ClientWsTransport extends ClientTransport {
       const socket = new WebSocket(this.url);
       socket.binaryType = 'arraybuffer';
       this.#socket = socket;
-      const onClose = (error) => {
+      // Error is always followed by close, listening to both emits twice
+      const onClose = (event) => {
         this.#socket = null;
         if (this.#opening) {
           this.#opening = null;
           return void reject(new Error('Connection closed'));
         }
         this.active = false;
-        this.emit('close', error);
+        this.emit('close', event);
       };
       const onOpen = () => {
         this.active = true;
@@ -62,7 +63,6 @@ class ClientWsTransport extends ClientTransport {
       };
       socket.addEventListener('open', onOpen, { once: true });
       socket.addEventListener('close', onClose, { once: true });
-      socket.addEventListener('error', onClose, { once: true });
       socket.addEventListener('message', ({ data }) => {
         this.emit('message', data);
       });
