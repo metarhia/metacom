@@ -171,7 +171,7 @@ descriptions. The host owns that upstream connection's routing and lifetime;
 do not attach it to another router concurrently.
 
 Host handlers receive a context with `peerId`, nullable upstream `server`,
-`emit(name, data)`, `broadcast(name, data)`, `getStream(id)`, and
+`client`, `emit(name, data)`, `broadcast(name, data)`, `getStream(id)`, and
 `createStream(name, size, id?)`. Use the caller's `createReadable().id` when
 creating a download. For local uploads, call `context.getStream(id)` before the
 first upload chunk; unclaimed uploads are forwarded when an upstream is present.
@@ -323,8 +323,14 @@ Handler context:
 | Field                           | Description                          |
 | ------------------------------- | ------------------------------------ |
 | `context.server`                | Worker `Metacom` connected to server |
+| `context.client`                | Calling tab, like server `Client`    |
 | `context.emit(name, data)`      | Event for the calling tab            |
 | `context.broadcast(name, data)` | Event for all other tabs             |
+
+`context.client` has `id`, `emit(name, data)`, `getStream(id)`,
+`createStream(name, size, id?)`, and emits `close` when the tab or peer is
+detached, so handlers written for a metacom server work in a worker and in
+a `MetacomPeer` host too: for example, keep subscribers and drop them on close.
 
 `proxy.broadcast(name, data)` sends an event to all tabs. Proxy emits
 `connect` and `disconnect` with tab id, and `error`.
