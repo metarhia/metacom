@@ -194,6 +194,8 @@ export declare const TRANSPORTS: {
   [name: string]: typeof ClientTransport;
 };
 
+export function isApiPath(url: string): boolean;
+
 export function buildHeaders(
   cors?: { origin?: string } | null,
 ): Record<string, string>;
@@ -418,12 +420,22 @@ export class ServerEventTransport extends ServerTransport {
 
 export interface ApplicationContext {
   console: Console;
-  auth: Auth;
-  static: {
+  auth?: Auth;
+  static?: {
     constructor: { name: string };
     serve(path: string, transport: Transport): void;
   };
-  getMethod(unit: string, version: string, methodName: string): object | null;
+  getMethod?(unit: string, version: string, methodName: string): object | null;
+}
+
+export type ServerHandler = (
+  args: any,
+  context: Context,
+) => Promise<unknown> | unknown;
+
+export interface ServerRequest {
+  req: IncomingMessage;
+  res: ServerResponse;
 }
 
 export interface Options {
@@ -499,8 +511,15 @@ export class Server extends Emitter {
   httpServer: HttpServer | HttpsServer;
   wsServer: WebsocketServer | null;
   constructor(context: ApplicationContext, options: Options);
+  register(
+    unit: string,
+    methods: Record<string, ServerHandler>,
+    options?: { access?: string },
+  ): void;
   listen(): Promise<Server>;
   close(): Promise<void>;
+  on(name: 'request', listener: (request: ServerRequest) => void): void;
+  on(name: string, listener: (...args: any[]) => void): void;
 }
 
 export interface State {

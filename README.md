@@ -27,6 +27,33 @@ await metacom.load('example'); // Load `example` interface
 const result = api.example.methodName({ arg1, arg2 });
 ```
 
+## Server usage
+
+`Server` takes an application with `console` and options. Plain method units
+can be registered on it: handlers get `(args, context)` like worker and peer
+handlers, and the built-in `system/introspect` describes registered units
+when the application has no introspection of its own.
+
+```js
+const { Server } = require('metacom');
+
+const server = new Server({ console }, { host, port, protocol: 'http' });
+server.register('chat', {
+  send: async ({ text }, context) => {
+    context.client.emit('chat/message', { text });
+    return { sent: true };
+  },
+});
+server.register('admin', { stats }, { access: 'session' });
+// Requests outside /api, for example static files
+server.on('request', ({ req, res }) => staticFiles(req, res));
+await server.listen();
+```
+
+Registered units are `public` unless `access` is given; a method registered
+with a name the application also has shadows the application one.
+`isApiPath(url)` tells metacom paths from the rest.
+
 ## Streams over Websocket
 
 ### Example: big file upload

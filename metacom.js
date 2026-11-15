@@ -12,6 +12,7 @@ const server = require('./lib/server.js');
 const { Server, Client, Context, Session, createProxy } = server;
 const transport = require('./lib/transport.js');
 const { ClientTransport, ServerTransport, buildHeaders } = transport;
+const { isApiPath } = transport;
 const { registerTransport, getTransport, allTransports } = transport;
 const { ClientWsTransport, ServerWsTransport } = transport;
 const { ClientHttpTransport, ServerHttpTransport } = transport;
@@ -42,6 +43,7 @@ module.exports = {
   ClientTransport,
   ServerTransport,
   buildHeaders,
+  isApiPath,
   registerTransport,
   getTransport,
   allTransports,
