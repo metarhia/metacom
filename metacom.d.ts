@@ -257,8 +257,16 @@ export interface MetacomProxyOptions extends MetacomOptions {
   sweepInterval?: number;
 }
 
+export interface RouterClient extends Emitter {
+  readonly id: string;
+  emit(name: EventName, data?: unknown): Promise<void>;
+  getStream(id: string): MetaReadable;
+  createStream(name: string, size: number, id?: string): MetaWritable;
+}
+
 export interface ProxyContext {
   server: Metacom | null;
+  client: RouterClient;
   peerId: string;
   emit(name: string, data?: unknown): void;
   broadcast(name: string, data?: unknown): void;
@@ -295,7 +303,7 @@ export class MetacomRouter extends Emitter {
     port: MessagePort,
     options?: {
       id?: string;
-      client?: string;
+      clientId?: string;
       callTimeout?: number;
     },
   ): void;

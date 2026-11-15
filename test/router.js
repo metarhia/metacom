@@ -114,3 +114,33 @@ test('Router: announcement sent as text routes the download', async (t) => {
   RouterTransport.last.emit('message', JSON.stringify(init));
   assert.deepEqual(JSON.parse(port.packets.at(-1)), init);
 });
+
+test('Router: handlers get a client of the calling port', async (t) => {
+  const router = new MetacomRouter();
+  t.after(() => router.close());
+  let client = null;
+  let closed = 0;
+  router.register('chat', {
+    subscribe: (args, context) => {
+      client = context.client;
+      client.on('close', () => closed++);
+      return client.id;
+    },
+  });
+  const port = new RouterPort();
+  router.attach(port, { id: 'tab' });
+  const call = { type: 'call', id: 'c1', method: 'chat/subscribe', args: {} };
+  router.receive(port, JSON.stringify(call));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+  assert.equal(JSON.parse(port.packets.at(-1)).result, 'tab');
+  client.emit('chat/log', { position: 1 });
+  const event = { type: 'event', name: 'chat/log', data: { position: 1 } };
+  assert.deepEqual(JSON.parse(port.packets.at(-1)), event);
+  router.detach('tab');
+  assert.equal(closed, 1);
+  const count = port.packets.length;
+  client.emit('chat/log', { position: 2 });
+  assert.equal(port.packets.length, count);
+});
