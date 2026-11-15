@@ -299,7 +299,7 @@ metacom.on('status', ({ connected }) => {
 | ------------- | ------------------------------------------------------------ |
 | Identity      | Server sees one client and one session for all tabs          |
 | Calls         | Reply goes to the tab that sent the call                     |
-| Events        | Server events are delivered to all tabs                      |
+| Events        | Server events go to tabs that loaded the event unit          |
 | Streams       | Routed by stream id created in the tab                       |
 | Offline calls | Queued in memory, sent after reconnect, 503 if queue is full |
 | Offline load  | Local methods at once, server methods added after reconnect  |

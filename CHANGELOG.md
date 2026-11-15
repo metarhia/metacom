@@ -30,6 +30,7 @@
 - Add `context.client` to router, proxy, and peer handlers, like server
   `Client`: `emit`, streams, and `close` event
 - Breaking: router attach option `client` is renamed to `clientId`
+- Breaking: upstream events go only to ports that loaded the event unit
 - Router accepts `metacom:stream` announcements sent as text
 - Export `parseMethod`, `isStreamMeta`, `startInterval`, `emitError`, and
   `retireRtcGeneration`

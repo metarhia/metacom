@@ -144,3 +144,29 @@ test('Router: handlers get a client of the calling port', async (t) => {
   client.emit('chat/log', { position: 2 });
   assert.equal(port.packets.length, count);
 });
+
+test('Router: upstream events reach ports that loaded the unit', async (t) => {
+  Metacom.transport.routertest = RouterTransport;
+  const router = new MetacomRouter({ url: 'peer', transport: 'routertest' });
+  t.after(() => {
+    router.close();
+    delete Metacom.transport.routertest;
+  });
+  await router.open();
+  const chat = new RouterPort();
+  const cache = new RouterPort();
+  router.attach(chat, { id: 'chat' });
+  router.attach(cache, { id: 'cache' });
+  const load = (port, unit) => {
+    const method = 'system/introspect';
+    const call = { type: 'call', id: `load-${unit}`, method, args: [unit] };
+    router.receive(port, JSON.stringify(call));
+  };
+  load(chat, 'chat');
+  load(cache, 'cache');
+  const count = cache.packets.length;
+  const event = JSON.stringify({ type: 'event', name: 'chat/log', data: {} });
+  RouterTransport.last.emit('message', event);
+  assert.equal(chat.packets.at(-1), event);
+  assert.equal(cache.packets.length, count);
+});
