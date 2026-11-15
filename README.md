@@ -333,6 +333,18 @@ Tab options for `Metacom.connect(url, { worker })`: `callTimeout`,
 `generateId`, `pingInterval` (20000), `pongTimeout` (5000),
 `handshakeTimeout` (5000).
 
+## Helpers
+
+Small functions shared by metacom modules are exported too:
+
+| Function                                   | Description                                    |
+| ------------------------------------------ | ---------------------------------------------- |
+| `parseMethod(method)`                      | `{ unit, version, name }`, version `'*'`       |
+| `isStreamMeta(name, size)`                 | String name and non-negative integer size      |
+| `startInterval(listener, interval)`        | `setInterval` that does not keep Node.js alive |
+| `emitError(emitter, error)`                | Emits `error` only when someone listens        |
+| `retireRtcGeneration(retired, generation)` | Remembers last 256 finished RTC generations    |
+
 ## License & Contributors
 
 Copyright (c) 2018-2026 [Metarhia contributors](https://github.com/metarhia/metacom/graphs/contributors).

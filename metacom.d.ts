@@ -539,6 +539,24 @@ export function chunkDecode(chunk: Uint8Array): {
   payload: Uint8Array;
 };
 
+export interface MethodName {
+  unit: string;
+  version: string;
+  name: string;
+}
+
+export function parseMethod(method: string): MethodName;
+export function isStreamMeta(name: unknown, size: unknown): boolean;
+export function startInterval(
+  listener: () => void,
+  interval: number,
+): ReturnType<typeof setInterval>;
+export function emitError(emitter: Emitter, error: Error): void;
+export function retireRtcGeneration(
+  retired: Set<string>,
+  generation: string,
+): void;
+
 export declare const MAGIC: string;
 export declare const CLOSE_TIMEOUT: number;
 

@@ -1,4 +1,26 @@
-import { Emitter, generateUUID, delay, jsonParse, split } from './metautil.js';
+import { split, Emitter, generateUUID, delay, jsonParse } from './metautil.js';
+
+// utils.js
+
+// Timer does not keep Node.js process alive, browsers have no unref
+const startInterval = (listener, interval) => {
+  const timer = setInterval(listener, interval);
+  if (typeof timer.unref === 'function') timer.unref();
+  return timer;
+};
+
+// Method format: unit/name or unit.version/name, version defaults to '*'
+const parseMethod = (method) => {
+  const route = split(method, '/');
+  const target = split(route[0], '.');
+  const version = target[1] || '*';
+  return { unit: target[0], version, name: route[1] };
+};
+
+// Emitter throws on error event without listeners
+const emitError = (emitter, error) => {
+  if (emitter.listenerCount('error') > 0) emitter.emit('error', error);
+};
 
 // rtc.js
 
@@ -6,6 +28,14 @@ const RTC_PROTOCOL = 'metacom:rtc';
 const RTC_VERSION = 1;
 const RTC_TIMEOUT_MS = 10000;
 const RTC_MAX_CANDIDATES = 256;
+const RTC_RETIRED_LIMIT = 256;
+
+// Finished generations are ignored, the oldest is forgotten over the limit
+const retireRtcGeneration = (retired, generation) => {
+  retired.add(generation);
+  if (retired.size <= RTC_RETIRED_LIMIT) return;
+  retired.delete(retired.values().next().value);
+};
 
 // One negotiation generation owns all its listeners and asynchronous work.
 class RtcConnection extends Emitter {
@@ -216,10 +246,7 @@ class RtcConnection extends Emitter {
     for (const remove of attempt.listeners) remove();
     if (typeof attempt.unsubscribe === 'function') attempt.unsubscribe();
     if (attempt.generation) {
-      this.#retired.add(attempt.generation);
-      if (this.#retired.size > 256) {
-        this.#retired.delete(this.#retired.values().next().value);
-      }
+      retireRtcGeneration(this.#retired, attempt.generation);
     }
     attempt.candidates = [];
     attempt.channel?.close();
@@ -489,12 +516,6 @@ const PONG_TIMEOUT_MS = 5 * 1000;
 const HANDSHAKE_TIMEOUT_MS = 5 * 1000;
 const BUFFER_HIGH_WATER_BYTES = 1024 * 1024;
 const DRAIN_INTERVAL_MS = 10;
-
-const startInterval = (listener, interval) => {
-  const timer = setInterval(listener, interval);
-  if (typeof timer.unref === 'function') timer.unref();
-  return timer;
-};
 
 class ClientTransport extends Emitter {
   active = false;
@@ -1218,12 +1239,11 @@ class ClientRtcBridgeTransport extends ClientTransport {
       this.#lastPing = Date.now();
       const pongTimeout = this.#options.pongTimeout ?? RTC_BRIDGE_PONG_MS;
       const pingInterval = this.#options.pingInterval ?? RTC_BRIDGE_PING_MS;
-      this.#heartbeat = setInterval(() => {
+      this.#heartbeat = startInterval(() => {
         if (Date.now() - this.#lastPing > pongTimeout) {
           this.#release(new Error('RTC bridge owner heartbeat timeout'));
         }
       }, pingInterval);
-      this.#heartbeat.unref?.();
       link.post('ready-ack', { instance: this.#instance });
       this.#pending?.resolve();
       this.#pending = null;
@@ -1245,9 +1265,8 @@ class ClientRtcBridgeTransport extends ClientTransport {
     clearInterval(this.#heartbeat);
     const link = this.#link;
     this.#link = null;
-    if (this.#generation) this.#retired.add(this.#generation);
-    if (this.#retired.size > 256) {
-      this.#retired.delete(this.#retired.values().next().value);
+    if (this.#generation) {
+      retireRtcGeneration(this.#retired, this.#generation);
     }
     this.#generation = null;
     this.#pending?.reject(error);
@@ -1393,14 +1412,13 @@ class MetacomRtcBridge {
       const pongTimeout = this.#rtc.pongTimeout ?? RTC_BRIDGE_PONG_MS;
       const pingInterval = this.#rtc.pingInterval ?? RTC_BRIDGE_PING_MS;
       const ping = rtcBridgeMessage(this.#generation, 'ping');
-      this.#heartbeat = setInterval(() => {
+      this.#heartbeat = startInterval(() => {
         if (Date.now() - this.#lastPong > pongTimeout) {
           const error = new Error('RTC bridge worker heartbeat timeout');
           return void this.close(error);
         }
         this.#worker.postMessage(ping);
       }, pingInterval);
-      this.#heartbeat.unref?.();
     } else if (data.kind === 'pong') {
       if (data.instance !== this.#instance) {
         throw new Error('RTC bridge worker changed');
@@ -1465,6 +1483,11 @@ const PUSH_EVENT = Symbol();
 const PULL_EVENT = Symbol();
 const DEFAULT_HIGH_WATER_MARK = 32;
 const MAX_PENDING_PUSHES = 1000;
+
+const isStreamMeta = (name, size) => {
+  const isSize = Number.isSafeInteger(size) && size >= 0;
+  return typeof name === 'string' && isSize;
+};
 
 // Works for both node:stream Writable and metautil Emitter
 const waitEvent = (emitter, eventName) => {
@@ -1799,9 +1822,8 @@ class Metacom extends Emitter {
     }
   }
 
-  // Emitter throws on error event without listeners
   #report(error) {
-    if (this.listenerCount('error') > 0) this.emit('error', error);
+    emitError(this, error);
   }
 
   #scheduleReconnect() {
@@ -2128,13 +2150,6 @@ const createRoute = (port, upload, expires) => ({
   forwarded: false,
 });
 
-// Method format: unit/name or unit.version/name
-const parseMethod = (method) => {
-  const route = split(method, '/');
-  const target = split(route[0], '.');
-  return { unit: target[0], name: route[1] };
-};
-
 class ProxyContext {
   #port = null;
   #ports = null;
@@ -2266,7 +2281,7 @@ class MetacomRouter extends Emitter {
   }
 
   #escalate(error) {
-    if (this.listenerCount('error') > 0) this.emit('error', error);
+    emitError(this, error);
   }
 
   port(id) {
@@ -2330,9 +2345,8 @@ class MetacomRouter extends Emitter {
 
   #startSweep() {
     if (this.#sweepTimer) return;
-    const timer = setInterval(() => this.#sweep(), this.#sweepInterval);
-    if (typeof timer.unref === 'function') timer.unref();
-    this.#sweepTimer = timer;
+    const sweep = () => this.#sweep();
+    this.#sweepTimer = startInterval(sweep, this.#sweepInterval);
   }
 
   #sweep() {
@@ -2541,7 +2555,7 @@ class MetacomRouter extends Emitter {
     if (existing && (existing.port !== port || existing.upload)) {
       throw new Error('Stream id already in use');
     }
-    if (typeof name !== 'string' || !Number.isSafeInteger(size) || size < 0) {
+    if (!isStreamMeta(name, size)) {
       throw new TypeError('Invalid stream metadata');
     }
     this.#streams.set(id, createRoute(port, false, 0));
@@ -2567,12 +2581,7 @@ class MetacomRouter extends Emitter {
       return void sendError(port, id, BAD_REQUEST);
     }
     if (status === undefined) {
-      if (
-        stream ||
-        typeof name !== 'string' ||
-        !Number.isSafeInteger(size) ||
-        size < 0
-      ) {
+      if (stream || !isStreamMeta(name, size)) {
         return void sendError(port, id, BAD_REQUEST);
       }
       stream = createRoute(port, true, Date.now() + this.#callTimeout);
@@ -2783,7 +2792,7 @@ class MetacomPeer extends Emitter {
   }
 
   #report(error) {
-    if (this.listenerCount('error')) this.emit('error', error);
+    emitError(this, error);
   }
 
   close() {
@@ -2856,7 +2865,11 @@ class MetacomProxy extends MetacomRouter {
 }
 
 export {
+  startInterval,
+  parseMethod,
+  emitError,
   RtcConnection,
+  retireRtcGeneration,
   RtcChannelEndpoint,
   ClientTransport,
   ClientWsTransport,
@@ -2870,6 +2883,7 @@ export {
   chunkDecode,
   MetaReadable,
   MetaWritable,
+  isStreamMeta,
   Metacom,
   MetacomError,
   MetacomRouter,

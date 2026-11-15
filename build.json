@@ -1,5 +1,6 @@
 {
   "order": [
+    "utils.js",
     "rtc.js",
     "rtc-channel.js",
     "client.js",

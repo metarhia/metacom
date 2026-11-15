@@ -17,10 +17,12 @@ const { ClientWsTransport, ServerWsTransport } = transport;
 const { ClientHttpTransport, ServerHttpTransport } = transport;
 const { ClientEventTransport, ServerEventTransport } = transport;
 const { ClientRtcTransport } = require('./lib/client.js');
-const { RtcConnection } = require('./lib/rtc.js');
+const { RtcConnection, retireRtcGeneration } = require('./lib/rtc.js');
 const { RtcChannelEndpoint } = require('./lib/rtc-channel.js');
 const { TRANSPORTS } = require('./lib/client.js');
-const { MetaReadable, MetaWritable } = require('./lib/streams.js');
+const streams = require('./lib/streams.js');
+const { MetaReadable, MetaWritable, isStreamMeta } = streams;
+const { startInterval, parseMethod, emitError } = require('./lib/utils.js');
 const { chunkEncode, chunkDecode } = require('./lib/chunks-node.js');
 const ws = require('./lib/websocket/ws.js');
 
@@ -50,11 +52,16 @@ module.exports = {
   ClientEventTransport,
   ClientRtcTransport,
   RtcConnection,
+  retireRtcGeneration,
   RtcChannelEndpoint,
   ServerEventTransport,
   TRANSPORTS,
   MetaReadable,
   MetaWritable,
+  isStreamMeta,
+  startInterval,
+  parseMethod,
+  emitError,
   chunkEncode,
   chunkDecode,
   ...ws,

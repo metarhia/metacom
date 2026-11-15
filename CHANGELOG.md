@@ -28,6 +28,8 @@
   `packet` and `binary` methods
 - Breaking: server stream without tab id is not delivered through the proxy
 - Router accepts `metacom:stream` announcements sent as text
+- Export `parseMethod`, `isStreamMeta`, `startInterval`, `emitError`, and
+  `retireRtcGeneration`
 - Fix chunk order: read websocket binary frames as `ArrayBuffer`
 - Fix reconnect after failed `open()` and duplicate error on failed connect
 
