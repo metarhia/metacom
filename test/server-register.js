@@ -80,3 +80,29 @@ test('Server: requests outside API go to request event', async (t) => {
   const api = await fetch(`http://127.0.0.1:${port}/api`, { method: 'GET' });
   assert.equal(api.status, 403);
 });
+
+test('Server: frozen event data is serialized once for clients', async (t) => {
+  const { server, port } = await start(t);
+  const subscribers = [];
+  server.register('feed', {
+    subscribe: (args, context) => {
+      subscribers.push(context.client);
+      return subscribers.length;
+    },
+  });
+  const clients = [await connect(t, port), await connect(t, port)];
+  const received = [];
+  for (const client of clients) {
+    await client.load('feed');
+    received.push(client.api.feed.toPromise('item'));
+    await client.api.feed.subscribe();
+  }
+  let reads = 0;
+  const data = {};
+  const get = () => ++reads;
+  Object.defineProperty(data, 'value', { enumerable: true, get });
+  Object.freeze(data);
+  for (const client of subscribers) client.emit('feed/item', data);
+  assert.deepEqual(await Promise.all(received), [{ value: 1 }, { value: 1 }]);
+  assert.equal(reads, 1);
+});

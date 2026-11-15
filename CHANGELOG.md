@@ -34,9 +34,11 @@
 - Breaking: router attach option `client` is renamed to `clientId`
 - Breaking: upstream events go only to ports that loaded the event unit
 - Router accepts `metacom:stream` announcements sent as text
+- Frozen event data is serialized once for all clients
 - Export `parseMethod`, `isStreamMeta`, `startInterval`, `emitError`, and
   `retireRtcGeneration`
 - Export `isApiPath`
+- Export `encodeEvent`
 - Fix chunk order: read websocket binary frames as `ArrayBuffer`
 - Fix reconnect after failed `open()` and duplicate error on failed connect
 

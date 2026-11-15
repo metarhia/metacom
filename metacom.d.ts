@@ -578,6 +578,7 @@ export function startInterval(
   listener: () => void,
   interval: number,
 ): ReturnType<typeof setInterval>;
+export function encodeEvent(name: string, data?: unknown): string;
 export function emitError(emitter: Emitter, error: Error): void;
 export function retireRtcGeneration(
   retired: Set<string>,

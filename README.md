@@ -50,6 +50,8 @@ server.on('request', ({ req, res }) => staticFiles(req, res));
 await server.listen();
 ```
 
+Event data frozen with `Object.freeze` is treated as immutable: when it is
+emitted to many clients, the packet is serialized once.
 Registered units are `public` unless `access` is given; a method registered
 with a name the application also has shadows the application one.
 `isApiPath(url)` tells metacom paths from the rest.
@@ -373,6 +375,7 @@ Small functions shared by metacom modules are exported too:
 | Function                                   | Description                                    |
 | ------------------------------------------ | ---------------------------------------------- |
 | `parseMethod(method)`                      | `{ unit, version, name }`, version `'*'`       |
+| `encodeEvent(name, data)`                  | Event packet, frozen data serialized once      |
 | `isStreamMeta(name, size)`                 | String name and non-negative integer size      |
 | `startInterval(listener, interval)`        | `setInterval` that does not keep Node.js alive |
 | `emitError(emitter, error)`                | Emits `error` only when someone listens        |

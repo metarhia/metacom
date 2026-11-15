@@ -2,6 +2,10 @@ import { split, Emitter, generateUUID, delay, jsonParse } from './metautil.js';
 
 // utils.js
 
+// Frozen data does not change: its event packet is serialized once
+// and reused for every client the event goes to
+const FROZEN_EVENTS = new WeakMap();
+
 // Timer does not keep Node.js process alive, browsers have no unref
 const startInterval = (listener, interval) => {
   const timer = setInterval(listener, interval);
@@ -15,6 +19,16 @@ const parseMethod = (method) => {
   const target = split(route[0], '.');
   const version = target[1] || '*';
   return { unit: target[0], version, name: route[1] };
+};
+
+const encodeEvent = (name, data) => {
+  const isObject = typeof data === 'object' && data !== null;
+  const isFrozen = isObject && Object.isFrozen(data);
+  const cached = isFrozen ? FROZEN_EVENTS.get(data) : undefined;
+  if (cached?.name === name) return cached.packet;
+  const packet = JSON.stringify({ type: 'event', name, data });
+  if (isFrozen) FROZEN_EVENTS.set(data, { name, packet });
+  return packet;
 };
 
 // Emitter throws on error event without listeners
@@ -2128,11 +2142,6 @@ const sendTerminate = (port, id) => {
   port.postMessage(JSON.stringify(packet));
 };
 
-const encodeEvent = (name, data) => {
-  const packet = { type: 'event', name, data };
-  return JSON.stringify(packet);
-};
-
 const encodeCallback = (id, result) => {
   const packet = { type: 'callback', id, result };
   return JSON.stringify(packet);
@@ -2905,6 +2914,7 @@ class MetacomProxy extends MetacomRouter {
 export {
   startInterval,
   parseMethod,
+  encodeEvent,
   emitError,
   RtcConnection,
   retireRtcGeneration,

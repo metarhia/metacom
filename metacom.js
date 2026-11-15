@@ -23,7 +23,8 @@ const { RtcChannelEndpoint } = require('./lib/rtc-channel.js');
 const { TRANSPORTS } = require('./lib/client.js');
 const streams = require('./lib/streams.js');
 const { MetaReadable, MetaWritable, isStreamMeta } = streams;
-const { startInterval, parseMethod, emitError } = require('./lib/utils.js');
+const utils = require('./lib/utils.js');
+const { startInterval, parseMethod, encodeEvent, emitError } = utils;
 const { chunkEncode, chunkDecode } = require('./lib/chunks-node.js');
 const ws = require('./lib/websocket/ws.js');
 
@@ -63,6 +64,7 @@ module.exports = {
   isStreamMeta,
   startInterval,
   parseMethod,
+  encodeEvent,
   emitError,
   chunkEncode,
   chunkDecode,
