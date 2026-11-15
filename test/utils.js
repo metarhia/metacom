@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { Emitter } = require('metautil');
 const metacom = require('../metacom.js');
 
-const { parseMethod, isStreamMeta, emitError } = metacom;
+const { parseMethod, isStreamMeta, emitError, encodeEvent } = metacom;
 const { retireRtcGeneration } = metacom;
 
 test('parseMethod: unit, version, and name', () => {
@@ -44,4 +44,29 @@ test('retireRtcGeneration: oldest generation is forgotten', () => {
   assert.equal(retired.size, 256);
   assert.equal(retired.has('g0'), false);
   assert.equal(retired.has('g256'), true);
+});
+
+// Data with a getter that counts how many times it was serialized
+const countReads = () => {
+  const counter = { reads: 0 };
+  const data = {};
+  const get = () => ++counter.reads;
+  Object.defineProperty(data, 'value', { enumerable: true, get });
+  return { data, counter };
+};
+
+test('encodeEvent: frozen data is serialized once per event name', () => {
+  const plain = countReads();
+  encodeEvent('chat/log', plain.data);
+  encodeEvent('chat/log', plain.data);
+  assert.equal(plain.counter.reads, 2);
+  const frozen = countReads();
+  Object.freeze(frozen.data);
+  const packet = encodeEvent('chat/log', frozen.data);
+  assert.equal(encodeEvent('chat/log', frozen.data), packet);
+  assert.equal(frozen.counter.reads, 1);
+  encodeEvent('chat/other', frozen.data);
+  assert.equal(frozen.counter.reads, 2);
+  const event = { type: 'event', name: 'chat/log', data: { value: 1 } };
+  assert.deepEqual(JSON.parse(packet), event);
 });
