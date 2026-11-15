@@ -27,6 +27,8 @@
 - Breaking: `proxy` option is removed, `setProxy(proxy)` takes an object with
   `packet` and `binary` methods
 - Breaking: server stream without tab id is not delivered through the proxy
+- Add `Server.register(unit, methods, { access })` with built-in
+  introspection, non-API requests go to the server `request` event
 - Add `context.client` to router, proxy, and peer handlers, like server
   `Client`: `emit`, streams, and `close` event
 - Breaking: router attach option `client` is renamed to `clientId`
@@ -34,6 +36,7 @@
 - Router accepts `metacom:stream` announcements sent as text
 - Export `parseMethod`, `isStreamMeta`, `startInterval`, `emitError`, and
   `retireRtcGeneration`
+- Export `isApiPath`
 - Fix chunk order: read websocket binary frames as `ArrayBuffer`
 - Fix reconnect after failed `open()` and duplicate error on failed connect
 

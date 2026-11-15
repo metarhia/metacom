@@ -19,23 +19,6 @@ process.emitWarning = (warning, type, ...args) => {
 const DELIVERY_MS = 50;
 const PAYLOAD = 'hello from server';
 
-class ProcedureMock {
-  constructor({ handler, access = 'public' }) {
-    this.handler = handler;
-    this.access = access;
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  async enter() {}
-
-  // eslint-disable-next-line class-methods-use-this
-  leave() {}
-
-  invoke(context, args) {
-    return this.handler(args, context);
-  }
-}
-
 const noop = () => {};
 
 const api = {
@@ -62,27 +45,28 @@ const api = {
   },
 };
 
-const introspect = async () => {
-  const methods = {};
-  for (const name of Object.keys(api)) methods[name] = {};
-  return { test: methods };
+const clients = new Set();
+const logger = { log: noop, info: noop, warn: noop, error: noop, debug: noop };
+const application = { console: logger };
+
+// Every call records its client: all tabs share one through the worker
+const countClients = (methods) => {
+  const counted = {};
+  for (const name of Object.keys(methods)) {
+    counted[name] = async (args, context) => {
+      clients.add(context.client);
+      return methods[name](args, context);
+    };
+  }
+  return counted;
 };
 
-const application = {
-  clients: new Set(),
-  console: { log: noop, info: noop, warn: noop, error: noop, debug: noop },
-  auth: { saveSession: async () => {} },
-  getMethod: (unit, version, name) => {
-    const isIntrospect = unit === 'system' && name === 'introspect';
-    if (isIntrospect) return new ProcedureMock({ handler: introspect });
-    const handler = unit === 'test' ? api[name] : null;
-    if (!handler) return null;
-    const counted = async (args, context) => {
-      application.clients.add(context.client);
-      return handler(args, context);
-    };
-    return new ProcedureMock({ handler: counted });
-  },
+const createServer = async () => {
+  const options = { host: '127.0.0.1', port: 0, protocol: 'http' };
+  const server = new Server(application, { ...options, timeouts: {} });
+  server.register('test', countClients(api));
+  await server.listen();
+  return server;
 };
 
 const createEnvironment = (port) => {
@@ -101,9 +85,7 @@ const createEnvironment = (port) => {
 };
 
 test('MetacomProxy with Server', async (t) => {
-  const options = { host: '127.0.0.1', port: 0, protocol: 'http' };
-  const server = new Server(application, { ...options, timeouts: {} });
-  await server.listen();
+  const server = await createServer();
   const { port } = server.httpServer.address();
   const environment = createEnvironment(port);
   globalThis.self = environment;
@@ -143,7 +125,7 @@ test('MetacomProxy with Server', async (t) => {
       tab2.api.test.hello({ name: 'two' }),
     ]);
     assert.deepStrictEqual(results, ['Hello, one', 'Hello, two']);
-    assert.strictEqual(application.clients.size, 1);
+    assert.strictEqual(clients.size, 1);
   });
 
   await t.test('server event reaches every tab', async () => {
@@ -209,9 +191,7 @@ test('MetacomProxy with Server', async (t) => {
 });
 
 test('MetacomProxy with Server over HTTP', async (t) => {
-  const options = { host: '127.0.0.1', port: 0, protocol: 'http' };
-  const server = new Server(application, { ...options, timeouts: {} });
-  await server.listen();
+  const server = await createServer();
   const { port } = server.httpServer.address();
   const environment = createEnvironment(port);
   globalThis.self = environment;
