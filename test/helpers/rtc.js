@@ -55,12 +55,40 @@ class RtcMockChannel extends RtcTarget {
   }
 }
 
+const SDP_MID = 'a=mid:';
+
+const mockPeerId = (sdp) => {
+  const splitAt = sdp.indexOf('\n');
+  const line = splitAt === -1 ? sdp : sdp.slice(0, splitAt);
+  return line.trim();
+};
+
+const mockSdpSections = (sdp) => {
+  const sections = [];
+  let kind = '';
+  const lines = sdp.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('m=')) {
+      const header = line.slice(2);
+      const space = header.indexOf(' ');
+      kind = space === -1 ? header : header.slice(0, space);
+    } else if (kind && line.startsWith(SDP_MID)) {
+      const mid = line.slice(SDP_MID.length);
+      sections.push({ kind, mid });
+      kind = '';
+    }
+  }
+  return sections;
+};
+
 class RtcMockPeer extends RtcTarget {
   static peers = new Map();
   static sequence = 0;
   id = `${++RtcMockPeer.sequence}`;
   candidates = [];
   sctp = { maxMessageSize: 65536 };
+  transceivers = [];
 
   constructor() {
     super();
@@ -72,6 +100,57 @@ class RtcMockPeer extends RtcTarget {
     return this.channel;
   }
 
+  addTransceiver(kind, init) {
+    const direction = init?.direction ?? 'sendrecv';
+    const sender = {
+      track: null,
+      replaced: [],
+      parameters: {},
+      async replaceTrack(track) {
+        this.track = track;
+        this.replaced.push(track);
+      },
+      getParameters() {
+        return this.parameters;
+      },
+      async setParameters(parameters) {
+        this.parameters = parameters;
+      },
+    };
+    const track = {
+      kind,
+      id: `${kind}-${this.transceivers.length}`,
+      muted: false,
+    };
+    const receiver = { track };
+    const transceiver = {
+      mid: null,
+      kind,
+      direction,
+      sender,
+      receiver,
+      codecPreferences: null,
+      setCodecPreferences(codecs) {
+        this.codecPreferences = codecs;
+      },
+    };
+    this.transceivers.push(transceiver);
+    return transceiver;
+  }
+
+  getTransceivers() {
+    return this.transceivers;
+  }
+
+  emitTracks() {
+    const list = this.transceivers;
+    for (let i = 0; i < list.length; i++) {
+      const transceiver = list[i];
+      const track = transceiver.receiver.track;
+      this.dispatch('track', { transceiver, track });
+    }
+  }
+
   async createOffer() {
     return { type: 'offer', sdp: this.id };
   }
@@ -81,21 +160,50 @@ class RtcMockPeer extends RtcTarget {
   }
 
   async setLocalDescription(value) {
-    this.localDescription = { ...value, toJSON: () => value };
+    if (!this.transceivers.length) {
+      this.localDescription = { ...value, toJSON: () => value };
+      return;
+    }
+    const lines = [this.id];
+    for (let i = 0; i < this.transceivers.length; i++) {
+      const transceiver = this.transceivers[i];
+      const mid = `${i}`;
+      transceiver.mid = mid;
+      lines.push(`m=${transceiver.kind} 9 UDP/TLS/RTP/SAVPF`);
+      lines.push(`a=mid:${mid}`);
+    }
+    const dataMid = `${this.transceivers.length}`;
+    lines.push('m=application 9 UDP/DTLS/SCTP webrtc-datachannel');
+    lines.push(`a=mid:${dataMid}`);
+    const sdp = lines.join('\n');
+    const description = { type: value.type, sdp };
+    this.localDescription = { ...description, toJSON: () => description };
   }
 
   async setRemoteDescription(value) {
     this.remoteDescription = value;
     if (value.type === 'offer') {
-      this.remote = RtcMockPeer.peers.get(value.sdp);
+      const remoteId = mockPeerId(value.sdp);
+      this.remote = RtcMockPeer.peers.get(remoteId);
       this.channel = new RtcMockChannel();
       this.channel.other = this.remote.channel;
       this.remote.channel.other = this.channel;
+      const sections = mockSdpSections(value.sdp);
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
+        if (section.kind === 'application') continue;
+        const transceiver = this.addTransceiver(section.kind, {
+          direction: 'recvonly',
+        });
+        transceiver.mid = section.mid;
+      }
       this.dispatch('datachannel', { channel: this.channel });
-    } else {
-      this.channel.open();
-      this.channel.other.open();
+      this.emitTracks();
+      return;
     }
+    this.channel.open();
+    this.channel.other.open();
+    this.emitTracks();
   }
 
   async addIceCandidate(value) {

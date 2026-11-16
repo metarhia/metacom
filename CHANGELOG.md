@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Add fixed media slots to `RtcConnection`: `setTrack`, `sender`, `receiver`,
+  and a `track` event, switched with `replaceTrack` and no renegotiation
 - Add `RtcConnection`: reliable WebRTC data channels negotiated through a
   signaling adapter, with messages scoped by source, target, and generation
 - Add `RtcChannelEndpoint`: bounded message framing and data channel

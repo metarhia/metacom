@@ -43,6 +43,7 @@ const RTC_VERSION = 1;
 const RTC_TIMEOUT_MS = 10000;
 const RTC_MAX_CANDIDATES = 256;
 const RTC_RETIRED_LIMIT = 256;
+const SDP_MID = 'a=mid:';
 
 // Finished generations are ignored, the oldest is forgotten over the limit
 const retireRtcGeneration = (retired, generation) => {
@@ -51,13 +52,117 @@ const retireRtcGeneration = (retired, generation) => {
   retired.delete(retired.values().next().value);
 };
 
+const mediaError = () => {
+  throw new Error('Invalid RTC media');
+};
+
+const sdpKinds = (sdp) => {
+  const kinds = new Map();
+  let section = '';
+  const lines = sdp.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('m=')) {
+      const header = line.slice(2);
+      const space = header.indexOf(' ');
+      section = space === -1 ? header : header.slice(0, space);
+    } else if (section && line.startsWith(SDP_MID)) {
+      const mid = line.slice(SDP_MID.length);
+      kinds.set(mid, section);
+      section = '';
+    }
+  }
+  return kinds;
+};
+
+const kindBySlot = (media) => {
+  const kinds = new Map();
+  for (let i = 0; i < media.length; i++) {
+    const item = media[i];
+    kinds.set(item.slot, item.kind);
+  }
+  return kinds;
+};
+
+const assertRtcMedia = (media, offered, sdp) => {
+  const missing = offered === undefined || offered === null;
+  if (!media.length && missing) return;
+  const record = !missing && typeof offered === 'object';
+  const list = Array.isArray(offered);
+  if (!media.length || !record || list) mediaError();
+  const mids = Object.keys(offered);
+  if (mids.length !== media.length) mediaError();
+  const local = kindBySlot(media);
+  const remote = sdpKinds(sdp);
+  const seen = new Set();
+  for (let i = 0; i < mids.length; i++) {
+    const mid = mids[i];
+    const slot = offered[mid];
+    const expected = local.get(slot);
+    const duplicate = seen.has(slot);
+    const matched = remote.get(mid) === expected;
+    if (!expected || duplicate || !matched) mediaError();
+    seen.add(slot);
+  }
+};
+
+const readMediaOffer = (attempt, offered, sdp) => {
+  assertRtcMedia(attempt.media, offered, sdp);
+  if (!offered) return;
+  const mids = Object.keys(offered);
+  for (let i = 0; i < mids.length; i++) {
+    const mid = mids[i];
+    attempt.slots.set(mid, offered[mid]);
+  }
+};
+
+const preferredCodecs = (kind, codecs) => {
+  const names = codecs?.[kind];
+  if (!names?.length) return null;
+  const factory = globalThis.RTCRtpSender;
+  const capabilities = factory?.getCapabilities?.(kind);
+  const available = capabilities?.codecs;
+  if (!available?.length) return null;
+  const selected = [];
+  for (let i = 0; i < names.length; i++) {
+    const mime = names[i];
+    for (let j = 0; j < available.length; j++) {
+      const codec = available[j];
+      if (codec.mimeType === mime) selected.push(codec);
+    }
+  }
+  return selected.length ? selected : null;
+};
+
+const applyCodecs = (transceiver, kind, codecs) => {
+  if (typeof transceiver.setCodecPreferences !== 'function') return;
+  const selected = preferredCodecs(kind, codecs);
+  if (!selected) return;
+  transceiver.setCodecPreferences(selected);
+};
+
 // One negotiation generation owns all its listeners and asynchronous work.
 class RtcConnection extends Emitter {
   #attempt = null;
   #retired = new Set();
+  #tracks = new Map();
 
   get peerConnection() {
     return this.#attempt?.pc ?? null;
+  }
+
+  async setTrack(slot, track) {
+    this.#tracks.set(slot, track);
+    const sender = this.#attempt?.senders.get(slot);
+    if (sender) await sender.replaceTrack(track);
+  }
+
+  sender(slot) {
+    return this.#attempt?.senders.get(slot) ?? null;
+  }
+
+  receiver(slot) {
+    return this.#attempt?.receivers.get(slot) ?? null;
   }
 
   open(options) {
@@ -75,6 +180,8 @@ class RtcConnection extends Emitter {
       return Promise.reject(new TypeError('RTC signaling adapter is required'));
     }
     const pc = new PeerConnection(options.configuration);
+    const media = options.media ?? [];
+    const codecs = options.codecs ?? null;
     const attempt = {
       pc,
       options,
@@ -88,6 +195,11 @@ class RtcConnection extends Emitter {
       unsubscribe: null,
       timer: null,
       serial: Promise.resolve(),
+      media,
+      codecs,
+      slots: new Map(),
+      senders: new Map(),
+      receivers: new Map(),
     };
     attempt.promise = new Promise((resolve, reject) => {
       attempt.resolve = resolve;
@@ -120,6 +232,14 @@ class RtcConnection extends Emitter {
       }
       this.#channel(attempt, channel);
     });
+    listen(pc, 'track', (event) => {
+      const mid = event.transceiver?.mid;
+      if (typeof mid !== 'string' || !mid) return;
+      const slot = attempt.slots.get(mid);
+      if (!slot) return;
+      const { track } = event;
+      this.emit('track', { slot, track });
+    });
     try {
       attempt.unsubscribe = signaling.subscribe((message) => {
         attempt.serial = attempt.serial
@@ -139,6 +259,14 @@ class RtcConnection extends Emitter {
           attempt,
           pc.createDataChannel('metacom', { ordered: true }),
         );
+        const slots = attempt.media;
+        for (let i = 0; i < slots.length; i++) {
+          const kind = slots[i].kind;
+          const transceiver = pc.addTransceiver(kind, {
+            direction: 'sendrecv',
+          });
+          applyCodecs(transceiver, kind, attempt.codecs);
+        }
         const createOffer = () => pc.createOffer();
         this.#describe(attempt, createOffer).catch(fail);
       }
@@ -158,14 +286,58 @@ class RtcConnection extends Emitter {
     await signaling.send({ ...envelope, ...body });
   }
 
+  async #applyTrack(sender, slot) {
+    const track = this.#tracks.get(slot);
+    if (track) await sender.replaceTrack(track);
+  }
+
+  async #offerMedia(attempt) {
+    const transceivers = attempt.pc.getTransceivers();
+    const slots = attempt.media;
+    const named = {};
+    for (let i = 0; i < slots.length; i++) {
+      const transceiver = transceivers[i];
+      const { mid, sender, receiver } = transceiver;
+      const slot = slots[i].slot;
+      named[mid] = slot;
+      attempt.slots.set(mid, slot);
+      attempt.senders.set(slot, sender);
+      attempt.receivers.set(slot, receiver);
+      await this.#applyTrack(sender, slot);
+    }
+    return named;
+  }
+
+  async #answerMedia(attempt) {
+    const transceivers = attempt.pc.getTransceivers();
+    const kinds = kindBySlot(attempt.media);
+    for (let i = 0; i < transceivers.length; i++) {
+      const transceiver = transceivers[i];
+      const slot = attempt.slots.get(transceiver.mid);
+      if (!slot) continue;
+      const kind = kinds.get(slot);
+      transceiver.direction = 'sendrecv';
+      applyCodecs(transceiver, kind, attempt.codecs);
+      attempt.senders.set(slot, transceiver.sender);
+      attempt.receivers.set(slot, transceiver.receiver);
+      await this.#applyTrack(transceiver.sender, slot);
+    }
+  }
+
   // Offer or answer: the peer gets only type and sdp of local description
   async #describe(attempt, create) {
     const description = await create();
     if (this.#attempt !== attempt) return;
     const { pc } = attempt;
     await pc.setLocalDescription(description);
+    if (this.#attempt !== attempt) return;
     const { type, sdp } = pc.localDescription;
-    await this.#send(attempt, { description: { type, sdp } });
+    const message = { description: { type, sdp } };
+    if (type === 'offer' && attempt.media.length) {
+      message.media = await this.#offerMedia(attempt);
+      if (this.#attempt !== attempt) return;
+    }
+    await this.#send(attempt, message);
   }
 
   async #receive(attempt, message) {
@@ -196,6 +368,9 @@ class RtcConnection extends Emitter {
       if (attempt.description) return;
       attempt.description = true;
       attempt.generation = generation;
+      if (role === 'answerer') {
+        readMediaOffer(attempt, message.media, description.sdp);
+      }
       await attempt.pc.setRemoteDescription(description);
       if (this.#attempt !== attempt) return;
       attempt.remote = true;
@@ -204,6 +379,8 @@ class RtcConnection extends Emitter {
       }
       attempt.candidates = [];
       if (role === 'answerer') {
+        if (attempt.media.length) await this.#answerMedia(attempt);
+        if (this.#attempt !== attempt) return;
         const createAnswer = () => attempt.pc.createAnswer();
         await this.#describe(attempt, createAnswer);
       }
