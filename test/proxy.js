@@ -510,6 +510,69 @@ test('ClientEventTransport: close during handshake', async () => {
   await assert.rejects(opening, /Connection closed/);
 });
 
+test('ClientEventTransport: pagehide preserves packet order', async (t) => {
+  const { environment, proxy } = await setup(t);
+  const window = createContainer();
+  const previousWindow = globalThis.window;
+  globalThis.window = window;
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+  const worker = createWorker(environment, 'tab1');
+  const transport = new ClientEventTransport(URL);
+  t.after(() => transport.close());
+  await transport.open({ worker });
+  const socket = MockWebSocket.last;
+  const disconnected = new Promise((resolve) => {
+    proxy.once('disconnect', () => resolve(getCalls(socket)));
+  });
+  const packet = {
+    type: 'call',
+    id: 'leave-1',
+    method: 'call/leave',
+    args: { call: 'room', endpoint: 'peer:tab1' },
+  };
+  transport.send(packet);
+  const schedule = t.mock.method(globalThis, 'setTimeout', () => {
+    assert.fail('pagehide must send disconnect synchronously');
+  });
+  window.dispatch('pagehide', {});
+  schedule.mock.restore();
+  assert.strictEqual(transport.active, false);
+  assert.deepStrictEqual(worker.types, ['metacom:connect']);
+  assert.deepStrictEqual(await disconnected, [packet]);
+});
+
+test('ClientEventTransport: pagehide without port uses worker', async (t) => {
+  const { environment, proxy } = await setup(t);
+  const window = createContainer();
+  const previousWindow = globalThis.window;
+  globalThis.window = window;
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+  const listener = t.mock.method(window, 'addEventListener');
+  const container = createContainer();
+  const worker = createWorker(environment, 'tab1', container);
+  const transport = new ClientEventTransport(URL);
+  t.after(() => transport.close());
+  let tabId = '';
+  proxy.once('connect', (id) => {
+    tabId = id;
+  });
+  await transport.open({ worker, container });
+  const onPageHide = listener.mock.calls[0].arguments[1];
+  container.dispatch('message', { data: { type: 'metacom:reset' } });
+  assert.strictEqual(transport.active, false);
+  assert.ok(proxy.port(tabId));
+  onPageHide();
+  assert.strictEqual(proxy.port(tabId), undefined);
+  assert.deepStrictEqual(worker.types, [
+    'metacom:connect',
+    'metacom:disconnect',
+  ]);
+});
+
 test('MetacomProxy: heartbeat keeps tab connected', async (t) => {
   const { environment, connect } = await setup(t);
   const worker = createWorker(environment, 'tab1');
@@ -604,8 +667,12 @@ test('MetacomProxy: emits connect and disconnect', async (t) => {
   proxy.on('connect', (id) => events.push(`connect:${typeof id}`));
   proxy.on('disconnect', (id) => events.push(`disconnect:${typeof id}`));
   const tab = await connect('tab1');
+  const disconnected = new Promise((resolve) => {
+    proxy.once('disconnect', resolve);
+  });
   tab.close();
   tab.close();
+  await disconnected;
   assert.deepStrictEqual(events, ['connect:string', 'disconnect:string']);
 });
 

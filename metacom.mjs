@@ -1115,7 +1115,8 @@ class ClientEventTransport extends ClientTransport {
   }
 
   #disconnect() {
-    this.#worker.postMessage({ type: 'metacom:disconnect', id: this.#id });
+    const target = this.#port ?? this.#worker;
+    target.postMessage({ type: 'metacom:disconnect', id: this.#id });
   }
 
   close() {
@@ -3080,6 +3081,13 @@ class MetacomProxy extends MetacomRouter {
     } else if (type === 'metacom:offline') {
       Metacom.offline();
     }
+  }
+
+  receive(port, data) {
+    if (data?.type !== 'metacom:disconnect') {
+      return void super.receive(port, data);
+    }
+    if (this.port(data.id) === port) this.detach(data.id);
   }
 
   close() {

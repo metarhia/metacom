@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Send pagehide disconnect synchronously through the tab port after queued
+  packets, falling back to the worker when the port is missing
 - Add fixed media slots to `RtcConnection`: `setTrack`, `sender`, `receiver`,
   and a `track` event, switched with `replaceTrack` and no renegotiation
 - Add `RtcConnection`: reliable WebRTC data channels negotiated through a
