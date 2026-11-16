@@ -239,6 +239,48 @@ close the transport. `rtc.handshakeTimeout` defaults to 10 seconds; the existing
 Metacom reconnect, call timeout, queue, and restore options still apply.
 Calls already sent are not replayed automatically after disconnection.
 
+### Media
+
+`RtcConnection` negotiates a fixed list of media slots together with the data
+channel. Pass `media` to `open()`: `{ slot, kind }[]`, with `kind` of `audio`
+or `video`. An absent or empty `media` keeps a data-only link. The offering
+side adds one `sendrecv` transceiver per slot, in order, before `createOffer`.
+After `setLocalDescription` the offer carries `media: { [mid]: slot }`. The
+answering side checks that map against its own slots and the SDP, then sets
+each matching transceiver to `sendrecv` before the answer. Slots are matched
+by `mid`. A data-only open rejects an offer that includes `media`, and a media
+open rejects an offer without it (`Invalid RTC media`).
+
+Turning a slot on or off is `setTrack(slot, track)`, which stores the track on
+the connection and calls `replaceTrack` once the sender exists. `null` stops
+sending. The same stored tracks are applied again when a later generation
+opens after `close()`. `close()` leaves local tracks running; the caller owns
+them. `sender(slot)` and `receiver(slot)` return the RTP sender or receiver,
+or `null` before that slot is negotiated. `peerConnection` remains available
+for `getStats()`. `codecs` (`{ audio, video }` lists of MIME types) is applied
+with `setCodecPreferences` when the transceiver supports it.
+
+```js
+const media = [
+  { slot: 'mic', kind: 'audio' },
+  { slot: 'camera', kind: 'video' },
+  { slot: 'screen', kind: 'video' },
+  { slot: 'screenAudio', kind: 'audio' },
+];
+const channel = await connection.open({
+  localId,
+  peerId,
+  role,
+  signaling,
+  media,
+  codecs: { audio: ['audio/opus'], video: ['video/VP9', 'video/VP8'] },
+});
+connection.on('track', ({ slot, track }) => {});
+await connection.setTrack('camera', track);
+connection.sender('camera');
+connection.receiver('camera');
+```
+
 ### Service worker WebRTC upstream
 
 The supported path is:

@@ -140,6 +140,17 @@ export interface RtcSignal {
   generation: string;
   description?: RTCSessionDescriptionInit;
   candidate?: RTCIceCandidateInit;
+  media?: Record<string, string>;
+}
+
+export interface RtcMediaSlot {
+  slot: string;
+  kind: 'audio' | 'video';
+}
+
+export interface RtcTrackEvent {
+  slot: string;
+  track: MediaStreamTrack;
 }
 
 export interface RtcSignaling {
@@ -165,10 +176,23 @@ export interface RtcOptions extends RtcChannelOptions {
   handshakeTimeout?: number;
 }
 
+export interface RtcOpenOptions extends RtcOptions {
+  media?: RtcMediaSlot[];
+  codecs?: {
+    audio?: string[];
+    video?: string[];
+  };
+}
+
 export class RtcConnection extends Emitter {
   readonly peerConnection: RTCPeerConnection | null;
-  open(options: RtcOptions): Promise<RTCDataChannel>;
+  open(options: RtcOpenOptions): Promise<RTCDataChannel>;
+  setTrack(slot: string, track: MediaStreamTrack | null): Promise<void>;
+  sender(slot: string): RTCRtpSender | null;
+  receiver(slot: string): RTCRtpReceiver | null;
   close(): void;
+  on(event: 'track', listener: (event: RtcTrackEvent) => void): void;
+  on(event: PropertyKey, listener: (data: unknown) => void): void;
 }
 
 export class RtcChannelEndpoint extends Emitter {

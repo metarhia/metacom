@@ -1,8 +1,9 @@
 'use strict';
 
 const init = require('eslint-config-metarhia');
-init[0].ignores.push('metacom.iife.js', '.example/**');
+
 module.exports = [
+  { ignores: ['metacom.iife.js', '.example/**'] },
   ...init,
   {
     files: ['metacom.mjs', 'browser/*.mjs', 'examples/webrtc/*.mjs'],
