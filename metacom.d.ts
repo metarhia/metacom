@@ -348,13 +348,51 @@ export interface PeerOptions {
   reconnectTimeout?: number;
 }
 
+export interface PeerPortLike {
+  postMessage(message: unknown): void;
+  addEventListener(name: string, listener: (event: any) => void): void;
+  removeEventListener(name: string, listener: (event: any) => void): void;
+  start?(): void;
+  close?(): void;
+}
+
+export interface PeerPortOptions {
+  port: PeerPortLike;
+  callTimeout?: number;
+}
+
+export interface PeerPortContext {
+  peer: MetacomPeer;
+}
+
+export type PeerPortHandler = (
+  args: any,
+  context: PeerPortContext,
+) => unknown | Promise<unknown>;
+
+export interface PeerCallOptions {
+  timeout?: number;
+}
+
 export class MetacomPeer extends Emitter {
   readonly active: boolean;
-  constructor(options: PeerOptions);
-  register(unit: string, methods: Record<string, ProxyHandler>): void;
+  constructor(options: PeerOptions | PeerPortOptions);
+  register(
+    unit: string,
+    methods: Record<string, ProxyHandler | PeerPortHandler>,
+  ): void;
   open(): Promise<void>;
   close(): void;
   broadcast(name: string, data?: unknown): void;
+  call(
+    unit: string,
+    name: string,
+    args?: unknown,
+    options?: PeerCallOptions,
+  ): Promise<any>;
+  send(unit: string, event: string, data?: unknown): void;
+  subscribe(unit: string, event: string, handler: (data: any) => void): void;
+  unsubscribe(unit: string, event: string, handler: (data: any) => void): void;
 }
 
 export interface RtcBridgeRequest {

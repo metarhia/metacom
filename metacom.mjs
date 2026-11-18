@@ -2927,20 +2927,216 @@ class MetacomRouter extends Emitter {
 
 // peer.js
 
+const PORT_CALL_TIMEOUT_MS = 7 * 1000;
+const PORT_NOT_FOUND = { message: 'Not Found', code: 404 };
+
+const encodeFailure = (error) => {
+  const message = error?.message ?? `${error}`;
+  const code = error?.code;
+  const isCode = typeof code === 'number' || typeof code === 'string';
+  return { message, code: isCode ? code : 500 };
+};
+
+// Symmetric link on one MessagePort: packets are posted as objects,
+// so structured clone keeps Date, Map, Set, undefined, and typed arrays
+class PortLink {
+  #peer;
+  #port;
+  #callTimeout;
+  #units = new Map();
+  #calls = new Map();
+  #subscribers = new Map();
+  #sequence = 0;
+  #closed = true;
+  #onMessage = null;
+  #onClose = null;
+
+  constructor(peer, options) {
+    this.#peer = peer;
+    this.#port = options.port;
+    this.#callTimeout = options.callTimeout || PORT_CALL_TIMEOUT_MS;
+    this.#onMessage = (event) => this.#receive(event.data);
+    this.#onClose = () => this.#lost();
+  }
+
+  get active() {
+    return !this.#closed;
+  }
+
+  register(unit, methods) {
+    const handlers = this.#units.get(unit) ?? new Map();
+    const names = Object.keys(methods);
+    for (let i = 0; i < names.length; i++) {
+      handlers.set(names[i], methods[names[i]]);
+    }
+    this.#units.set(unit, handlers);
+  }
+
+  open() {
+    if (!this.#closed) return;
+    this.#closed = false;
+    this.#port.addEventListener('message', this.#onMessage);
+    this.#port.addEventListener('close', this.#onClose);
+    this.#port.start?.();
+  }
+
+  call(unit, name, args, options = {}) {
+    if (this.#closed) return Promise.reject(new Error('Link closed'));
+    const id = String(++this.#sequence);
+    const method = `${unit}/${name}`;
+    const timeout = options.timeout || this.#callTimeout;
+    const promise = this.#expect(id, timeout);
+    try {
+      this.#port.postMessage({ type: 'call', id, method, args });
+    } catch (error) {
+      this.#settle(id)?.reject(error);
+    }
+    return promise;
+  }
+
+  // Kept apart from call so the pending timer does not retain args
+  #expect(id, timeout) {
+    return new Promise((resolve, reject) => {
+      const onTimeout = () => {
+        this.#calls.delete(id);
+        reject(new Error('Request timeout'));
+      };
+      const timer = setTimeout(onTimeout, timeout);
+      this.#calls.set(id, { resolve, reject, timer });
+    });
+  }
+
+  #settle(id) {
+    const pending = this.#calls.get(id);
+    if (!pending) return null;
+    this.#calls.delete(id);
+    clearTimeout(pending.timer);
+    return pending;
+  }
+
+  send(unit, event, data) {
+    if (this.#closed) return;
+    const name = `${unit}/${event}`;
+    this.#port.postMessage({ type: 'event', name, data });
+  }
+
+  subscribe(unit, event, handler) {
+    const name = `${unit}/${event}`;
+    const handlers = this.#subscribers.get(name) ?? new Set();
+    handlers.add(handler);
+    this.#subscribers.set(name, handlers);
+  }
+
+  unsubscribe(unit, event, handler) {
+    const name = `${unit}/${event}`;
+    const handlers = this.#subscribers.get(name);
+    if (!handlers) return;
+    handlers.delete(handler);
+    if (handlers.size === 0) this.#subscribers.delete(name);
+  }
+
+  close() {
+    if (this.#closed) return;
+    this.#shutdown();
+    this.#port.close?.();
+  }
+
+  #shutdown() {
+    this.#closed = true;
+    this.#port.removeEventListener('message', this.#onMessage);
+    this.#port.removeEventListener('close', this.#onClose);
+    const pending = [...this.#calls.keys()];
+    for (let i = 0; i < pending.length; i++) {
+      this.#settle(pending[i]).reject(new Error('Link closed'));
+    }
+    this.#subscribers.clear();
+    this.#peer.emit('close');
+  }
+
+  #lost() {
+    if (!this.#closed) this.#shutdown();
+  }
+
+  #receive(data) {
+    if (this.#closed || typeof data !== 'object' || data === null) return;
+    const { type } = data;
+    if (type === 'call') this.#serve(data);
+    else if (type === 'callback') this.#settleCall(data);
+    else if (type === 'event') this.#publish(data);
+  }
+
+  #settleCall(packet) {
+    const pending = this.#settle(packet.id);
+    if (!pending) return;
+    if (packet.error) pending.reject(new MetacomError(packet.error));
+    else pending.resolve(packet.result);
+  }
+
+  #publish(packet) {
+    const handlers = this.#subscribers.get(packet.name);
+    if (!handlers) return;
+    for (const handler of [...handlers]) {
+      try {
+        handler(packet.data);
+      } catch (error) {
+        emitError(this.#peer, error);
+      }
+    }
+  }
+
+  async #serve(packet) {
+    const { id, method, args } = packet;
+    const route = typeof method === 'string' ? parseMethod(method) : {};
+    const handlers = this.#units.get(route.unit);
+    const handler = handlers ? handlers.get(route.name) : undefined;
+    if (!handler) return void this.#reply({ id, error: PORT_NOT_FOUND });
+    try {
+      const context = { peer: this.#peer };
+      const result = await handler(args, context);
+      if (result instanceof Error) {
+        return void this.#reply({ id, error: encodeFailure(result) });
+      }
+      this.#reply({ id, result });
+    } catch (error) {
+      this.#reply({ id, error: encodeFailure(error) });
+    }
+  }
+
+  #reply(fields) {
+    if (this.#closed) return;
+    try {
+      this.#port.postMessage({ type: 'callback', ...fields });
+    } catch (error) {
+      const failure = encodeFailure(error);
+      this.#port.postMessage({
+        type: 'callback',
+        id: fields.id,
+        error: failure,
+      });
+    }
+  }
+}
+
 class MetacomPeer extends Emitter {
   #router;
   #options;
   #sessions = new Map();
   #closed = true;
+  #link = null;
 
   constructor(options) {
     super();
     this.#options = options;
+    if (options.port) {
+      this.#link = new PortLink(this, options);
+      return;
+    }
     this.#router = new MetacomRouter({ ...options, localStreams: true });
     this.#router.on('error', (error) => this.#report(error));
   }
 
   get active() {
+    if (this.#link) return this.#link.active;
     for (const session of this.#sessions.values()) {
       if (session.transport.active) return true;
     }
@@ -2948,14 +3144,37 @@ class MetacomPeer extends Emitter {
   }
 
   register(unit, methods) {
+    if (this.#link) return void this.#link.register(unit, methods);
     this.#router.register(unit, methods);
   }
 
+  call(unit, name, args, options) {
+    if (!this.#link) return Promise.reject(new Error('Port mode only'));
+    return this.#link.call(unit, name, args, options);
+  }
+
+  send(unit, event, data) {
+    this.#link?.send(unit, event, data);
+  }
+
+  subscribe(unit, event, handler) {
+    this.#link?.subscribe(unit, event, handler);
+  }
+
+  unsubscribe(unit, event, handler) {
+    this.#link?.unsubscribe(unit, event, handler);
+  }
+
   broadcast(name, data) {
+    if (this.#link) return;
     this.#router.broadcast(name, data);
   }
 
   open() {
+    if (this.#link) {
+      this.#link.open();
+      return Promise.resolve();
+    }
     if (!this.#closed) return Promise.resolve();
     const peers = Array.isArray(this.#options.rtc)
       ? this.#options.rtc
@@ -3021,6 +3240,7 @@ class MetacomPeer extends Emitter {
   }
 
   close() {
+    if (this.#link) return void this.#link.close();
     if (this.#closed) return;
     this.#closed = true;
     for (const { transport, timer } of this.#sessions.values()) {
