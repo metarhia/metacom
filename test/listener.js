@@ -351,6 +351,46 @@ const readClosed = (socket) =>
     socket.on('close', () => resolve(Buffer.concat(chunks)));
   });
 
+const captureHello = () =>
+  new Promise((resolve, reject) => {
+    let settled = false;
+    let client = null;
+    const server = net.createServer((socket) => {
+      socket.on('error', () => {});
+      socket.once('data', (chunk) => {
+        socket.destroy();
+        if (settled) return;
+        settled = true;
+        if (client) client.destroy();
+        resolve({ server, hello: chunk });
+      });
+    });
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      if (client) client.destroy();
+      server.close(() => {
+        reject(error);
+      });
+    };
+    server.on('error', fail);
+    server.listen(0, '127.0.0.1', () => {
+      const info = server.address();
+      const port = info.port;
+      client = tls.connect({
+        host: '127.0.0.1',
+        port,
+        servername: 'localhost',
+        rejectUnauthorized: false,
+        ALPNProtocols: ['h2', 'http/1.1'],
+      });
+      client.on('error', (error) => {
+        if (settled) return;
+        fail(error);
+      });
+    });
+  });
+
 const splitSocket = (raw, size, gapMs) => {
   const state = { slices: 0 };
   const proxy = new Duplex({
@@ -1171,6 +1211,60 @@ test('a null secure context does not call handlers', TIMEOUT, async () => {
     await listener.close();
   }
 });
+
+test(
+  'a missing certificate is refused before the handshake',
+  TIMEOUT,
+  async () => {
+    let called = false;
+    let contextCalls = 0;
+    const httpServer = http.createServer((req, res) => {
+      called = true;
+      res.end('nope');
+    });
+    const provider = {
+      connection() {
+        called = true;
+      },
+    };
+    const listener = new Listener(
+      tlsOptions({
+        secureContext: () => {
+          contextCalls += 1;
+          return null;
+        },
+        protocols: ['h2', 'http/1.1', 'stun.turn'],
+        handlers: {
+          h2: () => {
+            called = true;
+          },
+          'http/1.1': httpServer,
+          'stun.turn': provider,
+        },
+      }),
+    );
+    let captured = null;
+    let socket = null;
+    try {
+      captured = await captureHello();
+      await listener.listen();
+      const bound = endpoint(listener, 'tcp');
+      socket = await connect(bound.port, '127.0.0.1');
+      const received = readClosed(socket);
+      socket.write(captured.hello);
+      const bytes = await received;
+      const alert = Buffer.from([0x15, 0x03, 0x03, 0x00, 0x02, 0x02, 0x70]);
+      assert.deepStrictEqual(bytes, alert);
+      assert.strictEqual(bytes.indexOf(0x16), -1);
+      assert.strictEqual(called, false);
+      assert.strictEqual(contextCalls, 1);
+    } finally {
+      if (socket) socket.destroy();
+      if (captured) await closeServer(captured.server);
+      await listener.close();
+    }
+  },
+);
 
 test('matchDomain applies exact, wildcard, and rooted names', TIMEOUT, () => {
   const exact = ['xxii.chat'];

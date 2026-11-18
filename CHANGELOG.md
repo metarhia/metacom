@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Unknown TLS names are refused with the unrecognized_name alert before the
+  handshake
 - Add multi-protocol `Listener`: one port, protocols by the first bytes, TLS
   by SNI and ALPN, handlers for `http/1.1`, `h2`, and a provider
   `{ connection, datagram }`
