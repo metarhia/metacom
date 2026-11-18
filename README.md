@@ -223,6 +223,34 @@ An optional `upstream: Metacom` forwards unhandled methods and merges interface
 descriptions. The host owns that upstream connection's routing and lifetime;
 do not attach it to another router concurrently.
 
+### Peer over a MessagePort
+
+`MetacomPeer` also links two ends of one `MessagePort` (Node.js
+`worker_threads` or a browser `MessagePort` or `Worker`). Both ends serve units
+and call each other; there is no handshake. Packets keep metacom's `call`,
+`callback`, and `event` shapes but are posted as objects, so `Date`, `Map`,
+`Set`, `undefined`, and typed arrays survive. Streams are not supported.
+
+```js
+const peer = new MetacomPeer({ port, callTimeout: 5000 });
+peer.register('pool', { run: async (args, context) => result });
+await peer.open();
+const id = await peer.call('planner', 'add', task, { timeout: 2000 });
+peer.send('thread', 'ready', { at: Date.now() });
+peer.subscribe('thread', 'ready', handler);
+peer.unsubscribe('thread', 'ready', handler);
+peer.on('close', () => {});
+await peer.close();
+```
+
+Served methods get `(args, context)`; `context.peer.send(unit, event, data)`
+sends an event back. A thrown or returned `Error` rejects the caller with the
+same `message` and `code` (`500` when absent); an unknown unit or method gives
+`Not Found` (`404`). `callTimeout` defaults to 7 seconds and `{ timeout }`
+overrides it per call; a late reply is ignored. `close()` or a closed port
+rejects pending calls with `Link closed`, drops subscriptions, and emits
+`close` once.
+
 Host handlers receive a context with `peerId`, nullable upstream `server`,
 `client`, `emit(name, data)`, `broadcast(name, data)`, `getStream(id)`, and
 `createStream(name, size, id?)`. Use the caller's `createReadable().id` when

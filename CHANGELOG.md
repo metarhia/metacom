@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+- Add port mode to `MetacomPeer`: `new MetacomPeer({ port, callTimeout })` is
+  a symmetric link on one `MessagePort` where both ends serve units and use
+  `call`, `send`, `subscribe`, and `unsubscribe`; packets are posted as
+  objects, so structured types survive
 - Unknown TLS names are refused with the unrecognized_name alert before the
   handshake
 - Add multi-protocol `Listener`: one port, protocols by the first bytes, TLS
