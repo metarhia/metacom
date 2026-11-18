@@ -56,6 +56,30 @@ Registered units are `public` unless `access` is given; a method registered
 with a name the application also has shadows the application one.
 `isApiPath(url)` tells metacom paths from the rest.
 
+## Listener
+
+`Listener` takes one port and tells protocols apart by the first bytes. TLS
+is terminated from SNI and ALPN. Handlers are `http/1.1`, `h2`, and a
+provider `{ connection, datagram }`.
+
+`domains` limits the names that port answers for. `matchDomain(patterns, name)`
+is the same rule: an exact name, `*.name` for one label in front, and `.name`
+for that name and every subdomain. Matching ignores case and a trailing dot.
+With no patterns, every name is accepted.
+
+```js
+const { Listener, Server } = require('metacom');
+
+const server = new Server({ console }, { protocol: 'http' });
+const listener = new Listener({
+  ports: [8000],
+  protocols: ['h2', 'http/1.1'],
+  domains: ['example.com', '*.example.com'],
+  handlers: { h2: server, 'http/1.1': server },
+});
+await listener.listen();
+```
+
 ## Streams over Websocket
 
 ### Example: big file upload

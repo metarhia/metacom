@@ -2,6 +2,11 @@
 
 ## [Unreleased][unreleased]
 
+- Add multi-protocol `Listener`: one port, protocols by the first bytes, TLS
+  by SNI and ALPN, handlers for `http/1.1`, `h2`, and a provider
+  `{ connection, datagram }`
+- Add `domains` and `matchDomain`: exact name, one label, and every subdomain
+- Close clients and the WebSocket server when `Server` is fed by a listener
 - Send pagehide disconnect synchronously through the tab port after queued
   packets, falling back to the worker when the port is missing
 - Add fixed media slots to `RtcConnection`: `setTrack`, `sender`, `receiver`,

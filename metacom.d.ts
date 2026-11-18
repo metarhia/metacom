@@ -1,11 +1,14 @@
+import type { RemoteInfo, Socket as DgramSocket } from 'node:dgram';
 import { EventEmitter } from 'node:events';
 import {
   IncomingMessage,
   Server as HttpServer,
   ServerResponse,
 } from 'node:http';
+import type { Http2ServerRequest, Http2ServerResponse } from 'node:http2';
 import { Server as HttpsServer } from 'node:https';
 import { Socket } from 'node:net';
+import type { SecureContext } from 'node:tls';
 import { Writable } from 'node:stream';
 import { Emitter } from 'metautil';
 
@@ -530,6 +533,79 @@ export class Client extends Emitter {
   close(): void;
   destroy(): void;
 }
+
+export type ListenerTransport = 'tcp' | 'udp';
+
+export type ListenerProtocol =
+  'h2' | 'http/1.1' | 'stun.turn' | 'stun.nat-discovery';
+
+export interface ListenerEndpoint {
+  port: number;
+  transport: ListenerTransport;
+  address: string;
+}
+
+export interface ListenerConnectionInfo {
+  port: number;
+  transport: 'tcp';
+  tls: boolean;
+  servername: string;
+  alpn: string;
+  remote: {
+    address: string;
+    port: number;
+  };
+}
+
+export interface ListenerProvider {
+  connection?(socket: Socket, info: ListenerConnectionInfo): void;
+  datagram?(buffer: Buffer, remote: RemoteInfo, socket: DgramSocket): void;
+}
+
+export interface ListenerHttp2Handler {
+  request?(request: Http2ServerRequest, response: Http2ServerResponse): void;
+}
+
+export interface ListenerHandlers {
+  h2?:
+    | ((request: Http2ServerRequest, response: Http2ServerResponse) => void)
+    | ListenerHttp2Handler
+    | Server;
+  'http/1.1'?: HttpServer | ListenerProvider | Server;
+  'stun.turn'?: ListenerProvider;
+  'stun.nat-discovery'?: ListenerProvider;
+}
+
+export interface ListenerTimeouts {
+  bind?: number;
+  request?: number;
+}
+
+export interface ListenerOptions {
+  host?: string;
+  ports: number[];
+  transports?: ListenerTransport[];
+  protocols?: ListenerProtocol[];
+  tls?: boolean;
+  secureContext?: (servername: string) => SecureContext | null;
+  domains?: string[];
+  handlers?: ListenerHandlers;
+  nagle?: boolean;
+  timeouts?: ListenerTimeouts;
+  console?: Console;
+}
+
+export class Listener {
+  ports: ListenerEndpoint[];
+  constructor(options: ListenerOptions);
+  listen(): Promise<void>;
+  close(): Promise<void>;
+}
+
+export function matchDomain(
+  patterns: readonly string[] | null | undefined,
+  name: string,
+): boolean;
 
 export class Server extends Emitter {
   httpServer: HttpServer | HttpsServer;
