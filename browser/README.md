@@ -21,6 +21,15 @@ and a real service worker using an explicitly authorized owner-tab bridge.
 Lifecycle checks terminate the application's worker through DevTools, replace
 its controller, close the owner, and attach a fresh owner connection.
 
+The relay test sends canvas video and an oscillator tone across three tabs
+using two six-slot links. The relay plays the original incoming audio track in
+an unmuted element with `volume = 0` and forwards that track. The receiving tab
+uses native playback and checks rising audio packet counts and energy, a
+positive audio level, and decoded video frames. It repeats the checks after
+reopening the relay link, then verifies that clearing both slots stops the
+packets while the upstream link keeps delivering media. The Chrome launcher
+allows autoplay and mutes the browser's audio output.
+
 Verified on 2026-11-12 with Chrome 157.0.8103.50 on Linux. The successful report
 is `.log/2026-11-12-node-20.raw` (ten tests, zero failures, including the runnable
 examples and explicit-origin popup signaling adapter). Firefox, Safari,

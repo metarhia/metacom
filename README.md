@@ -312,6 +312,10 @@ or `null` before that slot is negotiated. `peerConnection` remains available
 for `getStats()`. `codecs` (`{ audio, video }` lists of MIME types) is applied
 with `setCodecPreferences` when the transceiver supports it.
 
+A received track can be passed to `setTrack()` on another connection to relay
+audio or video through a participant without renegotiation. The Chrome relay
+test keeps the incoming audio playing in a zero-volume element at the relay.
+
 ```js
 const media = [
   { slot: 'mic', kind: 'audio' },

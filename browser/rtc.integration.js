@@ -134,6 +134,7 @@ test(
       '/metacom.mjs': path.resolve('metacom.mjs'),
       '/metautil.js': path.resolve('node_modules/metautil/metautil.mjs'),
       '/fixture.mjs': path.resolve('browser/fixture.mjs'),
+      '/relay.mjs': path.resolve('browser/relay.mjs'),
       '/worker.mjs': path.resolve('browser/worker.mjs'),
       '/signaling.mjs': path.resolve('examples/webrtc/signaling.mjs'),
       '/example/': path.resolve('examples/webrtc/index.html'),
@@ -192,6 +193,8 @@ test(
         '--disable-gpu',
         '--no-first-run',
         '--no-default-browser-check',
+        '--autoplay-policy=no-user-gesture-required',
+        '--mute-audio',
         '--remote-debugging-port=0',
         `--user-data-dir=${profile}`,
         'about:blank',
@@ -302,6 +305,116 @@ test(
       );
       await browser.evaluate(answerer, 'lab.close()');
       await browser.evaluate(host, 'lab.closeHost()');
+    });
+
+    await t.test('relay audio and video across generations', async (t) => {
+      const source = one;
+      const relay = host;
+      const sink = two;
+      const participants = [source, relay, sink];
+      t.after(() =>
+        Promise.allSettled(
+          participants.map((page) =>
+            browser.evaluate(page, 'globalThis.relay?.close()'),
+          ),
+        ),
+      );
+      const loadRelay = `(async () => {
+        const { createRelayLab } = await import('/relay.mjs');
+        globalThis.relay = createRelayLab();
+      })()`;
+      await Promise.all(
+        participants.map((page) => browser.evaluate(page, loadRelay)),
+      );
+
+      await Promise.all([
+        browser.evaluate(relay, `relay.open('c', 'a', 'answerer')`),
+        browser.evaluate(source, `relay.open('a', 'c', 'offerer')`),
+      ]);
+      await browser.evaluate(source, `relay.publish('c')`);
+      const hasTone = `(() => {
+        const { state, peak } = relay.sourceAudio();
+        return state === 'running' && peak > 0.05;
+      })()`;
+      await browser.wait(source, hasTone);
+      await browser.evaluate(relay, `relay.playMic('a')`);
+      const relaySample = `relay.sample('a', 'mic', 'camera')`;
+      const upstream = await browser.evaluate(relay, relaySample);
+      const hasMic = `(async () => {
+        const { audioPackets, audioSamples } = await ${relaySample};
+        const packetsGrew = audioPackets > ${upstream.audioPackets};
+        const samplesGrew = audioSamples > ${upstream.audioSamples};
+        return packetsGrew && samplesGrew;
+      })()`;
+      await browser.wait(relay, hasMic);
+      await browser.request('Page.bringToFront', {}, sink);
+      const openSink = () =>
+        Promise.all([
+          browser.evaluate(sink, `relay.open('b', 'c', 'answerer')`),
+          browser.evaluate(relay, `relay.open('c', 'b', 'offerer')`),
+        ]);
+      const sinkSample = `relay.sample('c', 'relayAudio', 'relayVideo')`;
+      const expectMedia = async () => {
+        const start = await browser.evaluate(sink, sinkSample);
+        await browser.evaluate(sink, `relay.watch('c')`);
+        const isPlaying = `(async () => {
+          const media = await ${sinkSample};
+          const { frames, audioPackets, audioLevel, audioEnergy } = media;
+          const packetsGrew = audioPackets > ${start.audioPackets};
+          const energyGrew = audioEnergy > ${start.audioEnergy};
+          return frames >= 3 && packetsGrew && energyGrew && audioLevel > 0;
+        })()`;
+        try {
+          await browser.wait(sink, isPlaying);
+        } catch (error) {
+          const direct = await browser.evaluate(relay, relaySample);
+          const forwarded = await browser.evaluate(sink, sinkSample);
+          const details = JSON.stringify({ direct, forwarded });
+          throw new Error(`Relay media did not arrive: ${details}`, {
+            cause: error,
+          });
+        }
+      };
+
+      await openSink();
+      await browser.evaluate(relay, `relay.forward('a', 'b')`);
+      await expectMedia();
+
+      await browser.evaluate(relay, `relay.closeLink('b')`);
+      await browser.evaluate(sink, `relay.closeLink('c')`);
+      await openSink();
+      await expectMedia();
+
+      await browser.evaluate(relay, `relay.clear('b')`);
+      await delay(1000);
+      const sinkBefore = await browser.evaluate(sink, sinkSample);
+      const relayBefore = await browser.evaluate(relay, relaySample);
+      await delay(1000);
+      const sinkAfter = await browser.evaluate(sink, sinkSample);
+      const relayAfter = await browser.evaluate(relay, relaySample);
+      assert.equal(sinkAfter.frames, sinkBefore.frames, 'no relayed frames');
+      assert.equal(
+        sinkAfter.audioPackets,
+        sinkBefore.audioPackets,
+        'no relayed audio packets',
+      );
+      assert.equal(
+        sinkAfter.videoPackets,
+        sinkBefore.videoPackets,
+        'no relayed video packets',
+      );
+      assert.ok(
+        relayAfter.audioPackets > relayBefore.audioPackets,
+        'upstream audio packets continued',
+      );
+      assert.ok(
+        relayAfter.audioSamples > relayBefore.audioSamples,
+        'upstream audio playout continued',
+      );
+      assert.ok(
+        relayAfter.videoPackets > relayBefore.videoPackets,
+        'upstream video continued',
+      );
     });
 
     const owner = await browser.page(`${origin}/?role=owner`);
