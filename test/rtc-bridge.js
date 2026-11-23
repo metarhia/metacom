@@ -3,20 +3,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { setTimeout: delay } = require('node:timers/promises');
-const {
-  Metacom,
-  MetacomPeer,
-  MetacomProxy,
-  MetacomRtcBridge,
-  ClientRtcBridgeTransport,
-  ClientEventTransport,
-} = require('../metacom.js');
-const {
-  RtcTarget,
-  RtcMockPeer,
-  rtcSignals,
-  rtcOptions,
-} = require('./helpers/rtc.js');
+const metacom = require('../metacom.js');
+const { Metacom, MetacomPeer, MetacomProxy } = metacom;
+const { MetacomRtcBridge, ClientRtcBridgeTransport } = metacom;
+const { ClientEventTransport } = metacom;
+const helpers = require('./helpers/rtc.js');
+const { RtcTarget, RtcMockPeer, rtcSignals, rtcOptions } = helpers;
 
 globalThis.RTCPeerConnection = RtcMockPeer;
 
@@ -95,7 +87,7 @@ test('RTC bridge: proxy RPC, events, streams and owner loss', async (t) => {
   const opening = proxy.open();
   const accepting = host.open();
   const bridge = MetacomRtcBridge.attach(worker, rtcOptions(signaling));
-  const tabs = [];
+  const tabs = new Array(2).fill(null);
   t.after(() => {
     for (const tab of tabs) tab.close();
     proxy.close();
@@ -103,10 +95,10 @@ test('RTC bridge: proxy RPC, events, streams and owner loss', async (t) => {
     host.close();
   });
   await Promise.all([opening, accepting, bridge.ready]);
-  for (let index = 0; index < 2; index++) {
+  for (let index = 0; index < tabs.length; index++) {
     const transport = new ClientEventTransport('host');
     const tab = new Metacom('host', transport, { worker });
-    tabs.push(tab);
+    tabs[index] = tab;
     await tab.open();
     await tab.load('test', 'local');
   }
@@ -132,7 +124,7 @@ test('RTC bridge: proxy RPC, events, streams and owner loss', async (t) => {
   await delay(10);
   assert.equal(proxy.active, false);
   assert.equal(bridge.closed, true);
-  assert.ok(scope.listeners.get('message').size > 0);
+  assert.ok(scope.listeners.get('message').length > 0);
 });
 
 test('RTC bridge: authorization, cancellation and timeout', async (t) => {

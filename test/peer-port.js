@@ -47,7 +47,7 @@ test('Port: events both ways, subscribe and unsubscribe', async () => {
   left.send('thread', 'ready', 1);
   right.send('thread', 'ready', 2);
   await wait(20);
-  assert.deepEqual(got.sort(), [
+  assert.deepEqual(got.toSorted(), [
     ['left', 2],
     ['right', 1],
   ]);
@@ -175,7 +175,7 @@ test('Port: close rejects pending calls from either end', async () => {
     await pair[closer].close();
     await Promise.all(rejections);
     await wait(20);
-    assert.deepEqual(closed.sort(), ['left', 'right']);
+    assert.deepEqual(closed.toSorted(), ['left', 'right']);
     assert.equal(left.active, false);
     assert.equal(right.active, false);
   }
@@ -195,8 +195,10 @@ test('Port: double close is harmless', async () => {
 test('Port: 1000 concurrent calls', async () => {
   const { left, right } = await openPair();
   right.register('math', { square: async (n) => n * n });
-  const calls = [];
-  for (let i = 0; i < 1000; i++) calls.push(left.call('math', 'square', i));
+  const calls = new Array(1000).fill(null);
+  for (let i = 0; i < calls.length; i++) {
+    calls[i] = left.call('math', 'square', i);
+  }
   const results = await Promise.all(calls);
   for (let i = 0; i < 1000; i++) assert.equal(results[i], i * i);
   await left.close();

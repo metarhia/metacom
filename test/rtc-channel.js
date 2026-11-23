@@ -66,7 +66,7 @@ test('RTC buffering: overflow, resume and close during drain', async () => {
   sender.close();
   await closing;
   assert.throws(() => sender.write('after close'), /not connected/);
-  for (const set of a.listeners.values()) assert.equal(set.size, 0);
+  for (const list of a.listeners.values()) assert.equal(list.length, 0);
 });
 
 test('RTC framing: invalid fragments, limits and timeout', async () => {
