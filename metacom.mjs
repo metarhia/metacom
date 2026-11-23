@@ -347,11 +347,10 @@ class RtcConnection extends Emitter {
     if (protocol !== RTC_PROTOCOL || source !== peerId || target !== localId) {
       return;
     }
-    if (
-      version !== RTC_VERSION ||
-      typeof generation !== 'string' ||
-      !generation
-    ) {
+    const badVersion = version !== RTC_VERSION;
+    const generationType = typeof generation === 'string';
+    const badGeneration = !generationType || !generation;
+    if (badVersion || badGeneration) {
       throw new Error('Invalid RTC signaling envelope');
     }
     if (this.#retired.has(generation)) return;
@@ -374,8 +373,9 @@ class RtcConnection extends Emitter {
       await attempt.pc.setRemoteDescription(description);
       if (this.#attempt !== attempt) return;
       attempt.remote = true;
-      for (const item of attempt.candidates) {
-        await attempt.pc.addIceCandidate(item);
+      const candidates = attempt.candidates;
+      for (let i = 0; i < candidates.length; i++) {
+        await attempt.pc.addIceCandidate(candidates[i]);
       }
       attempt.candidates = [];
       if (role === 'answerer') {
@@ -401,10 +401,10 @@ class RtcConnection extends Emitter {
   }
 
   #channel(attempt, channel) {
-    const unreliable =
-      channel.maxRetransmits !== null ||
-      channel.maxPacketLifeTime !== null ||
-      !channel.ordered;
+    const retransmits = channel.maxRetransmits !== null;
+    const packetLife = channel.maxPacketLifeTime !== null;
+    const unordered = !channel.ordered;
+    const unreliable = retransmits || packetLife || unordered;
     if (unreliable || channel.label !== 'metacom') {
       channel.close();
       return void this.#finish(
@@ -434,7 +434,8 @@ class RtcConnection extends Emitter {
     if (this.#attempt !== attempt) return;
     this.#attempt = null;
     clearTimeout(attempt.timer);
-    for (const remove of attempt.listeners) remove();
+    const listeners = attempt.listeners;
+    for (let i = 0; i < listeners.length; i++) listeners[i]();
     if (typeof attempt.unsubscribe === 'function') attempt.unsubscribe();
     if (attempt.generation) {
       retireRtcGeneration(this.#retired, attempt.generation);
@@ -576,10 +577,9 @@ class RtcChannelEndpoint extends Emitter {
   }
 
   #writable() {
-    return (
-      this.#queue.length === 0 &&
-      this.#channel.bufferedAmount < this.#options.highWater
-    );
+    const idle = this.#queue.length === 0;
+    const below = this.#channel.bufferedAmount < this.#options.highWater;
+    return idle && below;
   }
 
   #flush() {
@@ -607,7 +607,8 @@ class RtcChannelEndpoint extends Emitter {
   }
 
   #settle() {
-    for (const resolve of this.#waiters) resolve();
+    const waiters = this.#waiters;
+    for (let i = 0; i < waiters.length; i++) waiters[i]();
     this.#waiters = [];
   }
 
@@ -615,14 +616,12 @@ class RtcChannelEndpoint extends Emitter {
     if (this.closed) return;
     const frame = rtcBytes(data);
     const { messageBytes, fragments, frameBytes, timeout } = this.#options;
-    if (
-      frame.length < RTC_HEADER_BYTES ||
-      frame.length > frameBytes ||
-      frame[0] !== 0x4d ||
-      frame[1] !== 0x43 ||
-      frame[2] !== 1 ||
-      frame[3] > 1
-    ) {
+    const tooShort = frame.length < RTC_HEADER_BYTES;
+    const tooLong = frame.length > frameBytes;
+    const magic = frame[0] === 0x4d && frame[1] === 0x43;
+    const version = frame[2] === 1;
+    const kind = frame[3] <= 1;
+    if (tooShort || tooLong || !magic || !version || !kind) {
       throw new Error('Invalid RTC frame');
     }
     const header = new DataView(
@@ -634,12 +633,11 @@ class RtcChannelEndpoint extends Emitter {
     const length = header.getUint32(8);
     const offset = header.getUint32(12);
     const payload = frame.subarray(RTC_HEADER_BYTES);
-    if (
-      !id ||
-      length > messageBytes ||
-      payload.length + offset > length ||
-      (length > 0 && payload.length === 0)
-    ) {
+    const missingId = id === 0;
+    const overMessage = length > messageBytes;
+    const pastEnd = payload.length + offset > length;
+    const emptyPayload = length > 0 && payload.length === 0;
+    if (missingId || overMessage || pastEnd || emptyPayload) {
       throw new Error('Invalid RTC fragment size');
     }
     let assembly = this.#assembly;
@@ -663,13 +661,15 @@ class RtcChannelEndpoint extends Emitter {
       };
       this.#assembly = assembly;
     }
-    if (
-      assembly.id !== id ||
-      assembly.length !== length ||
-      assembly.type !== frame[3] ||
-      assembly.offset !== offset ||
-      ++assembly.count > fragments
-    ) {
+    const idMismatch = assembly.id !== id;
+    const lengthMismatch = assembly.length !== length;
+    const typeMismatch = assembly.type !== frame[3];
+    const offsetMismatch = assembly.offset !== offset;
+    const mismatch =
+      idMismatch || lengthMismatch || typeMismatch || offsetMismatch;
+    if (mismatch) throw new Error('Invalid RTC fragment order');
+    assembly.count += 1;
+    if (assembly.count > fragments) {
       throw new Error('Invalid RTC fragment order');
     }
     assembly.data.set(payload, offset);
@@ -686,7 +686,8 @@ class RtcChannelEndpoint extends Emitter {
   close(error = null) {
     if (this.closed) return;
     this.closed = true;
-    for (const remove of this.#listeners) remove();
+    const listeners = this.#listeners;
+    for (let i = 0; i < listeners.length; i++) listeners[i]();
     this.#listeners = [];
     if (this.#assembly) clearTimeout(this.#assembly.timer);
     this.#assembly = null;
@@ -720,8 +721,8 @@ class ClientTransport extends Emitter {
     return new this(url);
   }
 
-  send(obj) {
-    this.write(JSON.stringify(obj));
+  send(packet) {
+    this.write(JSON.stringify(packet));
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -825,7 +826,6 @@ class ClientHttpTransport extends ClientTransport {
     this.#post(data);
   }
 
-  // Failed request is answered with callback error to reject the call
   async #post(data) {
     const headers = { 'Content-Type': 'application/json' };
     const options = { method: 'POST', headers, body: data };
@@ -954,7 +954,6 @@ class ClientEventTransport extends ClientTransport {
     return transport;
   }
 
-  // Tab has one connection to the worker
   static create(url) {
     return ClientEventTransport.getInstance(url);
   }
@@ -1178,8 +1177,11 @@ const rtcBridgeMessage = (generation, kind, body = {}) => ({
   ...body,
 });
 
-const isRtcBridgeMessage = (data, generation) =>
-  data?.protocol === RTC_BRIDGE_PROTOCOL && data.generation === generation;
+const isRtcBridgeMessage = (data, generation) => {
+  const protocol = data?.protocol === RTC_BRIDGE_PROTOCOL;
+  const sameGeneration = data?.generation === generation;
+  return protocol && sameGeneration;
+};
 
 // One credit per direction: ACK follows delivery and downstream drain.
 class RtcBridgeLink extends Emitter {
@@ -1217,11 +1219,10 @@ class RtcBridgeLink extends Emitter {
   write(packet) {
     if (this.closed) throw new Error('RTC bridge closed');
     const bytes = rtcBridgeSize(packet);
-    if (
-      bytes > RTC_BRIDGE_MAX_BYTES ||
-      this.#bytes + bytes > RTC_BRIDGE_QUEUE_BYTES ||
-      this.#queue.length >= 1024
-    ) {
+    const oversized = bytes > RTC_BRIDGE_MAX_BYTES;
+    const queued = this.#bytes + bytes > RTC_BRIDGE_QUEUE_BYTES;
+    const full = this.#queue.length >= 1024;
+    if (oversized || queued || full) {
       throw new RangeError('RTC bridge queue limit exceeded');
     }
     const copy =
@@ -1242,12 +1243,14 @@ class RtcBridgeLink extends Emitter {
     if (this.closed || this.#inflight) return;
     const next = this.#queue.shift();
     if (!next) {
-      for (const resolve of this.#waiters) resolve();
-      this.#waiters = [];
+      this.#settle();
       return;
     }
-    this.#inflight = { ...next, sequence: ++this.#sequence };
-    this.post('data', { packet: next.packet, sequence: this.#sequence });
+    const packet = next.packet;
+    const bytes = next.bytes;
+    const sequence = ++this.#sequence;
+    this.#inflight = { packet, bytes, sequence };
+    this.post('data', { packet, sequence });
   }
 
   async #receive(data) {
@@ -1269,11 +1272,11 @@ class RtcBridgeLink extends Emitter {
       this.#inflight = null;
       this.#flush();
     } else if (data.kind === 'data') {
-      if (
-        this.#receiving ||
-        data.sequence !== this.#received + 1 ||
-        rtcBridgeSize(data.packet) > RTC_BRIDGE_MAX_BYTES
-      ) {
+      const busy = this.#receiving;
+      const outOfOrder = data.sequence !== this.#received + 1;
+      const blocked = busy || outOfOrder;
+      const size = blocked ? 0 : rtcBridgeSize(data.packet);
+      if (blocked || size > RTC_BRIDGE_MAX_BYTES) {
         throw new Error('Invalid RTC bridge credit or packet');
       }
       this.#receiving = true;
@@ -1302,9 +1305,14 @@ class RtcBridgeLink extends Emitter {
     this.#queue = [];
     this.#inflight = null;
     this.#bytes = 0;
-    for (const resolve of this.#waiters) resolve();
-    this.#waiters = [];
+    this.#settle();
     this.emit('close', error);
+  }
+
+  #settle() {
+    const waiters = this.#waiters;
+    for (let i = 0; i < waiters.length; i++) waiters[i]();
+    this.#waiters = [];
   }
 }
 
@@ -1327,11 +1335,10 @@ class ClientRtcBridgeTransport extends ClientTransport {
     if (this.active) return Promise.resolve();
     if (this.#opening) return this.#opening;
     const scope = globalThis.self;
-    if (
-      !scope?.clients ||
-      !scope.location ||
-      typeof options.bridge?.authorize !== 'function'
-    ) {
+    const hasClients = Boolean(scope?.clients);
+    const hasLocation = Boolean(scope?.location);
+    const authorize = typeof options.bridge?.authorize === 'function';
+    if (!hasClients || !hasLocation || !authorize) {
       return Promise.reject(
         new Error(
           'RTC bridge requires a worker and explicit client authorization',
@@ -1390,16 +1397,16 @@ class ClientRtcBridgeTransport extends ClientTransport {
     });
     const controlled = clients.some((client) => client.id === source?.id);
     const wrongOrigin = event.origin && event.origin !== expectedOrigin;
-    if (
-      data.version !== RTC_BRIDGE_VERSION ||
-      typeof generation !== 'string' ||
-      !generation ||
-      this.#retired.has(generation) ||
-      data.peerId !== this.#options.peerId ||
-      !controlled ||
-      new URL(source.url).origin !== expectedOrigin ||
-      wrongOrigin
-    ) {
+    const badVersion = data.version !== RTC_BRIDGE_VERSION;
+    const generationType = typeof generation === 'string';
+    const missingGeneration = !generationType || !generation;
+    const retired = this.#retired.has(generation);
+    const badPeer = data.peerId !== this.#options.peerId;
+    const rejected =
+      badVersion || missingGeneration || retired || badPeer || !controlled;
+    const origin = rejected ? '' : new URL(source.url).origin;
+    const badSource = !rejected && origin !== expectedOrigin;
+    if (rejected || badSource || wrongOrigin) {
       throw new Error('RTC bridge attachment rejected');
     }
     const authorized = await this.#options.authorize(source, data);
@@ -1416,11 +1423,10 @@ class ClientRtcBridgeTransport extends ClientTransport {
       const isReady = isRtcBridgeMessage(message, generation);
       if (!isReady || message.kind !== 'ready') return;
       port.removeEventListener('message', handshake);
-      if (
-        message.version !== RTC_BRIDGE_VERSION ||
-        message.instance !== this.#instance ||
-        message.peerId !== this.#options.peerId
-      ) {
+      const badVersion = message.version !== RTC_BRIDGE_VERSION;
+      const badInstance = message.instance !== this.#instance;
+      const badPeer = message.peerId !== this.#options.peerId;
+      if (badVersion || badInstance || badPeer) {
         return void this.#release(
           new Error('Invalid RTC bridge ready message'),
         );
@@ -1530,12 +1536,9 @@ class MetacomRtcBridge {
     port1.start();
     this.#container = globalThis.navigator?.serviceWorker;
     this.#onReset = ({ data }) => {
-      if (
-        data?.type === 'metacom:rtc-bridge:reset' &&
-        data.generation === this.#generation
-      ) {
-        this.close(new Error('RTC bridge worker restarted'));
-      }
+      const reset = data?.type === 'metacom:rtc-bridge:reset';
+      const current = reset && data.generation === this.#generation;
+      if (current) this.close(new Error('RTC bridge worker restarted'));
     };
     this.#onController = () => {
       const controller = this.#container.controller;
@@ -1568,11 +1571,10 @@ class MetacomRtcBridge {
     }
     if (data.kind === 'error') throw new Error(data.message);
     if (data.kind === 'accepted') {
-      if (
-        this.#link ||
-        data.peerId !== this.#rtc.peerId ||
-        typeof data.instance !== 'string'
-      ) {
+      const linked = Boolean(this.#link);
+      const badPeer = data.peerId !== this.#rtc.peerId;
+      const badInstance = typeof data.instance !== 'string';
+      if (linked || badPeer || badInstance) {
         throw new Error('Invalid RTC bridge acceptance');
       }
       this.#instance = data.instance;
@@ -2237,7 +2239,12 @@ class Metacom extends Emitter {
   // Server methods appear in loaded units after proxy reaches the server
   async #refresh() {
     if (this.#units.size === 0) return;
-    const units = Array.from(this.#units);
+    const units = new Array(this.#units.size).fill('');
+    let index = 0;
+    for (const unit of this.#units) {
+      units[index] = unit;
+      index += 1;
+    }
     const introspection = await this.#introspect(units);
     this.#extend(introspection, units);
   }
@@ -2325,7 +2332,6 @@ const encodeCallback = (id, result) => {
   return JSON.stringify(packet);
 };
 
-// Stream route: port that owns it, direction, and local upload state
 const createRoute = (port, upload, expires) => ({
   port,
   upload,
@@ -2472,7 +2478,13 @@ class MetacomRouter extends Emitter {
   }
 
   close() {
-    for (const id of [...this.#peers.keys()]) this.detach(id);
+    const ids = new Array(this.#peers.size).fill('');
+    let index = 0;
+    for (const id of this.#peers.keys()) {
+      ids[index] = id;
+      index += 1;
+    }
+    for (let i = 0; i < ids.length; i++) this.detach(ids[i]);
     clearInterval(this.#sweepTimer);
     this.#sweepTimer = null;
     this.#calls.clear();
@@ -2606,7 +2618,6 @@ class MetacomRouter extends Emitter {
     for (const port of this.#ports.keys()) port.postMessage(data);
   }
 
-  // Upstream event goes to ports that loaded its unit
   #publish(name, data) {
     if (typeof name !== 'string') return;
     const { unit } = parseMethod(name);
@@ -3022,17 +3033,21 @@ class PortLink {
 
   subscribe(unit, event, handler) {
     const name = `${unit}/${event}`;
-    const handlers = this.#subscribers.get(name) ?? new Set();
-    handlers.add(handler);
-    this.#subscribers.set(name, handlers);
+    const found = this.#subscribers.get(name);
+    const handlers = found ?? [];
+    if (handlers.includes(handler)) return;
+    handlers.push(handler);
+    if (!found) this.#subscribers.set(name, handlers);
   }
 
   unsubscribe(unit, event, handler) {
     const name = `${unit}/${event}`;
     const handlers = this.#subscribers.get(name);
     if (!handlers) return;
-    handlers.delete(handler);
-    if (handlers.size === 0) this.#subscribers.delete(name);
+    const index = handlers.indexOf(handler);
+    if (index === -1) return;
+    handlers.splice(index, 1);
+    if (handlers.length === 0) this.#subscribers.delete(name);
   }
 
   close() {
@@ -3045,7 +3060,12 @@ class PortLink {
     this.#closed = true;
     this.#port.removeEventListener('message', this.#onMessage);
     this.#port.removeEventListener('close', this.#onClose);
-    const pending = [...this.#calls.keys()];
+    const pending = new Array(this.#calls.size).fill('');
+    let index = 0;
+    for (const id of this.#calls.keys()) {
+      pending[index] = id;
+      index += 1;
+    }
     for (let i = 0; i < pending.length; i++) {
       this.#settle(pending[i]).reject(new Error('Link closed'));
     }
@@ -3075,7 +3095,9 @@ class PortLink {
   #publish(packet) {
     const handlers = this.#subscribers.get(packet.name);
     if (!handlers) return;
-    for (const handler of [...handlers]) {
+    const snapshot = handlers.slice();
+    for (let i = 0; i < snapshot.length; i++) {
+      const handler = snapshot[i];
       try {
         handler(packet.data);
       } catch (error) {
@@ -3180,14 +3202,16 @@ class MetacomPeer extends Emitter {
       ? this.#options.rtc
       : [this.#options.rtc];
     const ids = new Set();
-    for (const rtc of peers) {
+    for (let i = 0; i < peers.length; i++) {
+      const rtc = peers[i];
       if (!rtc || ids.has(rtc.peerId)) {
         return Promise.reject(new Error('Unique RTC peers required'));
       }
       ids.add(rtc.peerId);
     }
     this.#closed = false;
-    for (const rtc of peers) {
+    for (let i = 0; i < peers.length; i++) {
+      const rtc = peers[i];
       this.#connect(rtc).catch((error) => this.#report(error));
     }
     return Promise.resolve();
