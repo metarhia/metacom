@@ -166,8 +166,10 @@ test('MetaReadable', async (t) => {
     const count = 60;
     const options = { highWaterMark: 2 };
     const stream = new MetaReadable('id', 'name', count, options);
-    const pushes = [];
-    for (let i = 0; i < count; i++) pushes.push(stream.push(Buffer.from([i])));
+    const pushes = new Array(count).fill(null);
+    for (let i = 0; i < count; i++) {
+      pushes[i] = stream.push(Buffer.from([i]));
+    }
     const received = [];
     for await (const chunk of stream) {
       received.push(chunk[0]);
@@ -180,8 +182,10 @@ test('MetaReadable', async (t) => {
 
   await t.test('push: rejects when too many chunks wait', async () => {
     const stream = new MetaReadable('id', 'name', 0, { highWaterMark: 1 });
-    const pushes = [];
-    for (let i = 0; i < 1002; i++) pushes.push(stream.push(Buffer.from([i])));
+    const pushes = new Array(1002).fill(null);
+    for (let i = 0; i < pushes.length; i++) {
+      pushes[i] = stream.push(Buffer.from([i]));
+    }
     const overflow = stream.push(Buffer.from([0]));
     await assert.rejects(overflow, /Stream overflow occurred/);
     await stream.terminate();

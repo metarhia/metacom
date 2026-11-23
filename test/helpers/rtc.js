@@ -4,19 +4,26 @@ class RtcTarget {
   listeners = new Map();
 
   addEventListener(name, listener) {
-    if (!this.listeners.has(name)) this.listeners.set(name, new Set());
-    this.listeners.get(name).add(listener);
+    const found = this.listeners.get(name);
+    const listeners = found ?? [];
+    if (listeners.includes(listener)) return;
+    listeners.push(listener);
+    if (!found) this.listeners.set(name, listeners);
   }
 
   removeEventListener(name, listener) {
-    this.listeners.get(name)?.delete(listener);
+    const listeners = this.listeners.get(name);
+    if (!listeners) return;
+    const index = listeners.indexOf(listener);
+    if (index === -1) return;
+    listeners.splice(index, 1);
   }
 
   dispatch(name, data = {}) {
-    const listeners = this.listeners.get(name) ?? [];
-    for (const listener of [...listeners]) {
-      listener(data);
-    }
+    const listeners = this.listeners.get(name);
+    if (!listeners) return;
+    const snapshot = listeners.slice();
+    for (const listener of snapshot) listener(data);
   }
 }
 

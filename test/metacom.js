@@ -98,8 +98,10 @@ test('Client / calls', async (t) => {
   });
 
   await t.test('handles parallel api calls', async () => {
-    const promises = [];
-    for (let i = 0; i < 10; i++) promises.push(client.api.test.test());
+    const promises = new Array(10).fill(null);
+    for (let i = 0; i < promises.length; i++) {
+      promises[i] = client.api.test.test();
+    }
     const results = await Promise.all(promises);
     for (const result of results) {
       assert.deepStrictEqual(result, { success: true });

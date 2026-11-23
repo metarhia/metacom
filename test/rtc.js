@@ -4,12 +4,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { setTimeout: delay } = require('node:timers/promises');
 const { RtcConnection } = require('../lib/rtc.js');
-const {
-  RtcMockPeer,
-  RtcMockChannel,
-  rtcSignals,
-  rtcOptions,
-} = require('./helpers/rtc.js');
+const helpers = require('./helpers/rtc.js');
+const { RtcMockPeer, RtcMockChannel, rtcSignals, rtcOptions } = helpers;
 
 globalThis.RTCPeerConnection = RtcMockPeer;
 
@@ -25,7 +21,9 @@ test('RTC: both roles, shared open and fresh generations', async (t) => {
   const openingB = b.open(rtcOptions(signaling, 'answerer'));
   const openingA = a.open(rtcOptions(signaling));
   assert.equal(a.open(rtcOptions(signaling)), openingA);
-  const [channelA, channelB] = await Promise.all([openingA, openingB]);
+  const channels = await Promise.all([openingA, openingB]);
+  const channelA = channels[0];
+  const channelB = channels[1];
   assert.equal(channelA.other, channelB);
   assert.equal(signaling.messages[0].media, undefined);
   const old = signaling.messages[0].generation;
