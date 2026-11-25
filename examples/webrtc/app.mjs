@@ -12,10 +12,10 @@ const rtc = (localId, peerId, peerRole) => ({
   signaling,
   configuration: { iceServers: [] },
 });
-let host;
-let client;
-let bridge;
-let registration;
+let host = null;
+let client = null;
+let bridge = null;
+let registration = null;
 
 const worker = async () => {
   registration = await navigator.serviceWorker.register(
@@ -31,6 +31,11 @@ const worker = async () => {
     });
   }
   return navigator.serviceWorker.controller;
+};
+
+const clientOptions = async () => {
+  if (role === 'worker-client') return { worker: await worker() };
+  return { transport: 'webrtc', rtc: rtc('caller', 'host', 'offerer') };
 };
 
 const run = async () => {
@@ -56,13 +61,7 @@ const run = async () => {
     status.textContent = 'Worker RTC bridge connected. Keep this tab open.';
     return;
   }
-  const options =
-    role === 'worker-client'
-      ? { worker: await worker() }
-      : {
-          transport: 'webrtc',
-          rtc: rtc('caller', 'host', 'offerer'),
-        };
+  const options = await clientOptions();
   client = await Metacom.connect('example-peer', options);
   await client.load('demo');
   const result = await client.api.demo.echo({ hello: role });

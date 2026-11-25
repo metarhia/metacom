@@ -2,6 +2,11 @@ import { split, Emitter, generateUUID, delay, jsonParse } from './metautil.js';
 
 // utils.js
 
+const CALL_TIMEOUT_MS = 7 * 1000;
+const RECONNECT_TIMEOUT_MS = 2 * 1000;
+const SERVICE_UNAVAILABLE = { message: 'Service Unavailable', code: 503 };
+const TEXT_ENCODER = new TextEncoder();
+
 // Frozen data does not change: its event packet is serialized once
 // and reused for every client the event goes to
 const FROZEN_EVENTS = new WeakMap();
@@ -35,6 +40,55 @@ const encodeEvent = (name, data) => {
 const emitError = (emitter, error) => {
   if (emitter.listenerCount('error') > 0) emitter.emit('error', error);
 };
+
+const isId = (value) => typeof value === 'string' && value !== '';
+
+// Units map: unit name to Map of method handlers, later methods win
+const registerUnit = (units, unit, methods) => {
+  const handlers = units.get(unit) ?? new Map();
+  const names = Object.keys(methods);
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    handlers.set(name, methods[name]);
+  }
+  units.set(unit, handlers);
+};
+
+// Kept apart from the caller so the pending timer does not retain args
+const expectCall = (calls, id, timeoutMs) =>
+  new Promise((resolve, reject) => {
+    const onTimeout = () => {
+      calls.delete(id);
+      reject(new Error('Request timeout'));
+    };
+    const timer = setTimeout(onTimeout, timeoutMs);
+    calls.set(id, { resolve, reject, timer });
+  });
+
+const takeCall = (calls, id) => {
+  const pending = calls.get(id);
+  if (!pending) return null;
+  calls.delete(id);
+  clearTimeout(pending.timer);
+  return pending;
+};
+
+// Writers waiting for a send queue to flush
+class Waiters {
+  #list = [];
+
+  wait() {
+    return new Promise((resolve) => {
+      this.#list.push(resolve);
+    });
+  }
+
+  release() {
+    const list = this.#list;
+    this.#list = [];
+    for (let i = 0; i < list.length; i++) list[i]();
+  }
+}
 
 // rtc.js
 
@@ -348,8 +402,7 @@ class RtcConnection extends Emitter {
       return;
     }
     const badVersion = version !== RTC_VERSION;
-    const generationType = typeof generation === 'string';
-    const badGeneration = !generationType || !generation;
+    const badGeneration = !isId(generation);
     if (badVersion || badGeneration) {
       throw new Error('Invalid RTC signaling envelope');
     }
@@ -462,7 +515,7 @@ const RTC_MESSAGE_BYTES = 16 * 1024 * 1024;
 const RTC_QUEUE_BYTES = 32 * 1024 * 1024;
 const RTC_HIGH_WATER_BYTES = 256 * 1024;
 const RTC_FRAGMENT_LIMIT = 4096;
-const RTC_ENCODER = new TextEncoder();
+const RTC_ASSEMBLY_TIMEOUT_MS = 10 * 1000;
 const RTC_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 const rtcBytes = (data) => {
@@ -474,10 +527,8 @@ const rtcBytes = (data) => {
 };
 
 const rtcPositive = (value, name) => {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new RangeError(`Invalid RTC ${name}`);
-  }
-  return value;
+  if (Number.isSafeInteger(value) && value > 0) return;
+  throw new RangeError(`Invalid RTC ${name}`);
 };
 
 // Binary envelopes preserve message boundaries across fragmentation.
@@ -489,7 +540,7 @@ class RtcChannelEndpoint extends Emitter {
   #sequence = 0;
   #received = 0;
   #assembly = null;
-  #waiters = [];
+  #waiters = new Waiters();
   #listeners = [];
   closed = false;
 
@@ -499,7 +550,7 @@ class RtcChannelEndpoint extends Emitter {
     const queueBytes = options.maxQueueBytes ?? RTC_QUEUE_BYTES;
     const highWater = options.highWaterBytes ?? RTC_HIGH_WATER_BYTES;
     const fragments = options.maxFragments ?? RTC_FRAGMENT_LIMIT;
-    const timeout = options.assemblyTimeout ?? 10000;
+    const timeout = options.assemblyTimeout ?? RTC_ASSEMBLY_TIMEOUT_MS;
     const negotiated = options.maxMessageSize || RTC_FRAME_BYTES;
     const frameBytes = Math.min(negotiated, RTC_FRAME_BYTES);
     const limits = {
@@ -545,7 +596,7 @@ class RtcChannelEndpoint extends Emitter {
       throw new Error('RTC channel is not connected');
     }
     const isText = typeof data === 'string';
-    const payload = isText ? RTC_ENCODER.encode(data) : rtcBytes(data);
+    const payload = isText ? TEXT_ENCODER.encode(data) : rtcBytes(data);
     const { messageBytes, fragments, frameBytes, queueBytes } = this.#options;
     const capacity = frameBytes - RTC_HEADER_BYTES;
     const count = Math.max(1, Math.ceil(payload.length / capacity));
@@ -596,20 +647,12 @@ class RtcChannelEndpoint extends Emitter {
     } catch (error) {
       return void this.close(error);
     }
-    if (this.#writable()) this.#settle();
+    if (this.#writable()) this.#waiters.release();
   }
 
   drain() {
     if (this.closed || this.#writable()) return Promise.resolve();
-    return new Promise((resolve) => {
-      this.#waiters.push(resolve);
-    });
-  }
-
-  #settle() {
-    const waiters = this.#waiters;
-    for (let i = 0; i < waiters.length; i++) waiters[i]();
-    this.#waiters = [];
+    return this.#waiters.wait();
   }
 
   #receive(data) {
@@ -693,7 +736,7 @@ class RtcChannelEndpoint extends Emitter {
     this.#assembly = null;
     this.#queue = [];
     this.#bytes = 0;
-    this.#settle();
+    this.#waiters.release();
     this.#channel.close();
     this.emit('close', error);
   }
@@ -742,7 +785,7 @@ class ClientWsTransport extends ClientTransport {
   #socket = null;
   #opening = null;
 
-  async open() {
+  open() {
     if (this.active) return Promise.resolve();
     if (this.#opening) return this.#opening;
     const opening = new Promise((resolve, reject) => {
@@ -867,33 +910,34 @@ class ClientRtcTransport extends ClientTransport {
     if (this.active) return Promise.resolve();
     if (this.#opening) return this.#opening;
     const cycle = ++this.#cycle;
-    this.#opening = this.#connection
-      .open(options.rtc)
-      .then((channel) => {
-        if (cycle !== this.#cycle) throw new Error('RTC connection closed');
-        const maxMessageSize =
-          this.#connection.peerConnection.sctp?.maxMessageSize;
-        const endpoint = new RtcChannelEndpoint(channel, {
-          ...options.rtc,
-          maxMessageSize,
-        });
-        this.#endpoint = endpoint;
-        endpoint.on('message', (data) => this.emit('message', data));
-        endpoint.on('close', (error) => {
-          this.#release(error);
-          this.#connection.close();
-        });
-        this.active = true;
-        this.emit('open');
-      })
-      .catch((error) => {
-        this.#connection.close();
-        throw error;
-      })
-      .finally(() => {
-        if (cycle === this.#cycle) this.#opening = null;
-      });
+    const connecting = this.#connection.open(options.rtc);
+    this.#opening = this.#connect(connecting, options.rtc, cycle);
     return this.#opening;
+  }
+
+  // Release during the handshake starts a new cycle and drops this one
+  async #connect(connecting, rtc, cycle) {
+    try {
+      const channel = await connecting;
+      if (cycle !== this.#cycle) throw new Error('RTC connection closed');
+      const { sctp } = this.#connection.peerConnection;
+      const maxMessageSize = sctp?.maxMessageSize;
+      const endpointOptions = { ...rtc, maxMessageSize };
+      const endpoint = new RtcChannelEndpoint(channel, endpointOptions);
+      this.#endpoint = endpoint;
+      endpoint.on('message', (data) => this.emit('message', data));
+      endpoint.on('close', (error) => {
+        this.#release(error);
+        this.#connection.close();
+      });
+      this.active = true;
+      this.emit('open');
+    } catch (error) {
+      this.#connection.close();
+      throw error;
+    } finally {
+      if (cycle === this.#cycle) this.#opening = null;
+    }
   }
 
   #release(error) {
@@ -1161,12 +1205,18 @@ const RTC_BRIDGE_PING_MS = 1000;
 const RTC_BRIDGE_PONG_MS = 5000;
 const RTC_BRIDGE_MAX_BYTES = 16 * 1024 * 1024;
 const RTC_BRIDGE_QUEUE_BYTES = 32 * 1024 * 1024;
-const RTC_BRIDGE_ENCODER = new TextEncoder();
+const RTC_BRIDGE_QUEUE_LIMIT = 1024;
 
 const rtcBridgeSize = (data) => {
-  if (typeof data === 'string') return RTC_BRIDGE_ENCODER.encode(data).length;
+  if (typeof data === 'string') return TEXT_ENCODER.encode(data).length;
   if (ArrayBuffer.isView(data)) return data.byteLength;
   throw new TypeError('Invalid RTC bridge packet');
+};
+
+// Sender may reuse its buffer after write returns
+const copyBytes = (view) => {
+  const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+  return bytes.slice();
 };
 
 const rtcBridgeMessage = (generation, kind, body = {}) => ({
@@ -1195,7 +1245,7 @@ class RtcBridgeLink extends Emitter {
   #received = 0;
   #inflight = null;
   #receiving = false;
-  #waiters = [];
+  #waiters = new Waiters();
   closed = false;
 
   constructor(port, generation, deliver) {
@@ -1221,18 +1271,12 @@ class RtcBridgeLink extends Emitter {
     const bytes = rtcBridgeSize(packet);
     const oversized = bytes > RTC_BRIDGE_MAX_BYTES;
     const queued = this.#bytes + bytes > RTC_BRIDGE_QUEUE_BYTES;
-    const full = this.#queue.length >= 1024;
+    const full = this.#queue.length >= RTC_BRIDGE_QUEUE_LIMIT;
     if (oversized || queued || full) {
       throw new RangeError('RTC bridge queue limit exceeded');
     }
-    const copy =
-      typeof packet === 'string'
-        ? packet
-        : new Uint8Array(
-            packet.buffer,
-            packet.byteOffset,
-            packet.byteLength,
-          ).slice();
+    const isText = typeof packet === 'string';
+    const copy = isText ? packet : copyBytes(packet);
     this.#queue.push({ packet: copy, bytes });
     this.#bytes += bytes;
     this.#flush();
@@ -1242,10 +1286,7 @@ class RtcBridgeLink extends Emitter {
   #flush() {
     if (this.closed || this.#inflight) return;
     const next = this.#queue.shift();
-    if (!next) {
-      this.#settle();
-      return;
-    }
+    if (!next) return void this.#waiters.release();
     const packet = next.packet;
     const bytes = next.bytes;
     const sequence = ++this.#sequence;
@@ -1288,12 +1329,9 @@ class RtcBridgeLink extends Emitter {
   }
 
   drain() {
-    if (this.closed || (!this.#inflight && !this.#queue.length)) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      this.#waiters.push(resolve);
-    });
+    const isIdle = !this.#inflight && this.#queue.length === 0;
+    if (this.closed || isIdle) return Promise.resolve();
+    return this.#waiters.wait();
   }
 
   close(error = null, notify = true) {
@@ -1305,14 +1343,8 @@ class RtcBridgeLink extends Emitter {
     this.#queue = [];
     this.#inflight = null;
     this.#bytes = 0;
-    this.#settle();
+    this.#waiters.release();
     this.emit('close', error);
-  }
-
-  #settle() {
-    const waiters = this.#waiters;
-    for (let i = 0; i < waiters.length; i++) waiters[i]();
-    this.#waiters = [];
   }
 }
 
@@ -1398,8 +1430,7 @@ class ClientRtcBridgeTransport extends ClientTransport {
     const controlled = clients.some((client) => client.id === source?.id);
     const wrongOrigin = event.origin && event.origin !== expectedOrigin;
     const badVersion = data.version !== RTC_BRIDGE_VERSION;
-    const generationType = typeof generation === 'string';
-    const missingGeneration = !generationType || !generation;
+    const missingGeneration = !isId(generation);
     const retired = this.#retired.has(generation);
     const badPeer = data.peerId !== this.#options.peerId;
     const rejected =
@@ -1646,7 +1677,6 @@ TRANSPORTS['rtc-bridge'] = ClientRtcBridgeTransport;
 
 const ID_LENGTH_BYTES = 1;
 const MAX_ID_LENGTH = 255;
-const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
 
 const chunkEncode = (id, payload) => {
@@ -1854,10 +1884,6 @@ class MetaWritable extends Emitter {
 
 // metacom.js
 
-const CALL_TIMEOUT_MS = 7 * 1000;
-const RECONNECT_TIMEOUT_MS = 2 * 1000;
-const QUEUE_OVERFLOW = { message: 'Service Unavailable', code: 503 };
-
 // Blob is the only input that can not be viewed synchronously
 const toByteView = (input) => {
   if (input instanceof Uint8Array) return input;
@@ -1924,9 +1950,9 @@ class Metacom extends Emitter {
   #queueSize = 0;
   #restore = null;
   #restoring = false;
-  #generateId = generateUUID;
-  #callTimeout = CALL_TIMEOUT_MS;
-  #reconnectTimeout = RECONNECT_TIMEOUT_MS;
+  #generateId = null;
+  #callTimeout = 0;
+  #reconnectTimeout = 0;
   #reconnectTimer = null;
   #proxy = null;
   #options = {};
@@ -1937,16 +1963,11 @@ class Metacom extends Emitter {
 
   constructor(url, transport, options = {}) {
     super();
-    const callTimeout = options.callTimeout;
-    const reconnectTimeout = options.reconnectTimeout;
-    const queueSize = options.queueSize;
-    const restore = options.restore;
-    const generateId = options.generateId;
-    if (callTimeout) this.#callTimeout = callTimeout;
-    if (reconnectTimeout) this.#reconnectTimeout = reconnectTimeout;
-    if (queueSize) this.#queueSize = queueSize;
-    if (restore) this.#restore = restore;
-    if (generateId) this.#generateId = generateId;
+    this.#callTimeout = options.callTimeout || CALL_TIMEOUT_MS;
+    this.#reconnectTimeout = options.reconnectTimeout || RECONNECT_TIMEOUT_MS;
+    this.#queueSize = options.queueSize || 0;
+    this.#restore = options.restore || null;
+    this.#generateId = options.generateId || generateUUID;
     this.url = url;
     this.#transport = transport;
     this.#options = options;
@@ -2177,13 +2198,11 @@ class Metacom extends Emitter {
 
   #handleCallback(packet) {
     const { id } = packet;
-    const pending = this.#calls.get(id);
+    const pending = takeCall(this.#calls, id);
     if (!pending) throw new Error(`Callback ${id} not found`);
-    const { resolve, reject, timeout } = pending;
-    this.#calls.delete(id);
-    clearTimeout(timeout);
-    if (packet.error) return void reject(new MetacomError(packet.error));
-    resolve(packet.result);
+    const { error, result } = packet;
+    if (error) return void pending.reject(new MetacomError(error));
+    pending.resolve(result);
   }
 
   async #handleStream(packet) {
@@ -2239,12 +2258,7 @@ class Metacom extends Emitter {
   // Server methods appear in loaded units after proxy reaches the server
   async #refresh() {
     if (this.#units.size === 0) return;
-    const units = new Array(this.#units.size).fill('');
-    let index = 0;
-    for (const unit of this.#units) {
-      units[index] = unit;
-      index += 1;
-    }
+    const units = Array.from(this.#units);
     const introspection = await this.#introspect(units);
     this.#extend(introspection, units);
   }
@@ -2270,33 +2284,18 @@ class Metacom extends Emitter {
     const id = this.#generateId();
     const packet = { type: 'call', id, method, args };
     const data = JSON.stringify(packet);
-    const promise = this.#expect(id);
+    const promise = expectCall(this.#calls, id, this.#callTimeout);
     try {
       const isAccepted = this.#post(data);
-      if (!isAccepted) this.#fail(id, new MetacomError(QUEUE_OVERFLOW));
+      if (!isAccepted) this.#fail(id, new MetacomError(SERVICE_UNAVAILABLE));
     } catch (error) {
       this.#fail(id, error);
     }
     return promise;
   }
 
-  // Kept apart from #request so the pending timer does not retain data
-  #expect(id) {
-    return new Promise((resolve, reject) => {
-      const onTimeout = () => {
-        this.#calls.delete(id);
-        reject(new Error('Request timeout'));
-      };
-      const timeout = setTimeout(onTimeout, this.#callTimeout);
-      this.#calls.set(id, { resolve, reject, timeout });
-    });
-  }
-
   #fail(id, error) {
-    const { reject, timeout } = this.#calls.get(id);
-    this.#calls.delete(id);
-    clearTimeout(timeout);
-    reject(error);
+    takeCall(this.#calls, id).reject(error);
   }
 
   // Own calls skip the queue while the session is being restored
@@ -3341,10 +3340,19 @@ class MetacomProxy extends MetacomRouter {
 }
 
 export {
+  CALL_TIMEOUT_MS,
+  RECONNECT_TIMEOUT_MS,
+  SERVICE_UNAVAILABLE,
+  TEXT_ENCODER,
   startInterval,
   parseMethod,
   encodeEvent,
   emitError,
+  isId,
+  registerUnit,
+  expectCall,
+  takeCall,
+  Waiters,
   RtcConnection,
   retireRtcGeneration,
   RtcChannelEndpoint,

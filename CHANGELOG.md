@@ -2,6 +2,8 @@
 
 ## [Unreleased][unreleased]
 
+- Breaking: `lib/transport.js` no longer re-exports client transports,
+  import them from `lib/client.js`
 - Add port mode to `MetacomPeer`: `new MetacomPeer({ port, callTimeout })` is
   a symmetric link on one `MessagePort` where both ends serve units and use
   `call`, `send`, `subscribe`, and `unsubscribe`; packets are posted as
