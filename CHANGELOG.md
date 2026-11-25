@@ -2,6 +2,10 @@
 
 ## [Unreleased][unreleased]
 
+- `MetacomProxy` owns the tab protocol: it sends `metacom:ready` and
+  `metacom:status`, while `MetacomRouter` carries only packets
+- Breaking: download announcements `metacom:stream` go as JSON packets only,
+  object announcements are ignored
 - Breaking: `lib/transport.js` no longer re-exports client transports,
   import them from `lib/client.js`
 - Add port mode to `MetacomPeer`: `new MetacomPeer({ port, callTimeout })` is
