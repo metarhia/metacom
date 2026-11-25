@@ -2310,11 +2310,21 @@ Metacom.initialize();
 
 // router.js
 
-const ROUTE_TIMEOUT_MS = 7 * 1000;
 const SWEEP_INTERVAL_MS = 10 * 1000;
 const PROXY_QUEUE_SIZE = 1000;
 const BAD_REQUEST = { message: 'Bad Request', code: 400 };
-const UNAVAILABLE = { message: 'Service Unavailable', code: 503 };
+const DUPLICATE_CALL = { message: 'Duplicate call id', code: 409 };
+const FINAL_STATUSES = ['end', 'terminate'];
+
+// Router without upstream delivers nothing and keeps uploads local
+const NO_UPSTREAM = {
+  active: false,
+  open: async () => {},
+  close: () => {},
+  send: () => {},
+  write: () => {},
+  deliver: () => false,
+};
 
 const sendError = (port, id, error) => {
   const packet = { type: 'callback', id, error };
@@ -2414,11 +2424,11 @@ class MetacomRouter extends Emitter {
   #streams = new Map();
   #units = new Map();
   #interfaces = new Map();
-  #server = null;
+  #upstream = NO_UPSTREAM;
   #connecting = false;
   #attempted = false;
   #connected = false;
-  #callTimeout = ROUTE_TIMEOUT_MS;
+  #callTimeout = CALL_TIMEOUT_MS;
   #sweepInterval = SWEEP_INTERVAL_MS;
   #sweepTimer = null;
 
@@ -2427,11 +2437,11 @@ class MetacomRouter extends Emitter {
   }
 
   get server() {
-    return this.#server;
+    return this.#hasUpstream() ? this.#upstream : null;
   }
 
   get active() {
-    return this.#server?.active ?? false;
+    return this.#upstream.active;
   }
 
   constructor(options = {}) {
@@ -2441,12 +2451,12 @@ class MetacomRouter extends Emitter {
     if (sweepInterval) this.#sweepInterval = sweepInterval;
     this.#localStreams = options.localStreams ?? false;
     this.#getClients = options.getClients ?? null;
-    this.#server = this.#createServer(options);
+    this.#upstream = this.#createUpstream(options);
   }
 
-  #createServer(options) {
+  #createUpstream(options) {
     const url = options.url;
-    if (!url && !options.upstream) return null;
+    if (!url && !options.upstream) return NO_UPSTREAM;
     const queueSize = options.queueSize ?? PROXY_QUEUE_SIZE;
     const upstreamOptions = { ...options, queueSize };
     const proxy = {
@@ -2464,42 +2474,35 @@ class MetacomRouter extends Emitter {
     return server;
   }
 
+  #hasUpstream() {
+    return this.#upstream !== NO_UPSTREAM;
+  }
+
   async open() {
-    if (!this.#server || this.#server.active) return;
+    if (!this.#hasUpstream() || this.#upstream.active) return;
     this.#connecting = !this.#attempted;
     try {
-      await this.#server.open();
+      await this.#upstream.open();
     } finally {
       this.#connecting = false;
       this.#attempted = true;
-      if (!this.#server.active) this.#describePending();
+      if (!this.#upstream.active) this.#describePending();
     }
   }
 
   close() {
-    const ids = new Array(this.#peers.size).fill('');
-    let index = 0;
-    for (const id of this.#peers.keys()) {
-      ids[index] = id;
-      index += 1;
-    }
+    const ids = Array.from(this.#peers.keys());
     for (let i = 0; i < ids.length; i++) this.detach(ids[i]);
     clearInterval(this.#sweepTimer);
     this.#sweepTimer = null;
     this.#calls.clear();
     this.#streams.clear();
-    this.#server?.close();
+    this.#upstream.close();
   }
 
   // Local method shadows server method with the same name
   register(unit, methods) {
-    const handlers = this.#units.get(unit) ?? new Map();
-    const names = Object.keys(methods);
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
-      handlers.set(name, methods[name]);
-    }
-    this.#units.set(unit, handlers);
+    registerUnit(this.#units, unit, methods);
   }
 
   broadcast(name, data) {
@@ -2516,11 +2519,9 @@ class MetacomRouter extends Emitter {
 
   attach(port, options = {}) {
     if (!port) return;
-    const {
-      id = generateUUID(),
-      clientId = '',
-      callTimeout = this.#callTimeout,
-    } = options;
+    const id = options.id ?? generateUUID();
+    const clientId = options.clientId ?? '';
+    const callTimeout = options.callTimeout ?? this.#callTimeout;
     this.detach(id);
     const client = new RouterClient(id, port, this);
     const units = new Set();
@@ -2531,7 +2532,7 @@ class MetacomRouter extends Emitter {
     });
     port.start();
     const instance = this.#instance;
-    const connected = this.#server?.active;
+    const connected = this.#upstream.active;
     port.postMessage({ type: 'metacom:ready', instance, connected });
     this.#startSweep();
     this.emit('connect', id);
@@ -2568,8 +2569,8 @@ class MetacomRouter extends Emitter {
   }
 
   #terminateUpload(id) {
-    if (!this.#server?.active) return;
-    this.#server.send({ type: 'stream', id, status: 'terminate' });
+    if (!this.#upstream.active) return;
+    this.#upstream.send({ type: 'stream', id, status: 'terminate' });
   }
 
   #startSweep() {
@@ -2638,9 +2639,7 @@ class MetacomRouter extends Emitter {
     const packet = jsonParse(data);
     if (!packet) return void sendError(port, '', BAD_REQUEST);
     const { type, id } = packet;
-    if (typeof id !== 'string' || id === '') {
-      return void sendError(port, '', BAD_REQUEST);
-    }
+    if (!isId(id)) return void sendError(port, '', BAD_REQUEST);
     if (type === 'call') return void this.#dispatchCall(port, packet, data);
     if (type === 'stream') return void this.#forwardStream(port, packet, data);
     if (type === 'metacom:stream') return void this.#expectStream(port, id);
@@ -2655,15 +2654,14 @@ class MetacomRouter extends Emitter {
     const { unit, name } = parseMethod(method);
     const isIntrospect = unit === 'system' && name === 'introspect';
     if (isIntrospect) return void this.#introspect(port, packet, data);
-    const handlers = this.#units.get(unit);
-    const handler = handlers ? handlers.get(name) : undefined;
+    const handler = this.#units.get(unit)?.get(name);
     if (handler) return void this.#invoke(port, packet, handler);
     this.#forwardCall(port, id, data, null);
   }
 
   async #invoke(port, packet, handler) {
     const { id, args } = packet;
-    const context = new ProxyContext(this.#server, port, this.#ports);
+    const context = new ProxyContext(this.server, port, this.#ports);
     try {
       const result = await handler(args, context);
       if (this.#ports.has(port)) port.postMessage(encodeCallback(id, result));
@@ -2683,7 +2681,7 @@ class MetacomRouter extends Emitter {
     const units = Array.isArray(args) ? args : [];
     const loaded = this.#ports.get(port).units;
     for (let i = 0; i < units.length; i++) loaded.add(units[i]);
-    const isReachable = this.#server?.active || this.#connecting;
+    const isReachable = this.#upstream.active || this.#connecting;
     if (isReachable) return void this.#forwardCall(port, id, data, units);
     this.#sendInterface(port, id, units);
   }
@@ -2730,23 +2728,19 @@ class MetacomRouter extends Emitter {
   }
 
   #forwardCall(port, id, data, units) {
-    if (this.#calls.has(id)) {
-      return void sendError(port, id, {
-        message: 'Duplicate call id',
-        code: 409,
-      });
-    }
+    if (this.#calls.has(id)) return void sendError(port, id, DUPLICATE_CALL);
     const { callTimeout } = this.#ports.get(port);
     const expires = Date.now() + callTimeout;
     this.#calls.set(id, { port, expires, units });
     if (this.#deliver(data, callTimeout)) return;
     this.#calls.delete(id);
-    sendError(port, id, UNAVAILABLE);
+    sendError(port, id, SERVICE_UNAVAILABLE);
   }
 
+  // Upstream without a queue throws while disconnected
   #deliver(data, timeout) {
     try {
-      return this.#server.deliver(data, timeout);
+      return this.#upstream.deliver(data, timeout);
     } catch {
       return false;
     }
@@ -2760,27 +2754,25 @@ class MetacomRouter extends Emitter {
     if (existing && existing.port !== port) {
       return void sendError(port, id, BAD_REQUEST);
     }
-    if (!this.#server?.active) {
+    if (!this.#upstream.active) {
       this.#streams.delete(id);
-      return void sendError(port, id, UNAVAILABLE);
+      return void sendError(port, id, SERVICE_UNAVAILABLE);
     }
     const { callTimeout } = this.#ports.get(port);
     const expires = status === undefined ? 0 : Date.now() + callTimeout;
     this.#streams.set(id, createRoute(port, true, expires));
-    this.#server.write(data);
+    this.#upstream.write(data);
   }
 
   getStream(port, id) {
     const stream = this.#streams.get(id);
-    if (!stream || stream.port !== port || !stream.upload || stream.forwarded) {
+    const isOwned = stream?.port === port && stream.upload;
+    if (!isOwned || stream.forwarded) {
       throw new Error('Local stream is not available');
     }
     stream.local = true;
-    stream.readable ??= new MetaReadable(
-      id,
-      stream.packet.name,
-      stream.packet.size,
-    );
+    const { name, size } = stream.packet;
+    stream.readable ??= new MetaReadable(id, name, size);
     return stream.readable;
   }
 
@@ -2825,13 +2817,13 @@ class MetacomRouter extends Emitter {
       this.#streams.set(id, stream);
       return;
     }
-    if (!stream?.upload || !['end', 'terminate'].includes(status)) {
+    if (!stream?.upload || !FINAL_STATUSES.includes(status)) {
       return void sendError(port, id, BAD_REQUEST);
     }
-    if (stream.local || !this.#server) {
+    if (stream.local || !this.#hasUpstream()) {
       const readable = this.getStream(port, id);
-      const finishing =
-        status === 'end' ? readable.close() : readable.terminate();
+      const isEnd = status === 'end';
+      const finishing = isEnd ? readable.close() : readable.terminate();
       finishing.catch((error) => {
         this.#replyError(port, id, error.message, 400);
       });
@@ -2844,13 +2836,13 @@ class MetacomRouter extends Emitter {
 
   // Upload not claimed by a local handler goes upstream, its init first
   #forwardUpload(port, id, stream, data) {
-    if (!this.#server.active) {
-      sendError(port, id, UNAVAILABLE);
+    if (!this.#upstream.active) {
+      sendError(port, id, SERVICE_UNAVAILABLE);
       return false;
     }
-    if (!stream.forwarded) this.#server.write(stream.init);
+    if (!stream.forwarded) this.#upstream.write(stream.init);
     stream.forwarded = true;
-    this.#server.write(data);
+    this.#upstream.write(data);
     return true;
   }
 
@@ -2861,7 +2853,7 @@ class MetacomRouter extends Emitter {
       return void sendError(port, id, BAD_REQUEST);
     }
     stream.expires = 0;
-    if (stream.local || !this.#server) {
+    if (stream.local || !this.#hasUpstream()) {
       const readable = this.getStream(port, id);
       readable.push(payload).catch((error) => {
         this.#replyError(port, id, error.message, 400);
@@ -2873,18 +2865,18 @@ class MetacomRouter extends Emitter {
 
   #forwardChunk(port, data) {
     if (this.#localStreams) return void this.#localChunk(port, data);
-    if (!this.#server?.active) return;
+    if (!this.#upstream.active) return;
     const { id } = chunkDecode(data);
     const stream = this.#streams.get(id);
     if (stream?.port !== port || !stream.upload) {
       return void sendError(port, id, BAD_REQUEST);
     }
-    this.#server.write(data);
+    this.#upstream.write(data);
   }
 
   // Tab creates download stream id before the call that fills the stream
   #expectStream(port, id) {
-    if (typeof id !== 'string' || id === '') return;
+    if (!isId(id)) return;
     const existing = this.#streams.get(id);
     if (existing && existing.port !== port) return;
     const { callTimeout } = this.#ports.get(port);
@@ -2928,7 +2920,7 @@ class MetacomRouter extends Emitter {
       const id = entry[0];
       const { port, expires, upload } = entry[1];
       if (expires !== 0) continue;
-      if (upload) sendError(port, id, UNAVAILABLE);
+      if (upload) sendError(port, id, SERVICE_UNAVAILABLE);
       else sendTerminate(port, id);
       this.#streams.delete(id);
     }
