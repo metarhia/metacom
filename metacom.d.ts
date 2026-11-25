@@ -853,7 +853,7 @@ export declare function checkData(frame: Frame): Result<boolean>;
 export declare class Connection extends EventEmitter {
   constructor(socket: Socket, head: Buffer, options?: ConnectionOptions);
 
-  send(data: string | Buffer): boolean;
+  send(data: string | ArrayBufferView): boolean;
   sendText(message: string): boolean;
   sendBinary(buffer: Buffer): boolean;
   sendPing(payload?: Buffer | string): boolean;
