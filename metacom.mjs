@@ -1171,8 +1171,7 @@ class ClientEventTransport extends ClientTransport {
   }
 
   announce(id) {
-    if (!this.#port) throw new Error('Not connected');
-    this.#port.postMessage({ type: 'metacom:stream', id });
+    this.send({ type: 'metacom:stream', id });
   }
 
   online() {
@@ -2427,7 +2426,6 @@ class MetacomRouter extends Emitter {
   #upstream = NO_UPSTREAM;
   #connecting = false;
   #attempted = false;
-  #connected = false;
   #callTimeout = CALL_TIMEOUT_MS;
   #sweepInterval = SWEEP_INTERVAL_MS;
   #sweepTimer = null;
@@ -2465,11 +2463,7 @@ class MetacomRouter extends Emitter {
     };
     const server = options.upstream ?? Metacom.create(url, upstreamOptions);
     server.setProxy(proxy);
-    server.on('open', () => this.#notify(true));
-    server.on('close', () => {
-      this.#abortStreams();
-      this.#notify(false);
-    });
+    server.on('close', () => this.#abortStreams());
     server.on('error', (error) => this.#escalate(error));
     return server;
   }
@@ -2531,12 +2525,10 @@ class MetacomRouter extends Emitter {
       this.receive(port, data);
     });
     port.start();
-    const instance = this.#instance;
-    const connected = this.#upstream.active;
-    port.postMessage({ type: 'metacom:ready', instance, connected });
     this.#startSweep();
     this.emit('connect', id);
-    if (!connected) this.open().catch((error) => this.#escalate(error));
+    if (this.#upstream.active) return;
+    this.open().catch((error) => this.#escalate(error));
   }
 
   detach(id) {
@@ -2606,14 +2598,6 @@ class MetacomRouter extends Emitter {
     }
   }
 
-  // Failed reconnect attempts close the transport again and again
-  #notify(connected) {
-    if (this.#connected === connected) return;
-    this.#connected = connected;
-    const message = { type: 'metacom:status', connected };
-    for (const port of this.#ports.keys()) port.postMessage(message);
-  }
-
   #post(data) {
     for (const port of this.#ports.keys()) port.postMessage(data);
   }
@@ -2627,12 +2611,9 @@ class MetacomRouter extends Emitter {
   }
 
   receive(port, data) {
-    const peer = this.#ports.get(port);
-    if (!peer) return;
+    if (!this.#ports.has(port)) return;
     if (typeof data === 'string') return void this.#receivePacket(port, data);
-    if (ArrayBuffer.isView(data)) return void this.#forwardChunk(port, data);
-    const isAnnounce = data?.type === 'metacom:stream';
-    if (isAnnounce) this.#expectStream(port, data.id);
+    if (ArrayBuffer.isView(data)) this.#forwardChunk(port, data);
   }
 
   #receivePacket(port, data) {
@@ -3214,10 +3195,7 @@ class MetacomPeer extends Emitter {
     const messageListeners = new Set();
     this.#sessions.set(rtc.peerId, session);
     const port = {
-      postMessage: (data) => {
-        if (typeof data === 'object' && !ArrayBuffer.isView(data)) return true;
-        return transport.write(data);
-      },
+      postMessage: (data) => transport.write(data),
       drain: () => transport.drain(),
       addEventListener: (name, listener) => {
         if (name !== 'message') return;
@@ -3269,6 +3247,28 @@ class MetacomPeer extends Emitter {
 
 // proxy.js
 
+// Service Worker control messages, the tab port carries metacom packets
+const CONTROL = {
+  'metacom:connect': (proxy, event) => {
+    const clientId = event.source?.id ?? '';
+    proxy.attach(event.ports[0], { ...event.data, clientId });
+  },
+  'metacom:ping': (proxy, event) => {
+    const port = proxy.port(event.data.id);
+    if (!port) return void event.source?.postMessage({ type: 'metacom:reset' });
+    port.postMessage({ type: 'metacom:pong', instance: proxy.instance });
+  },
+  'metacom:disconnect': (proxy, event) => {
+    proxy.detach(event.data.id);
+  },
+  'metacom:online': () => {
+    Metacom.online();
+  },
+  'metacom:offline': () => {
+    Metacom.offline();
+  },
+};
+
 const getWorkerUrl = () => {
   const { protocol, host } = self.location;
   const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
@@ -3278,6 +3278,8 @@ const getWorkerUrl = () => {
 class MetacomProxy extends MetacomRouter {
   #scope;
   #listener;
+  #tabs = new Set();
+  #connected = false;
 
   constructor(options = {}) {
     const scope = globalThis.self;
@@ -3292,32 +3294,35 @@ class MetacomProxy extends MetacomRouter {
     this.#scope = scope;
     this.#listener = (event) => this.#control(event);
     scope.addEventListener('message', this.#listener);
+    this.on('connect', (id) => this.#tabs.add(id));
+    this.on('disconnect', (id) => this.#tabs.delete(id));
+    this.server.on('open', () => this.#notify(true));
+    this.server.on('close', () => this.#notify(false));
   }
 
   #control(event) {
-    if (!event.data) return;
-    const { type, id } = event.data;
-    if (type === 'metacom:connect') {
-      this.attach(event.ports[0], {
-        ...event.data,
-        clientId: event.source?.id ?? '',
-      });
-    } else if (type === 'metacom:ping') {
-      const port = this.port(id);
-      if (port) {
-        port.postMessage({ type: 'metacom:pong', instance: this.instance });
-      } else {
-        event.source?.postMessage({ type: 'metacom:reset' });
-      }
-    } else if (type === 'metacom:disconnect') {
-      this.detach(id);
-    } else if (type === 'metacom:online') {
-      Metacom.online();
-    } else if (type === 'metacom:offline') {
-      Metacom.offline();
-    }
+    const type = event.data?.type;
+    const handler = Object.hasOwn(CONTROL, type) ? CONTROL[type] : null;
+    if (handler) handler(this, event);
   }
 
+  // Tab waits for ready before it treats the port as connected
+  attach(port, options = {}) {
+    if (!port) return;
+    const { instance, active: connected } = this;
+    port.postMessage({ type: 'metacom:ready', instance, connected });
+    super.attach(port, options);
+  }
+
+  // Failed reconnect attempts close the transport again and again
+  #notify(connected) {
+    if (this.#connected === connected) return;
+    this.#connected = connected;
+    const message = { type: 'metacom:status', connected };
+    for (const id of this.#tabs) this.port(id).postMessage(message);
+  }
+
+  // Disconnect goes through the port to follow packets sent before it
   receive(port, data) {
     if (data?.type !== 'metacom:disconnect') {
       return void super.receive(port, data);

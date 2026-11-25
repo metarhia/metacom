@@ -82,7 +82,8 @@ test('Router: reject foreign chunks and announcements', async (t) => {
     a,
     JSON.stringify({ type: 'stream', id: 's', name: 'data', size: 1 }),
   );
-  router.receive(b, { type: 'metacom:stream', id: 's' });
+  const announce = { type: 'metacom:stream', id: 's' };
+  router.receive(b, JSON.stringify(announce));
   const chunk = chunkEncode('s', new Uint8Array([7]));
   const count = RouterTransport.last.sent.length;
   router.receive(b, chunk);
