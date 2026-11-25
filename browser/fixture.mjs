@@ -21,18 +21,16 @@ const rtc = (localId, peerId, role) => ({
 const bytes = () =>
   Uint8Array.from({ length: 100000 }, (_, index) => index % 251);
 const equalBytes = (actual, expected) => {
-  if (
-    actual.length !== expected.length ||
-    actual.some((value, index) => value !== expected[index])
-  ) {
-    throw new Error('Browser stream bytes differ');
-  }
+  const sameLength = actual.length === expected.length;
+  const differs = (value, index) => value !== expected[index];
+  if (sameLength && !actual.some(differs)) return;
+  throw new Error('Browser stream bytes differ');
 };
 
-let host;
-let client;
-let owner;
-let registration;
+let host = null;
+let client = null;
+let owner = null;
+let registration = null;
 
 globalThis.lab = {
   hostReady: null,

@@ -1,4 +1,4 @@
-export const broadcastSignaling = (name) => {
+const broadcastSignaling = (name) => {
   const channel = new BroadcastChannel(name);
   return {
     send(message) {
@@ -15,7 +15,7 @@ export const broadcastSignaling = (name) => {
   };
 };
 
-export const windowSignaling = (target, origin) => ({
+const windowSignaling = (target, origin) => ({
   send(message) {
     target.postMessage(message, origin);
   },
@@ -29,3 +29,5 @@ export const windowSignaling = (target, origin) => ({
     return () => window.removeEventListener('message', receive);
   },
 });
+
+export { broadcastSignaling, windowSignaling };

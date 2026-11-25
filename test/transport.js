@@ -7,8 +7,8 @@ const assert = require('node:assert/strict');
 
 const { WebsocketServer } = require('#ws');
 const transport = require('../lib/transport.js');
-const { buildHeaders, ServerTransport, ClientTransport } = transport;
-const { ClientWsTransport, isApiPath } = transport;
+const { buildHeaders, ServerTransport, isApiPath } = transport;
+const { ClientTransport, ClientWsTransport } = require('../lib/client.js');
 
 test('isApiPath: matches /api and its subpaths only', () => {
   assert.equal(isApiPath('/api'), true);
