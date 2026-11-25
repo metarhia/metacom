@@ -73,6 +73,20 @@ const takeCall = (calls, id) => {
   return pending;
 };
 
+// Tab side of a Service Worker link, returns a function to stop watching
+const watchWorker = (container, handlers) => {
+  const { onMessage, onControllerChange, onPageHide } = handlers;
+  const page = globalThis.window;
+  container?.addEventListener('message', onMessage);
+  container?.addEventListener('controllerchange', onControllerChange);
+  page?.addEventListener('pagehide', onPageHide);
+  return () => {
+    container?.removeEventListener('message', onMessage);
+    container?.removeEventListener('controllerchange', onControllerChange);
+    page?.removeEventListener('pagehide', onPageHide);
+  };
+};
+
 // Writers waiting for a send queue to flush
 class Waiters {
   #list = [];
@@ -985,9 +999,8 @@ class ClientEventTransport extends ClientTransport {
   #pingInterval = PING_INTERVAL_MS;
   #pongTimeout = PONG_TIMEOUT_MS;
   #handshakeTimeout = HANDSHAKE_TIMEOUT_MS;
-  #onContainerMessage = null;
-  #onControllerChange = null;
-  #onPageHide = null;
+  #handlers = null;
+  #unwatch = null;
 
   static getInstance(url) {
     if (ClientEventTransport.instance) {
@@ -1004,20 +1017,21 @@ class ClientEventTransport extends ClientTransport {
 
   constructor(url) {
     super(url);
-    this.#onContainerMessage = ({ data }) => {
+    const onMessage = ({ data }) => {
       if (data?.type === 'metacom:reset') this.#drop();
     };
     // First claim reports the worker this tab is already connected to
-    this.#onControllerChange = () => {
+    const onControllerChange = () => {
       const { controller } = this.#container;
       if (!controller || controller === this.#worker) return;
       this.#worker = controller;
       this.#drop();
     };
-    this.#onPageHide = () => {
+    const onPageHide = () => {
       this.#disconnect();
       this.#drop();
     };
+    this.#handlers = { onMessage, onControllerChange, onPageHide };
   }
 
   async open(options = {}) {
@@ -1085,7 +1099,7 @@ class ClientEventTransport extends ClientTransport {
     clearTimeout(handshake.timer);
     this.#instance = instance;
     this.active = true;
-    this.#bind();
+    this.#unwatch = watchWorker(this.#container, this.#handlers);
     this.#pingTimer = startInterval(() => this.#ping(), this.#pingInterval);
     this.emit('open');
     handshake.resolve();
@@ -1117,34 +1131,14 @@ class ClientEventTransport extends ClientTransport {
     if (instance !== this.#instance) this.#drop();
   }
 
-  #bind() {
-    const container = this.#container;
-    if (container) {
-      container.addEventListener('message', this.#onContainerMessage);
-      container.addEventListener('controllerchange', this.#onControllerChange);
-    }
-    if (typeof window === 'undefined') return;
-    window.addEventListener('pagehide', this.#onPageHide);
-  }
-
-  #unbind() {
-    const container = this.#container;
-    if (container) {
-      container.removeEventListener('message', this.#onContainerMessage);
-      const onChange = this.#onControllerChange;
-      container.removeEventListener('controllerchange', onChange);
-    }
-    if (typeof window === 'undefined') return;
-    window.removeEventListener('pagehide', this.#onPageHide);
-  }
-
   #release() {
     clearInterval(this.#pingTimer);
     clearTimeout(this.#pongTimer);
     this.#pingTimer = null;
     this.#pongTimer = null;
     if (this.#handshake) this.#reject(new Error('Connection closed'));
-    this.#unbind();
+    this.#unwatch?.();
+    this.#unwatch = null;
     if (this.#port) this.#port.close();
     this.#port = null;
     this.active = false;
@@ -1541,10 +1535,7 @@ class MetacomRtcBridge {
   #timer;
   #heartbeat = null;
   #lastPong = Date.now();
-  #container;
-  #onReset;
-  #onController;
-  #onPageHide;
+  #unwatch;
   #onPort;
   closed = false;
 
@@ -1564,26 +1555,26 @@ class MetacomRtcBridge {
     };
     port1.addEventListener('message', this.#onPort);
     port1.start();
-    this.#container = globalThis.navigator?.serviceWorker;
-    this.#onReset = ({ data }) => {
+    const container = globalThis.navigator?.serviceWorker;
+    const onMessage = ({ data }) => {
       const reset = data?.type === 'metacom:rtc-bridge:reset';
       const current = reset && data.generation === this.#generation;
       if (current) this.close(new Error('RTC bridge worker restarted'));
     };
-    this.#onController = () => {
-      const controller = this.#container.controller;
+    const onControllerChange = () => {
+      const { controller } = container;
       if (controller && controller !== worker) {
         this.close(new Error('RTC bridge controller replaced'));
       }
     };
-    this.#onPageHide = () => this.close();
-    this.#container?.addEventListener('message', this.#onReset);
-    this.#container?.addEventListener('controllerchange', this.#onController);
-    globalThis.window?.addEventListener('pagehide', this.#onPageHide);
-    this.#timer = setTimeout(
-      () => this.close(new Error('RTC bridge handshake timeout')),
-      rtcOptions.handshakeTimeout ?? RTC_BRIDGE_HANDSHAKE_MS,
-    );
+    const onPageHide = () => this.close();
+    const handlers = { onMessage, onControllerChange, onPageHide };
+    this.#unwatch = watchWorker(container, handlers);
+    const timeout = rtcOptions.handshakeTimeout ?? RTC_BRIDGE_HANDSHAKE_MS;
+    const onTimeout = () => {
+      this.close(new Error('RTC bridge handshake timeout'));
+    };
+    this.#timer = setTimeout(onTimeout, timeout);
     try {
       const { peerId, localId } = rtcOptions;
       const body = { peerId, localId };
@@ -1599,56 +1590,66 @@ class MetacomRtcBridge {
     if (data.version !== RTC_BRIDGE_VERSION) {
       throw new Error('RTC bridge version mismatch');
     }
-    if (data.kind === 'error') throw new Error(data.message);
-    if (data.kind === 'accepted') {
-      const linked = Boolean(this.#link);
-      const badPeer = data.peerId !== this.#rtc.peerId;
-      const badInstance = typeof data.instance !== 'string';
-      if (linked || badPeer || badInstance) {
-        throw new Error('Invalid RTC bridge acceptance');
-      }
-      this.#instance = data.instance;
-      this.#link = new RtcBridgeLink(
-        this.#port,
-        this.#generation,
-        async (packet) => {
-          if (!this.#transport.write(packet)) await this.#transport.drain();
-        },
-      );
-      this.#link.on('close', (error) => this.close(error));
-      this.#transport.on('message', (packet) => this.#link.write(packet));
-      this.#transport.on('close', () =>
-        this.close(new Error('RTC bridge peer disconnected')),
-      );
-      await this.#transport.open({ rtc: this.#rtc });
-      if (this.closed) return;
-      this.#link.post('ready', {
-        instance: this.#instance,
-        peerId: this.#rtc.peerId,
-      });
-    } else if (data.kind === 'ready-ack') {
-      if (data.instance !== this.#instance) {
-        throw new Error('RTC bridge worker changed');
-      }
-      clearTimeout(this.#timer);
-      this.#lastPong = Date.now();
-      this.#resolve();
-      const pongTimeout = this.#rtc.pongTimeout ?? RTC_BRIDGE_PONG_MS;
-      const pingInterval = this.#rtc.pingInterval ?? RTC_BRIDGE_PING_MS;
-      const ping = rtcBridgeMessage(this.#generation, 'ping');
-      this.#heartbeat = startInterval(() => {
-        if (Date.now() - this.#lastPong > pongTimeout) {
-          const error = new Error('RTC bridge worker heartbeat timeout');
-          return void this.close(error);
-        }
-        this.#worker.postMessage(ping);
-      }, pingInterval);
-    } else if (data.kind === 'pong') {
-      if (data.instance !== this.#instance) {
-        throw new Error('RTC bridge worker changed');
-      }
-      this.#lastPong = Date.now();
+    const { kind } = data;
+    if (kind === 'error') throw new Error(data.message);
+    if (kind === 'accepted') await this.#accepted(data);
+    else if (kind === 'ready-ack') this.#readyAck(data);
+    else if (kind === 'pong') this.#pong(data);
+  }
+
+  // Worker took the port: connect the peer, then report ready
+  async #accepted(data) {
+    const linked = Boolean(this.#link);
+    const badPeer = data.peerId !== this.#rtc.peerId;
+    const badInstance = typeof data.instance !== 'string';
+    if (linked || badPeer || badInstance) {
+      throw new Error('Invalid RTC bridge acceptance');
     }
+    this.#instance = data.instance;
+    const transport = this.#transport;
+    const deliver = async (packet) => {
+      if (!transport.write(packet)) await transport.drain();
+    };
+    const link = new RtcBridgeLink(this.#port, this.#generation, deliver);
+    this.#link = link;
+    const onDisconnect = () => {
+      this.close(new Error('RTC bridge peer disconnected'));
+    };
+    link.on('close', (error) => this.close(error));
+    transport.on('message', (packet) => link.write(packet));
+    transport.on('close', onDisconnect);
+    await transport.open({ rtc: this.#rtc });
+    if (this.closed) return;
+    const { peerId } = this.#rtc;
+    link.post('ready', { instance: this.#instance, peerId });
+  }
+
+  #readyAck(data) {
+    this.#checkInstance(data);
+    clearTimeout(this.#timer);
+    this.#lastPong = Date.now();
+    this.#resolve();
+    const pongTimeout = this.#rtc.pongTimeout ?? RTC_BRIDGE_PONG_MS;
+    const pingInterval = this.#rtc.pingInterval ?? RTC_BRIDGE_PING_MS;
+    const ping = rtcBridgeMessage(this.#generation, 'ping');
+    const beat = () => {
+      if (Date.now() - this.#lastPong > pongTimeout) {
+        const error = new Error('RTC bridge worker heartbeat timeout');
+        return void this.close(error);
+      }
+      this.#worker.postMessage(ping);
+    };
+    this.#heartbeat = startInterval(beat, pingInterval);
+  }
+
+  #pong(data) {
+    this.#checkInstance(data);
+    this.#lastPong = Date.now();
+  }
+
+  #checkInstance(data) {
+    if (data.instance === this.#instance) return;
+    throw new Error('RTC bridge worker changed');
   }
 
   close(error = new Error('RTC bridge owner closed')) {
@@ -1656,12 +1657,7 @@ class MetacomRtcBridge {
     this.closed = true;
     clearTimeout(this.#timer);
     clearInterval(this.#heartbeat);
-    this.#container?.removeEventListener('message', this.#onReset);
-    this.#container?.removeEventListener(
-      'controllerchange',
-      this.#onController,
-    );
-    globalThis.window?.removeEventListener('pagehide', this.#onPageHide);
+    this.#unwatch();
     this.#port.removeEventListener('message', this.#onPort);
     this.#link?.close(error);
     this.#transport.close();
@@ -3361,6 +3357,7 @@ export {
   registerUnit,
   expectCall,
   takeCall,
+  watchWorker,
   Waiters,
   RtcConnection,
   retireRtcGeneration,
