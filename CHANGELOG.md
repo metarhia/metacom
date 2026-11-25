@@ -2,6 +2,9 @@
 
 ## [Unreleased][unreleased]
 
+- WebSocket `Connection.send` accepts any `ArrayBufferView`, server frames
+  are written without intermediate objects
+- WebSocket server ping timer does not keep the process alive
 - `MetacomProxy` owns the tab protocol: it sends `metacom:ready` and
   `metacom:status`, while `MetacomRouter` carries only packets
 - Breaking: download announcements `metacom:stream` go as JSON packets only,
